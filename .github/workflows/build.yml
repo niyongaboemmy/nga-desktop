@@ -1,0 +1,39 @@
+# Unsigned test installers on demand (Actions → Test installers → Run),
+# uploaded as workflow artifacts: no GitHub Release, nothing auto-updates to
+# them. Manual on purpose: macOS runner minutes are billed at a multiple of
+# Linux minutes on private repos.
+name: Test installers
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: test-installers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin --bundles app,dmg
+          - platform: windows-latest
+            args: --bundles nsis,msi
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v1
+        with:
+          args: ${{ matrix.args }}
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: "NGA-[version]-[platform]-[arch]-[bundle]"

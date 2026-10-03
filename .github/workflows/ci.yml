@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shell-ui:
+    name: Shell UI (typecheck, test, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Node 24 ships npm 11, the npm that wrote package-lock.json
+      # (an npm-10 `npm ci` rejects npm-11 lock files).
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test -- --run
+      - run: npm run build
+
+  native:
+    name: Native core (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci && npm run build
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "clippy, rustfmt" }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - run: cargo fmt --check
+        working-directory: src-tauri
+      - run: cargo clippy --locked --all-targets -- -D warnings
+        working-directory: src-tauri
+      - run: cargo test --locked
+        working-directory: src-tauri

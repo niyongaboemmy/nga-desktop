@@ -1,0 +1,56 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "NGA",
+  "mainBinaryName": "NGA",
+  "version": "../package.json",
+  "identifier": "com.amashuri.nga.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [],
+    "withGlobalTauri": false,
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: https://mis.amashuri.com https://taskmentor.amashuri.com https://tendo.amashuri.com https://tupo.amashuri.com",
+        "connect-src": "'self' ipc: http://ipc.localhost https://mis.amashuri.com https://taskmentor.amashuri.com https://tendo.amashuri.com https://tupo.amashuri.com"
+      },
+      "capabilities": ["shell"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "dmg", "app"],
+    "publisher": "New Generation Academy",
+    "copyright": "© 2026 New Generation Academy",
+    "category": "Education",
+    "shortDescription": "NGA MIS, Task Mentor, Tendo and Tupo in one app",
+    "longDescription": "One window for every New Generation Academy app: NGA MIS, Task Mentor, Tendo and Tupo, signed in once through NGA MIS.",
+    "homepage": "https://mis.amashuri.com",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "entitlements": "./entitlements.plist",
+      "infoPlist": "./Info.plist",
+      "dmg": { "windowSize": { "width": 660, "height": 400 } }
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "nsis": { "installMode": "currentUser", "displayLanguageSelector": false },
+      "wix": { "language": "en-US" }
+    }
+  }
+}
