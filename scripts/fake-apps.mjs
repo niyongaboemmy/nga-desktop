@@ -19,6 +19,10 @@ import http from "node:http";
 
 const started = Date.now();
 let misFirstRequest = 0;
+// FAKE_SIGNOUT_TEST=1: Tupo's own "Sign out" is pressed 25 s after it opens;
+// visiting MIS's /login then counts as signed out, and the person signs in
+// again 15 s later.
+let misLoggedOutAt = 0;
 const tick = () => Math.floor((Date.now() - started) / 20_000); // a new item every 20 s
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -53,7 +57,16 @@ http
     const url = new URL(req.url, "http://localhost:5173");
     // FAKE_SIGNED_OUT_FOR=<s>: MIS starts signed out and "signs in" after that long.
     misFirstRequest ||= Date.now(); // counted from the app's first visit
-    const misSignedIn = Date.now() - misFirstRequest >= Number(process.env.FAKE_SIGNED_OUT_FOR || 0) * 1000;
+    if (process.env.FAKE_SIGNOUT_TEST && url.pathname === "/login" && !url.searchParams.get("client_id") && !misLoggedOutAt && Date.now() - misFirstRequest > 5000) {
+      misLoggedOutAt = Date.now();
+      log("MIS  signed out (logout)");
+    }
+    if (misLoggedOutAt && Date.now() - misLoggedOutAt > 15000) {
+      misLoggedOutAt = 0;
+      log("MIS  the person signs in again");
+    }
+    const misSignedIn =
+      !misLoggedOutAt && Date.now() - misFirstRequest >= Number(process.env.FAKE_SIGNED_OUT_FOR || 0) * 1000;
     if (url.pathname === "/__mis_state") return json(res, { signedIn: misSignedIn });
     if (url.pathname === "/login" && !misSignedIn) {
       log("MIS  sign-in form shown", url.searchParams.get("client_id") ? `(SSO hop for ${url.searchParams.get("client_id")})` : "");
@@ -207,7 +220,7 @@ http
     }
     // Like the real Tupo: the callback exchanges the code, then a client-side
     // navigation (no page load) to the app.
-    if (url.pathname === "/sso/callback") return html(res, page("Tupo", `<p>Verifying your session…</p><script>setTimeout(()=>{history.replaceState(null,'','/app/chat');document.querySelector('h1').textContent='Tupo chat (SPA)';},1200)</script>`));
+    if (url.pathname === "/sso/callback") return html(res, page("Tupo", `<p>Verifying your session…</p><script>setTimeout(()=>{history.replaceState(null,'','/app/chat');document.querySelector('h1').textContent='Tupo chat (SPA)';},1200)${process.env.FAKE_SIGNOUT_TEST ? ";if(!sessionStorage.getItem('so')){setTimeout(()=>{sessionStorage.setItem('so','1');location.href='/';},25000);}" : ""}</script>`));
     if (url.pathname === "/") return html(res, page("Tupo sign-in (fake)", `<p>Signed-out page.</p>`));
     return html(
       res,
@@ -215,6 +228,7 @@ http
         "Tupo (fake)",
         `<p>Like Tupo: a system notification for each new message while the tab is hidden; badge = unread.</p>
 <script>
+${process.env.FAKE_SIGNOUT_TEST ? "if(!sessionStorage.getItem('so')){setTimeout(()=>{sessionStorage.setItem('so','1');out('Tupo: Sign out pressed');location.href='/';},25000);}" : ""}
 let unread=0, n=0;
 out('Notification.permission = '+Notification.permission);
 setInterval(()=>{

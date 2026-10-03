@@ -558,11 +558,27 @@ fn on_page_load<R: Runtime>(app: &AppHandle<R>, wv: &Webview<R>, event: PageLoad
                 let _ = wv.navigate(back);
                 return;
             }
-            // A spoke going through the sign-in handshake again (MIS just signed
-            // in, a session expired): back behind the loading screen until it lands.
             if let Some(def) = registry::find(&shell.apps, &key) {
-                if def.sso.is_some() && !crate::auth::shows_immediately(def, url) {
-                    mark_unready(app, &key);
+                if def.sso.is_some() {
+                    // "Sign out" pressed inside the app (it only signs itself out
+                    // and loads its sign-in page): with one NGA sign-in, that
+                    // means signing out of NGA. Otherwise NGA would just sign it
+                    // straight back in through MIS.
+                    if crate::auth::classify(def, url) == crate::auth::Page::SignedOut
+                        && crate::auth::was_signed_in(&key)
+                        && crate::auth::mis_signed_in() == Some(true)
+                    {
+                        log::info!("[{key}] signed out in the app: signing out of NGA");
+                        tauri::async_runtime::spawn(crate::auth::sign_out_everywhere(
+                            app.clone(),
+                            false,
+                        ));
+                    }
+                    // Through the sign-in handshake again (MIS just signed in, a
+                    // session expired): behind the loading screen until it lands.
+                    if !crate::auth::shows_immediately(def, url) {
+                        mark_unready(app, &key);
+                    }
                 }
             }
             emit(

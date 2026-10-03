@@ -6,6 +6,7 @@ import { Settings } from "./components/Settings";
 import { NoticePanel } from "./components/NoticePanel";
 import { Onboarding } from "./components/Onboarding";
 import { SigninProgress } from "./components/SigninProgress";
+import { SignedOutScreen, SigningOutScreen } from "./components/AuthScreens";
 import { native, on, type AppKey, type Notice, type NoticeSummary, type ShellInfo } from "./lib/native";
 import { isSlow, reduce } from "./lib/appState";
 import { readSettings, saveSetting, type RecentPage } from "./lib/settings";
@@ -41,6 +42,11 @@ export default function App() {
   const [focusSession, setFocusSession] = useState<AppKey | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
   const [signin, setSignin] = useState<"waiting" | "completing" | "idle">("idle");
+  const [signingOut, setSigningOut] = useState(false);
+  // The NGA MIS session: null until known. While false, the other apps' tabs
+  // show "Sign in with NGA MIS" instead of a sign-in form of their own.
+  const [misSignedIn, setMisSignedIn] = useState<boolean | null>(null);
+  const misSignedInRef = useRef<boolean | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const lastUrl = useRef<Partial<Record<AppKey, string>>>({});
 
@@ -63,8 +69,10 @@ export default function App() {
   const open = useCallback((key: AppKey) => {
     setPage("app");
     setActive(key);
-    dispatch({ type: "opened", key, at: Date.now() });
     void saveSetting("lastApp", key);
+    // Signed out: no sign-in form inside this app's tab (see SignedOutScreen).
+    if (key !== "mis" && misSignedInRef.current === false) return;
+    dispatch({ type: "opened", key, at: Date.now() });
     void native.openApp(key);
   }, []);
 
@@ -163,7 +171,28 @@ export default function App() {
         setActive((a) => (a && keys.includes(a) ? null : a));
       }),
       on("nga://auth", (signedIn) => {
-        if (!signedIn) setActive((a) => (a === null ? (open("mis"), "mis") : a));
+        misSignedInRef.current = signedIn;
+        setMisSignedIn(signedIn);
+        if (signedIn) {
+          // Signed in: an app tab that was waiting opens now (it syncs behind its loading screen).
+          setActive((a) => {
+            if (a && a !== "mis") {
+              dispatch({ type: "opened", key: a, at: Date.now() });
+              void native.openApp(a);
+            }
+            return a;
+          });
+        } else {
+          dispatch({ type: "closed", keys: ["taskmentor", "tendo", "tupo"] });
+          setActive((a) => (a === null ? (open("mis"), "mis") : a));
+        }
+      }),
+      on("nga://signout", (phase) => {
+        setSigningOut(phase === "start");
+        if (phase === "done") {
+          setPage("app");
+          open("mis");
+        }
       }),
       on("nga://menu", (id) => {
         if (id === "focus") setFocus((f) => !f);
@@ -211,7 +240,11 @@ export default function App() {
 
   // Settings and the sign-in progress screen cover the app area (native app
   // views draw above this page).
-  useEffect(() => void native.setCovered(page !== "app" || signin !== "idle"), [page, signin]);
+  const waitingForSignIn = misSignedIn === false && !!active && active !== "mis";
+  useEffect(
+    () => void native.setCovered(page !== "app" || signin !== "idle" || signingOut || waitingForSignIn),
+    [page, signin, signingOut, waitingForSignIn],
+  );
 
   const view = active ? views[active] : undefined;
 
@@ -246,10 +279,14 @@ export default function App() {
   const app = info.apps.find((a) => a.key === active) ?? null;
 
   const content =
-    signin !== "idle" ? (
+    signingOut ? (
+      <SigningOutScreen />
+    ) : signin !== "idle" ? (
       <SigninProgress phase={signin} />
     ) : page === "settings" ? (
       <Settings info={info} themePref={themePref} onTheme={chooseTheme} />
+    ) : app && waitingForSignIn ? (
+      <SignedOutScreen app={app} onSignIn={() => open("mis")} />
     ) : app && view?.status !== "ready" ? (
       <Splash
         app={app}
@@ -295,7 +332,12 @@ export default function App() {
       )}
       <div className="body">
         <div className="viewport" ref={viewport}>
-          <div key={signin !== "idle" ? `signin-${signin}` : page === "settings" ? "settings" : active ?? "none"} className="page-anim">{content}</div>
+          <div
+            key={signingOut ? "signout" : signin !== "idle" ? `signin-${signin}` : page === "settings" ? "settings" : `${active ?? "none"}-${waitingForSignIn}`}
+            className="page-anim"
+          >
+            {content}
+          </div>
         </div>
         {panel && !focus && <NoticePanel apps={info.apps} onClose={() => setPanel(false)} />}
       </div>

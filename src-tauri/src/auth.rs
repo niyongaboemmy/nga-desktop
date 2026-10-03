@@ -28,7 +28,76 @@ const TICK: Duration = Duration::from_millis(400);
 /// MIS first shows /home from a cached token, and only then checks the session
 /// with the server and may move to /login.
 const STABLE: Duration = Duration::from_secs(3);
-const STABLE_SIGNED_IN: Duration = Duration::from_secs(6);
+const STABLE_SIGNED_IN: Duration = Duration::from_secs(3);
+
+// ── What other modules need to know ─────────────────────────────────────────
+
+/// MIS session as last seen: 0 unknown, 1 signed in, 2 signed out.
+static MIS_STATE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+/// Apps last seen on one of their own signed-in pages (updated every tick, so
+/// it follows client-side page changes too).
+static SIGNED_IN_APPS: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
+static SIGNING_OUT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn mis_signed_in() -> Option<bool> {
+    match MIS_STATE.load(std::sync::atomic::Ordering::SeqCst) {
+        1 => Some(true),
+        2 => Some(false),
+        _ => None,
+    }
+}
+
+fn set_mis_state(state: Option<bool>) {
+    let v = match state {
+        Some(true) => 1,
+        Some(false) => 2,
+        None => 0,
+    };
+    MIS_STATE.store(v, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn was_signed_in(key: &str) -> bool {
+    SIGNED_IN_APPS.lock().unwrap().contains(&key)
+}
+
+/// Sign out of every NGA app: MIS signs out (which ends every app's session
+/// through the back-channel logout), the other apps close, and the shell shows
+/// "Signing you out…" until MIS's sign-in page is back. `wipe`: also clear the
+/// whole browsing profile (Settings → "Sign out of this computer").
+pub async fn sign_out_everywhere<R: Runtime>(app: AppHandle<R>, wipe: bool) {
+    use std::sync::atomic::Ordering;
+    if SIGNING_OUT.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let _ = app.emit_to(webviews::SHELL, "nga://signout", "start");
+    let mis_key = registry::identity_provider(&app.state::<Shell>().apps).key;
+    if let Some(mis) = app.get_webview(&webviews::label(mis_key)) {
+        let js = format!(
+            "(function(){{var go=function(){{try{{localStorage.removeItem('token')}}catch(e){{}}location.replace('/login')}};try{{var t=localStorage.getItem('token');if(t){{fetch('{api}/auth/logout',{{method:'POST',credentials:'include',keepalive:true,headers:{{Authorization:'Bearer '+t}}}}).catch(function(){{}}).then(go);setTimeout(go,1200);return}}}}catch(e){{}}go()}})();",
+            api = registry::mis_api_base()
+        );
+        let _ = mis.eval(js);
+    }
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    webviews::close_spokes(&app);
+    webviews::forget_sso(&app);
+    SIGNED_IN_APPS.lock().unwrap().clear();
+    set_mis_state(Some(false));
+    let _ = app.emit_to(webviews::SHELL, "nga://auth", false);
+    if wipe {
+        if let Some(shell) = app.get_webview(webviews::SHELL) {
+            let _ = shell.clear_all_browsing_data();
+        }
+        webviews::close_all_apps(&app);
+        let _ = app.emit_to(webviews::SHELL, "nga://signed-out", ());
+    }
+    app.state::<crate::notifications::Notifier>().clear();
+    crate::notifications::publish(&app);
+    // Let MIS's sign-in page settle before the screen goes away.
+    tokio::time::sleep(Duration::from_millis(700)).await;
+    SIGNING_OUT.store(false, Ordering::SeqCst);
+    let _ = app.emit_to(webviews::SHELL, "nga://signout", "done");
+}
 const RESSO_EVERY: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,11 +156,19 @@ pub fn reveal(
     held: Duration,
     waiting: Duration,
 ) -> bool {
-    if shows_now || waiting >= Duration::from_secs(20) {
+    if shows_now {
+        return true;
+    }
+    // On MIS's sign-in form inside the app's tab: never. The person signs in
+    // once, in MIS; the shell shows "Sign in to NGA MIS" for this tab instead.
+    if page == Page::Elsewhere {
+        return false;
+    }
+    if waiting >= Duration::from_secs(20) {
         return true;
     }
     match page {
-        Page::SignedOut | Page::Elsewhere => held >= Duration::from_secs(4),
+        Page::SignedOut => held >= Duration::from_secs(4),
         Page::Neutral if callback => held >= Duration::from_secs(10),
         _ => false,
     }
@@ -169,6 +246,15 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
         };
         let Ok(url) = wv.url() else { continue };
         let page = classify(def, &url);
+        {
+            let mut list = SIGNED_IN_APPS.lock().unwrap();
+            let present = list.contains(&def.key);
+            if page == Page::SignedIn && !present {
+                list.push(def.key);
+            } else if page == Page::SignedOut && present {
+                list.retain(|k| *k != def.key);
+            }
+        }
         let since = match watch.seen.get(def.key) {
             Some((p, t)) if *p == page => *t,
             _ => {
@@ -227,6 +313,7 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
         let mis_url = webviews::redact(mis_url);
         let (next, change) = mis_change(watch.mis, *page);
         watch.mis = next;
+        set_mis_state(next);
         match change {
             Some(MisChange::SignedIn) => {
                 log::info!("MIS signed in ({mis_url})");
@@ -258,6 +345,7 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
                 log::info!("MIS signed out ({mis_url}): closing the other apps");
                 webviews::close_spokes(app);
                 webviews::forget_sso(app);
+                SIGNED_IN_APPS.lock().unwrap().clear();
                 watch.seen.retain(|k, _| *k == mis_key);
                 let _ = app.emit_to(webviews::SHELL, "nga://auth", false);
                 return;
@@ -437,9 +525,11 @@ mod tests {
         // The hop in progress: hidden.
         assert!(!reveal(false, Page::Elsewhere, false, s(2), s(2)));
         assert!(!reveal(false, Page::Neutral, true, s(3), s(5)));
-        // Stuck on MIS's sign-in form (MIS signed out): the person must act.
-        assert!(reveal(false, Page::Elsewhere, false, s(4), s(6)));
-        // Never longer than 20 s.
+        // On MIS's sign-in form inside the app's tab: never (one sign-in, in MIS).
+        assert!(!reveal(false, Page::Elsewhere, false, s(30), s(60)));
+        // The app's own sign-in page held: shown so the person can act.
+        assert!(reveal(false, Page::SignedOut, false, s(4), s(6)));
+        // Anything else: never longer than 20 s.
         assert!(reveal(false, Page::Neutral, true, s(1), s(20)));
     }
 

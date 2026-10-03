@@ -5,7 +5,6 @@
 use crate::registry::{self, AppDef};
 use crate::webviews::{self, Shell, SHELL};
 use serde::Serialize;
-use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_opener::OpenerExt;
 
@@ -144,19 +143,8 @@ pub fn show_downloads<R: Runtime>(app: AppHandle<R>, path: Option<String>) -> Cm
 ///    nothing of this user is left on a shared school computer.
 #[tauri::command]
 pub async fn sign_out<R: Runtime>(app: AppHandle<R>) -> CmdResult {
-    let mis_key = {
-        let shell = app.state::<Shell>();
-        registry::identity_provider(&shell.apps).key
-    };
-    if let Some(mis) = app.get_webview(&webviews::label(mis_key)) {
-        let js = format!(
-            "(function(){{try{{var t=localStorage.getItem('token');if(t){{fetch('{api}/auth/logout',{{method:'POST',credentials:'include',keepalive:true,headers:{{Authorization:'Bearer '+t}}}}).catch(function(){{}});}}}}catch(e){{}}}})();",
-            api = registry::mis_api_base()
-        );
-        let _ = mis.eval(js);
-        tokio::time::sleep(Duration::from_millis(1500)).await;
-    }
-    reset_profile(app).await
+    crate::auth::sign_out_everywhere(app, true).await;
+    Ok(())
 }
 
 /// Settings → Troubleshooting: forget everything (no server call).

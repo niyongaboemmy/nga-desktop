@@ -106,6 +106,10 @@ A code seen in a browser or a log is useless without the verifier, which never l
 - **MIS signed in:** every other app signs in **in the background** (hidden webviews running MIS's SSO hop, 1 s apart). They're ready, and their notifications flow. A spoke tab parked on MIS's sign-in page is pushed through again.
 - **MIS signed out** (logout, expiry, account switch): the other apps' tabs close and their handshakes are forgotten. Back-channel logout has already ended their server sessions.
 - **A spoke shows its own signed-out page while MIS is signed in:** its SSO hop runs again, at most once a minute.
+- **Signing out anywhere signs out of NGA.** The apps' own "Sign out" buttons only sign out that app and load its sign-in page, so NGA would just sign it back in.
+  - When a signed-in app loads its own sign-in page while MIS is signed in, NGA treats it as a sign-out of everything.
+  - "Signing you out…" shows while MIS logs out (which ends every app's session through back-channel logout) and the other apps close, until MIS's sign-in page is back. Settings → "Sign out of this computer" uses the same screen and also wipes the profile.
+- **One sign-in form:** while signed out, the other apps' tabs show "Sign in with NGA MIS" and never MIS's form inside their own tab. Once MIS is signed in, they sync behind their loading screens. MIS counts as signed in after 3 s of steady state.
 - **The handshake stays out of sight:** a spoke's tab is shown only once it is on its own signed-in page. MIS's sign-in screen and the app's "verifying" page stay behind the loading screen.
   - Apps switch pages in client code, so the watcher (every 400 ms) notices when the app lands.
   - The tab is shown anyway after 4 s on a sign-in form (the person must act), or after 20 s.
