@@ -34,6 +34,49 @@ const WAIT: Duration = Duration::from_secs(300);
 /// Each new flow bumps this; an older listener sees it changed and stops.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
+/// Where a sign-in stands, shown by the shell over the MIS area:
+/// "waiting" (the person is in their browser), "completing" (the code came
+/// back, MIS is signing in), "idle". The browser URL is kept for "Open again".
+static PHASE: std::sync::Mutex<&str> = std::sync::Mutex::new("idle");
+static LAST_URL: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+fn set_phase<R: Runtime>(app: &AppHandle<R>, phase: &'static str) {
+    *PHASE.lock().unwrap() = phase;
+    log::info!("Browser sign-in: {phase}");
+    let _ = tauri::Emitter::emit_to(app, crate::webviews::SHELL, "nga://signin", phase);
+}
+
+pub fn phase() -> &'static str {
+    *PHASE.lock().unwrap()
+}
+
+/// MIS finished loading a page: once it is past /desktop/complete, the
+/// sign-in is over (signed in, or MIS shows why not).
+pub fn on_mis_page<R: Runtime>(app: &AppHandle<R>, url: &Url) {
+    if phase() == "completing" && url.path() != "/desktop/complete" {
+        set_phase(app, "idle");
+    }
+}
+
+#[tauri::command]
+pub fn signin_cancel<R: Runtime>(app: AppHandle<R>) {
+    GENERATION.fetch_add(1, Ordering::SeqCst); // the listener stops
+    set_phase(&app, "idle");
+}
+
+/// The browser tab was closed or lost: open the same sign-in page again.
+#[tauri::command]
+pub fn signin_reopen<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let url = LAST_URL
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("no sign-in in progress")?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 /// Is this MIS's "sign in through the browser" link (`/desktop/signin`, bare or
 /// `?via=google`)? The browser-side page (with redirect_uri/state/challenge)
 /// is never intercepted.
@@ -110,6 +153,8 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
         log::warn!("Browser sign-in: cannot open the browser: {e}");
         return;
     }
+    *LAST_URL.lock().unwrap() = Some(url.to_string());
+    set_phase(app, "waiting");
     let app = app.clone();
     std::thread::spawn(move || {
         let _ = listener.set_nonblocking(true);
@@ -125,10 +170,14 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     std::thread::sleep(Duration::from_millis(150))
                 }
-                Err(_) => return,
+                Err(_) => break,
             }
         }
         log::info!("Browser sign-in: listener closed");
+        // Timed out or failed (not replaced by a newer sign-in or a cancel).
+        if GENERATION.load(Ordering::SeqCst) == gen && phase() == "waiting" {
+            set_phase(&app, "idle");
+        }
     });
 }
 
@@ -191,6 +240,15 @@ fn handle(mut stream: TcpStream, state: &str) -> Option<String> {
 }
 
 fn finish<R: Runtime>(app: &AppHandle<R>, code: String, verifier: &str) {
+    set_phase(app, "completing");
+    // If MIS never leaves /desktop/complete, stop covering it so its message shows.
+    let watchdog = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(20));
+        if phase() == "completing" {
+            set_phase(&watchdog, "idle");
+        }
+    });
     let verifier = verifier.to_string();
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {

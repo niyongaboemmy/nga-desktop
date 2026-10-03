@@ -256,3 +256,9 @@ button.link { color: var(--accent); text-decoration: underline; padding: 0; }
 .kbd-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .kbd-row:last-child { border-bottom: 0; }
 .kbd-row kbd { white-space: nowrap; }
+
+/* ── Browser sign-in progress ───────────────────────────────────────────── */
+.spinner-ring { width: 44px; height: 44px; border-radius: 50%; border: 3px solid var(--hover); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+.browser-badge { position: relative; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 18px; background: var(--accent-soft); color: var(--accent); box-shadow: var(--shadow); }
+.pulse-dot { position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: ping 1.4s var(--ease) infinite; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }

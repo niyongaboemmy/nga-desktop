@@ -57,6 +57,22 @@ http
       log("MIS  SSO hop for", url.searchParams.get("client_id"));
       return redirect(res, to.href);
     }
+    // Browser sign-in (FAKE_SIGNIN=1): the stand-in "browser page" hands a code
+    // straight to the app's loopback; /desktop/complete then lands on /home.
+    if (url.pathname === "/desktop/signin" && url.searchParams.get("redirect_uri")) {
+      const to = url.searchParams.get("redirect_uri");
+      const state = url.searchParams.get("state");
+      log("MIS  browser sign-in page: handing a code to", to, "in 3 s");
+      setTimeout(() => {
+        fetch(to, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code: "fakecodexxxxxxxxxxxxxxx.payloadxxxxxxxxxxxxxxxxxxx.signaturexxxxxxx", state }) })
+          .then((r) => log("MIS  loopback answered", r.status)).catch((e) => log("MIS  loopback failed", e.message));
+      }, 3000);
+      return html(res, page("NGA (fake browser sign-in)", "<p>Signing you in… you can close this tab.</p>"));
+    }
+    if (url.pathname === "/desktop/complete") {
+      log("MIS  /desktop/complete (redeeming)");
+      return html(res, page("Signing you in", "<p>Redeeming…</p><script>setTimeout(()=>location.replace('/home'),2500)</script>"));
+    }
     if (url.pathname === "/notifications") {
       const n = tick();
       const data = Array.from({ length: n + 1 }, (_, i) => ({
@@ -81,6 +97,7 @@ http
           `<p>Signed in. Polling <code>/notifications</code> every 5 s with XHR.</p>
 <button onclick="document.documentElement.className=document.documentElement.className==='dark'?'light':'dark'">Toggle MIS theme</button>
 <script>
+${process.env.FAKE_SIGNIN ? "if(!sessionStorage.getItem('signinTried')){sessionStorage.setItem('signinTried','1');setTimeout(()=>{out('starting browser sign-in');location.href='/desktop/signin?via=google';},6000);}" : ""}
 setInterval(()=>{const x=new XMLHttpRequest();x.open('GET','/notifications?limit=20');x.setRequestHeader('Authorization','Bearer fake');x.onload=()=>out('polled '+JSON.parse(x.responseText).data.length);x.send();},5000);
 </script>`,
         ),

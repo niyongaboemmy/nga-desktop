@@ -69,6 +69,8 @@ export const native = {
   osOpenSettings: () => invoke<void>("os_open_settings"),
   osTestBanner: () => invoke<void>("os_test_banner"),
   focusSession: () => invoke<AppKey | null>("focus_session"),
+  signinCancel: () => invoke<void>("signin_cancel"),
+  signinReopen: () => invoke<void>("signin_reopen"),
   overlayShow: (view: "palette" | "shortcuts") => invoke<void>("overlay_show", { view }),
   overlayHide: () => invoke<void>("overlay_hide"),
   /** From the overlay: let the main shell do this (theme, focus, notices, settings, reload, print, signout). */
@@ -109,6 +111,8 @@ type Events = {
   "nga://app-theme": "light" | "dark";
   /** The app holding a meeting or quiz (banners from others are held), or null. */
   "nga://focus-session": AppKey | null;
+  /** Browser sign-in progress (browser_signin.rs). */
+  "nga://signin": "waiting" | "completing" | "idle";
   /** A short confirmation from the native side ("Link copied"). */
   "nga://toast": string;
   /** Overlay window: which view to show ("palette"), or "closed". */

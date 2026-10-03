@@ -31,6 +31,8 @@ fn main() {
             "overlay_show",
             "overlay_hide",
             "overlay_action",
+            "signin_cancel",
+            "signin_reopen",
             // Granted to the NGA web pages at runtime (lib.rs grant_bridge), not to the shell.
             "web_notify",
             "web_badge",

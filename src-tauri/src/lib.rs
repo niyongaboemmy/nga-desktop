@@ -97,6 +97,8 @@ pub fn run() {
             overlay::overlay_show,
             overlay::overlay_hide,
             overlay::overlay_action,
+            browser_signin::signin_cancel,
+            browser_signin::signin_reopen,
         ])
         .setup(|app| {
             grant_bridge(app)?;

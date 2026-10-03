@@ -570,6 +570,9 @@ fn on_page_load<R: Runtime>(app: &AppHandle<R>, wv: &Webview<R>, event: PageLoad
         }
         PageLoadEvent::Finished => {
             crate::theme::on_page_loaded(app, wv);
+            if registry::identity_provider(&shell.apps).key == key {
+                crate::browser_signin::on_mis_page(app, url);
+            }
             log::info!("[{key}] loaded {}", redact(url));
             let def = registry::find(&shell.apps, &key);
             // The spoke's own /sso/callback?code= was reached: the MIS hop worked.

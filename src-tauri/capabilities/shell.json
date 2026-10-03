@@ -47,6 +47,8 @@
     "core:webview:allow-set-webview-focus",
     "allow-overlay-show",
     "allow-overlay-hide",
-    "allow-overlay-action"
+    "allow-overlay-action",
+    "allow-signin-cancel",
+    "allow-signin-reopen"
   ]
 }

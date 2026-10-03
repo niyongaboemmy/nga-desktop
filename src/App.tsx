@@ -5,6 +5,7 @@ import { Splash } from "./components/Splash";
 import { Settings } from "./components/Settings";
 import { NoticePanel } from "./components/NoticePanel";
 import { Onboarding } from "./components/Onboarding";
+import { SigninProgress } from "./components/SigninProgress";
 import { native, on, type AppKey, type Notice, type NoticeSummary, type ShellInfo } from "./lib/native";
 import { isSlow, reduce } from "./lib/appState";
 import { readSettings, saveSetting, type RecentPage } from "./lib/settings";
@@ -39,6 +40,7 @@ export default function App() {
   const [, setRecent] = useState<RecentPage[]>([]);
   const [focusSession, setFocusSession] = useState<AppKey | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
+  const [signin, setSignin] = useState<"waiting" | "completing" | "idle">("idle");
   const viewport = useRef<HTMLDivElement>(null);
   const lastUrl = useRef<Partial<Record<AppKey, string>>>({});
 
@@ -141,6 +143,13 @@ export default function App() {
       on("nga://notices", setNotices),
       on("nga://notice", (notice) => setToast({ kind: "notice", notice })),
       on("nga://toast", (text) => setToast({ kind: "info", text })),
+      on("nga://signin", (phase) => {
+        setSignin(phase);
+        if (phase !== "idle") {
+          setPage("app");
+          setPanel(false);
+        }
+      }),
       // Switched inside an app: everything follows the account's theme.
       on("nga://app-theme", (t) => {
         setMisTheme(t);
@@ -199,8 +208,9 @@ export default function App() {
     };
   }, [info, focus, panel, onboarded]);
 
-  // Settings covers the app area (native app views draw above this page).
-  useEffect(() => void native.setCovered(page !== "app"), [page]);
+  // Settings and the sign-in progress screen cover the app area (native app
+  // views draw above this page).
+  useEffect(() => void native.setCovered(page !== "app" || signin !== "idle"), [page, signin]);
 
   const view = active ? views[active] : undefined;
 
@@ -235,7 +245,9 @@ export default function App() {
   const app = info.apps.find((a) => a.key === active) ?? null;
 
   const content =
-    page === "settings" ? (
+    signin !== "idle" ? (
+      <SigninProgress phase={signin} />
+    ) : page === "settings" ? (
       <Settings info={info} themePref={themePref} onTheme={chooseTheme} />
     ) : app && view?.status !== "ready" ? (
       <Splash
@@ -282,7 +294,7 @@ export default function App() {
       )}
       <div className="body">
         <div className="viewport" ref={viewport}>
-          <div key={page === "settings" ? "settings" : active ?? "none"} className="page-anim">{content}</div>
+          <div key={signin !== "idle" ? `signin-${signin}` : page === "settings" ? "settings" : active ?? "none"} className="page-anim">{content}</div>
         </div>
         {panel && !focus && <NoticePanel apps={info.apps} onClose={() => setPanel(false)} />}
       </div>
