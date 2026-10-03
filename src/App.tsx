@@ -129,6 +129,7 @@ export default function App() {
         void saveSetting("lastApp", key);
       }),
       on("nga://loading", ({ key, url }) => dispatch({ type: "loading", key, url })),
+      on("nga://syncing", (key) => dispatch({ type: "syncing", key, at: Date.now() })),
       on("nga://loaded", ({ key, url }) => {
         dispatch({ type: "loaded", key, url });
         if (url) lastUrl.current[key] = url;

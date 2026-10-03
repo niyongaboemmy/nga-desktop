@@ -21,6 +21,8 @@ export type Action =
   | { type: "loaded"; key: AppKey; url?: string }
   | { type: "title"; key: AppKey; title?: string }
   | { type: "retry"; key: AppKey; at: number }
+  /** Signing in again (MIS just signed in, or a session expired): loading screen. */
+  | { type: "syncing"; key: AppKey; at: number }
   | { type: "closed"; keys: AppKey[] }
   | { type: "reset" };
 
@@ -39,6 +41,8 @@ export function reduce(views: Views, action: Action): Views {
       return cur.status === "idle" ? { ...views, [action.key]: { ...cur, status: "starting", startedAt: action.at } } : views;
     case "retry":
       return cur.status === "ready" ? views : { ...views, [action.key]: { ...cur, status: "starting", startedAt: action.at } };
+    case "syncing":
+      return { ...views, [action.key]: { ...cur, status: "starting", busy: false, startedAt: action.at } };
     case "loading":
       return { ...views, [action.key]: { ...cur, busy: cur.status === "ready", url: action.url ?? cur.url } };
     case "loaded":

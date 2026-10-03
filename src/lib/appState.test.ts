@@ -35,6 +35,14 @@ describe("app view state", () => {
     expect(v.mis?.status).toBe("ready");
   });
 
+  it("a ready app signing in again goes back to its loading screen", () => {
+    let v: Views = reduce({}, { type: "loaded", key: "tendo" });
+    v = reduce(v, { type: "syncing", key: "tendo", at: 7 });
+    expect(v.tendo).toMatchObject({ status: "starting", startedAt: 7 });
+    v = reduce(v, { type: "loaded", key: "tendo" });
+    expect(v.tendo?.status).toBe("ready");
+  });
+
   it("sign-out forgets every app", () => {
     expect(reduce(reduce({}, { type: "loaded", key: "mis" }), { type: "reset" })).toEqual({});
   });

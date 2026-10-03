@@ -188,7 +188,15 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
                 held,
                 waiting,
             ) {
-                log::info!("[{}] signed in and shown ({:?})", def.key, page);
+                if page == Page::SignedIn {
+                    log::info!("[{}] signed in and shown", def.key);
+                } else {
+                    log::info!(
+                        "[{}] shown: waiting for the person to sign in ({:?})",
+                        def.key,
+                        page
+                    );
+                }
                 watch.hidden_since.remove(def.key);
                 webviews::mark_ready(app, def.key, &url);
             }
@@ -225,6 +233,25 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
                 let _ = app.emit_to(webviews::SHELL, "nga://auth", true);
                 if background_sign_in(app) {
                     warm_spokes(app, &apps);
+                }
+                // Apps already open but not signed in (their sign-in page, or
+                // MIS's sign-in form inside their tab): sign them in now, behind
+                // their loading screen, without waiting for the usual retry pause.
+                for def in apps.iter().filter(|d| d.sso.is_some()) {
+                    let Some(wv) = app.get_webview(&webviews::label(def.key)) else {
+                        continue;
+                    };
+                    let Ok(url) = wv.url() else { continue };
+                    if classify(def, &url) == Page::SignedIn {
+                        continue;
+                    }
+                    if let Some(entry) = registry::sso_entry_url(&apps, def) {
+                        log::info!("[{}] syncing the MIS sign-in", def.key);
+                        webviews::mark_unready(app, def.key);
+                        watch.last_resso.insert(def.key, now);
+                        watch.hidden_since.insert(def.key, now);
+                        let _ = wv.navigate(entry);
+                    }
                 }
             }
             Some(MisChange::SignedOut) => {

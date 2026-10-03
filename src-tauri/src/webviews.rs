@@ -558,6 +558,13 @@ fn on_page_load<R: Runtime>(app: &AppHandle<R>, wv: &Webview<R>, event: PageLoad
                 let _ = wv.navigate(back);
                 return;
             }
+            // A spoke going through the sign-in handshake again (MIS just signed
+            // in, a session expired): back behind the loading screen until it lands.
+            if let Some(def) = registry::find(&shell.apps, &key) {
+                if def.sso.is_some() && !crate::auth::shows_immediately(def, url) {
+                    mark_unready(app, &key);
+                }
+            }
             emit(
                 app,
                 "nga://loading",
@@ -651,6 +658,16 @@ pub fn mark_ready<R: Runtime>(app: &AppHandle<R>, key: &str, url: &Url) {
             title: None,
         },
     );
+}
+
+/// Hide an app behind its loading screen while it signs in (again).
+pub fn mark_unready<R: Runtime>(app: &AppHandle<R>, key: &str) {
+    if !app.state::<Shell>().inner.lock().unwrap().ready.remove(key) {
+        return;
+    }
+    log::info!("[{key}] signing in: hidden behind the loading screen");
+    relayout(app);
+    emit(app, "nga://syncing", key.to_string());
 }
 
 pub fn active_webview<R: Runtime>(app: &AppHandle<R>) -> Option<Webview<R>> {

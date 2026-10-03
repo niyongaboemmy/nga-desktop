@@ -111,6 +111,8 @@ type Events = {
   "nga://app-theme": "light" | "dark";
   /** The app holding a meeting or quiz (banners from others are held), or null. */
   "nga://focus-session": AppKey | null;
+  /** This app is signing in (again) behind its loading screen. */
+  "nga://syncing": AppKey;
   /** Browser sign-in progress (browser_signin.rs). */
   "nga://signin": "waiting" | "completing" | "idle";
   /** A short confirmation from the native side ("Link copied"). */

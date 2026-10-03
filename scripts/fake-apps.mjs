@@ -18,6 +18,7 @@
 import http from "node:http";
 
 const started = Date.now();
+let misFirstRequest = 0;
 const tick = () => Math.floor((Date.now() - started) / 20_000); // a new item every 20 s
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -50,6 +51,18 @@ const redirect = (res, to) => {
 http
   .createServer((req, res) => {
     const url = new URL(req.url, "http://localhost:5173");
+    // FAKE_SIGNED_OUT_FOR=<s>: MIS starts signed out and "signs in" after that long.
+    misFirstRequest ||= Date.now(); // counted from the app's first visit
+    const misSignedIn = Date.now() - misFirstRequest >= Number(process.env.FAKE_SIGNED_OUT_FOR || 0) * 1000;
+    if (url.pathname === "/__mis_state") return json(res, { signedIn: misSignedIn });
+    if (url.pathname === "/login" && !misSignedIn) {
+      log("MIS  sign-in form shown", url.searchParams.get("client_id") ? `(SSO hop for ${url.searchParams.get("client_id")})` : "");
+      return html(res, page("NGA MIS sign-in (fake)", `<p>Signed out. Signing in…</p><script>
+const back=${JSON.stringify(url.search)};
+setInterval(()=>fetch('/__mis_state').then(r=>r.json()).then(j=>{ if(j.signedIn && !new URLSearchParams(back).get('client_id')) location.replace('/home'); }),1000);
+</script>`));
+    }
+    if (url.pathname === "/home" && !misSignedIn) return redirect(res, "/login");
     if (url.pathname === "/login" && url.searchParams.get("client_id")) {
       // The SSO hop: signed in at MIS → straight back to the spoke with a code.
       const to = new URL(url.searchParams.get("redirect_uri"));
