@@ -25,6 +25,11 @@ const page = (title, body) =>
   `<!doctype html><html class="light"><head><meta charset="utf-8"><title>${title}</title>
 <style>body{font:15px system-ui;margin:40px;color:#123}html.dark body{background:#0b1020;color:#e6ebf5}code{background:#8882;padding:2px 5px;border-radius:4px}</style>
 <script>const out=(m)=>{const l=document.getElementById('log');if(l)l.textContent+=new Date().toLocaleTimeString()+' '+m+'\\n'};</script>
+<script>
+// Theme reporter (test aid): each app's current theme, every 3 s, to the Tupo stand-in.
+setInterval(()=>{const r=document.documentElement;const t=location.port==='3000'?(r.getAttribute('data-theme')||'?'):(r.classList.contains('dark')?'dark':'light');
+fetch('http://localhost:5194/__theme?port='+location.port+'&t='+t,{mode:'no-cors'}).catch(()=>{});},3000);
+</script>
 </head><body><h1>${title}</h1><pre id="log"></pre>${body}
 </body></html>`;
 
@@ -149,7 +154,8 @@ http
       page(
         "Tendo (fake)",
         `<p>Polls <code>/api/notifications</code> every 5 s with fetch.</p>
-<script>setInterval(()=>fetch('/api/notifications').then(r=>r.json()).then(j=>out('polled '+j.data.length)),5000);</script>`,
+<script>setInterval(()=>fetch('/api/notifications').then(r=>r.json()).then(j=>out('polled '+j.data.length)),5000);</script>
+<script>setTimeout(()=>{const r=document.documentElement;const next=r.getAttribute('data-theme')==='dark'?'light':'dark';out('user switches Tendo to '+next);r.setAttribute('data-theme',next);},25000);</script>`,
       ),
     );
   })
@@ -159,6 +165,12 @@ http
 http
   .createServer((req, res) => {
     const url = new URL(req.url, "http://localhost:5194");
+    if (url.pathname === "/__theme") {
+      const names = { 5173: "MIS", 5174: "TM", 3000: "Tendo", 5194: "Tupo" };
+      log("THEME", names[url.searchParams.get("port")] || url.searchParams.get("port"), url.searchParams.get("t"));
+      res.writeHead(204, { "Access-Control-Allow-Origin": "*" });
+      return res.end();
+    }
     if (url.pathname === "/report") {
       log("Tupo page:", url.search);
       return json(res, {});

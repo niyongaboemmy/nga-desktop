@@ -124,7 +124,15 @@ The signed-out pages are configured per app in `registry.rs`: Task Mentor `/logi
   - Onboarding strip.
 
   Native app views always draw above the shell, so any overlay would be hidden. Native popup menus serve the theme picker, "more" and the tab menu.
-- **Themes:** Match NGA MIS (default: the bridge watches MIS's `html.dark` / `html.light`; MIS keeps it per user as `preferred_theme`), Light, Dark, or This computer. Window chrome follows, and the theme is restored before first paint.
+- **One theme everywhere, both ways** (`theme.rs`, bridge.js, plus a small listener in each app):
+  - The source of truth is the account's `preferred_theme` in MIS. Task Mentor and Tupo already save their switches there, and Tupo pulls it back.
+  - **Switching in the shell** pushes the theme to all four apps as a window `nga:set-theme` event, and MIS saves it to the account.
+  - **Switching inside an app** is seen by the bridge, which watches `html.dark` or Tendo's `data-theme`. The shell follows, and the other apps get it pushed. MIS saves it whenever the switch started outside MIS, which covers Tendo, whose own switch is local only.
+  - **Every page load** receives the current theme.
+  - **Each app applies it through its own React state**, so its theme button stays right, and calls `preventDefault`. For older app versions, the bridge sets the app's storage key and `<html>` marker itself.
+  - **No loops:** equal values are ignored.
+  - App PRs: MIS #59, Task Mentor #24, Tendo #42, Tupo #24, deployed 2026-10-04. Verified on the live sites (each handles the event and switches) and end to end with the stand-in apps (Tendo switched → shell → MIS, Task Mentor and Tupo followed within about 2 s).
+  - Options: My NGA account (default), Light, Dark, This computer. Window chrome follows, and the theme is restored before first paint.
 - **Motion:** tab highlight slide, badge pop, panel slide-in, palette drop, toast drop-in, breathing splash with progress shimmer. All of it respects `prefers-reduced-motion`.
 
 ### Testing notifications without real accounts

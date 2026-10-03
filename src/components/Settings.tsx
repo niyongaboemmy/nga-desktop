@@ -8,7 +8,7 @@ import type { ThemePref } from "../lib/theme";
 import { isMac } from "../lib/platform";
 
 const THEMES: Array<{ id: ThemePref; label: string; icon: React.ReactNode }> = [
-  { id: "mis", label: "Match NGA MIS", icon: <img src="/apps/mis.png" alt="" /> },
+  { id: "mis", label: "My NGA account", icon: <img src="/apps/mis.png" alt="" /> },
   { id: "light", label: "Light", icon: <Sun size={16} /> },
   { id: "dark", label: "Dark", icon: <Moon size={16} /> },
   { id: "system", label: "This computer", icon: <Monitor size={16} /> },
@@ -76,7 +76,10 @@ export function Settings({ info, themePref, onTheme }: { info: ShellInfo; themeP
             </button>
           ))}
         </div>
-        <p className="muted small">"Match NGA MIS" follows the light/dark choice you make in NGA MIS (saved with your account).</p>
+        <p className="muted small">
+          One theme everywhere: switching here also switches NGA MIS, Task Mentor, Tendo and Tupo (and saves it to your
+          account), and switching in any of them switches NGA too.
+        </p>
       </section>
 
       <section>

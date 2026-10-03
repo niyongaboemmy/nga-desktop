@@ -8,6 +8,7 @@ mod notifications;
 mod os_notify;
 mod overlay;
 mod registry;
+mod theme;
 mod webviews;
 
 use tauri::ipc::CapabilityBuilder;
@@ -62,6 +63,7 @@ pub fn run() {
     builder
         .manage(Shell::new())
         .manage(notifications::Notifier::default())
+        .manage(theme::SharedTheme::default())
         .invoke_handler(tauri::generate_handler![
             commands::shell_info,
             commands::open_app,
@@ -76,9 +78,9 @@ pub fn run() {
             commands::show_downloads,
             commands::sign_out,
             commands::reset_profile,
-            commands::set_window_theme,
+            theme::set_window_theme,
             commands::popup_menu,
-            commands::web_theme,
+            theme::web_theme,
             notifications::notices_list,
             notifications::notices_summary,
             notifications::notices_open,

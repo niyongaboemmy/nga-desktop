@@ -60,7 +60,8 @@ export const native = {
   navigate: (key: AppKey, path: string) => invoke<void>("navigate_app", { key, path }),
   setInsets: (left: number, top: number, right: number, bottom: number) =>
     invoke<void>("set_insets", { left, top, right, bottom }),
-  setWindowTheme: (theme: "light" | "dark") => invoke<void>("set_window_theme", { theme }),
+  /** `user`: the person picked it in the shell (then MIS saves it to their account). */
+  setWindowTheme: (theme: "light" | "dark", user = false) => invoke<void>("set_window_theme", { theme, user }),
   popupMenu: (kind: "tab" | "more" | "theme", x: number, y: number, key?: string) =>
     invoke<void>("popup_menu", { kind, key: key ?? null, x, y }),
   osPermission: () => invoke<OsPermission>("os_permission"),
@@ -104,8 +105,8 @@ type Events = {
   "nga://notices": NoticeSummary;
   /** A notice for an app that isn't on screen while NGA is focused. */
   "nga://notice": Notice;
-  /** NGA MIS's own light/dark theme (from its page). */
-  "nga://mis-theme": "light" | "dark";
+  /** The theme was switched inside one of the apps (theme.rs); follow it. */
+  "nga://app-theme": "light" | "dark";
   /** The app holding a meeting or quiz (banners from others are held), or null. */
   "nga://focus-session": AppKey | null;
   /** A short confirmation from the native side ("Link copied"). */

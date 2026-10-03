@@ -230,7 +230,7 @@ pub fn popup<R: Runtime>(
         }
         ("theme", current) => {
             for (id, label) in [
-                ("mis", "Match NGA MIS"),
+                ("mis", "Follow My NGA Account"),
                 ("light", "Light"),
                 ("dark", "Dark"),
                 ("system", "Match This Computer"),

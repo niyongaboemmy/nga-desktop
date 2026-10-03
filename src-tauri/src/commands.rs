@@ -58,41 +58,6 @@ pub fn navigate_app<R: Runtime>(app: AppHandle<R>, key: String, path: String) ->
     webviews::navigate_app(&app, &key, &path).map_err(err)
 }
 
-/// NGA MIS reports its theme (bridge.js). Only MIS's report counts.
-#[tauri::command]
-pub fn web_theme<R: Runtime>(
-    app: AppHandle<R>,
-    webview: tauri::Webview<R>,
-    theme: String,
-) -> CmdResult {
-    let mis_label = {
-        let shell = app.state::<Shell>();
-        webviews::label(registry::identity_provider(&shell.apps).key)
-    };
-    if webview.label() != mis_label || !matches!(theme.as_str(), "light" | "dark") {
-        return Err("ignored".into());
-    }
-    if let Ok(store) = tauri_plugin_store::StoreExt::store(&app, "settings.json") {
-        store.set("misTheme", theme.clone());
-    }
-    let _ = app.emit_to(SHELL, "nga://mis-theme", theme);
-    Ok(())
-}
-
-/// Native window chrome (title bar, traffic lights, menus) follows the shell's theme.
-#[tauri::command]
-pub fn set_window_theme<R: Runtime>(app: AppHandle<R>, theme: String) -> CmdResult {
-    let t = match theme.as_str() {
-        "dark" => Some(tauri::Theme::Dark),
-        "light" => Some(tauri::Theme::Light),
-        _ => None,
-    };
-    if let Some(w) = app.get_window(webviews::WINDOW) {
-        w.set_theme(t).map_err(err)?;
-    }
-    Ok(())
-}
-
 /// A native menu at (x, y) in the shell (tab right-click, the "more" button).
 /// Native, because shell HTML can't draw over the app webviews.
 #[tauri::command]

@@ -18,7 +18,8 @@
 //   replay    - when an app stops polling in the background (Task Mentor
 //               polls only while visible), repeat its last request with its
 //               own headers, from its own origin, at a gentle interval;
-//   theme     - report NGA MIS's light/dark theme so the shell can match it.
+//   theme     - keep every app on the same light/dark theme as the shell
+//               (report a switch made here; apply one made elsewhere).
 (function () {
   "use strict";
   var internals = window.__TAURI_INTERNALS__;
@@ -125,24 +126,54 @@
   };
   try { Object.defineProperty(navigator, "standalone", { get: function () { return true; }, configurable: true }); } catch (e) { /* read-only */ }
 
-  // ── Theme (only NGA MIS's report is used; MIS sets html.dark / html.light) ──
-  var lastTheme = "";
-  var reportTheme = function () {
-    var cl = document.documentElement.classList;
-    var theme = cl.contains("dark") ? "dark" : cl.contains("light") ? "light" : "";
-    if (theme && theme !== lastTheme) {
-      lastTheme = theme;
-      invoke("web_theme", { theme: theme }).catch(function () {});
+  // ── Theme, in sync with the shell and the other apps (theme.rs) ─────────
+  // Each app shows its theme on <html>: MIS, Task Mentor and Tupo with the
+  // `dark` class, Tendo with data-theme. A switch made in this app is
+  // reported; a theme pushed from the shell arrives as `nga:set-theme`, which
+  // an app handles itself (it calls preventDefault). Older app versions get
+  // their own storage key and <html> marker set directly.
+  var THEME_FALLBACK = {
+    mis: { key: "theme", apply: function (t) { var c = document.documentElement.classList; c.remove("light", "dark"); c.add(t); } },
+    taskmentor: { key: "theme", apply: function (t) { document.documentElement.classList.toggle("dark", t === "dark"); document.documentElement.style.colorScheme = t; } },
+    tendo: { key: "theme", apply: function (t) { document.documentElement.setAttribute("data-theme", t); } },
+    tupo: { key: "tupo_theme", apply: function (t) { document.documentElement.classList.toggle("dark", t === "dark"); } },
+  }[__NGA_APP__];
+  var readTheme = function () {
+    var root = document.documentElement;
+    if (!root) return "";
+    if (__NGA_APP__ === "tendo") {
+      var a = root.getAttribute("data-theme");
+      return a === "dark" || a === "light" ? a : "";
     }
+    return root.classList.contains("dark") ? "dark" : "light";
   };
-  if (__NGA_APP__ === "mis") {
-    var startTheme = function () {
-      reportTheme();
-      new MutationObserver(reportTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    };
-    if (document.documentElement) startTheme();
-    else document.addEventListener("DOMContentLoaded", startTheme);
-  }
+  var shownTheme = "";
+  var themeSynced = false; // until the shell's first push, changes are just the page starting up
+  var watchTheme = function () {
+    shownTheme = readTheme();
+    new MutationObserver(function () {
+      var t = readTheme();
+      if (!t || t === shownTheme) return;
+      shownTheme = t;
+      if (themeSynced) invoke("web_theme", { theme: t }).catch(function () {});
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+  };
+  if (document.documentElement) watchTheme();
+  else document.addEventListener("DOMContentLoaded", watchTheme);
+
+  Object.defineProperty(window, "__ngaSetTheme", {
+    value: function (t, persist) {
+      if (t !== "light" && t !== "dark") return;
+      themeSynced = true;
+      shownTheme = t; // our own change: don't report it back
+      var ev = new CustomEvent("nga:set-theme", { detail: { theme: t, persist: !!persist }, cancelable: true });
+      var handledByApp = !window.dispatchEvent(ev);
+      if (!handledByApp && THEME_FALLBACK) {
+        try { localStorage.setItem(THEME_FALLBACK.key, t); } catch (e) { /* storage blocked */ }
+        THEME_FALLBACK.apply(t);
+      }
+    },
+  });
 
   // ── Notification watchers ──────────────────────────────────────────────────
   var str = function (v) { return v == null ? "" : String(v); };

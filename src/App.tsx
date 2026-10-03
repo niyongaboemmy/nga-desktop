@@ -43,12 +43,17 @@ export default function App() {
   const lastUrl = useRef<Partial<Record<AppKey, string>>>({});
 
   const theme = resolveTheme(themePref, misTheme, systemDark);
+  // True while the change being applied was picked by the person in the shell
+  // (theme.rs then has MIS save it to their account); false when following an app.
+  const userPicked = useRef(false);
   useEffect(() => {
     applyTheme(theme);
-    void native.setWindowTheme(theme);
+    void native.setWindowTheme(theme, userPicked.current);
+    userPicked.current = false;
   }, [theme]);
 
   const chooseTheme = useCallback((t: ThemePref) => {
+    userPicked.current = true;
     setThemePref(t);
     void saveSetting("theme", t);
   }, []);
@@ -136,7 +141,12 @@ export default function App() {
       on("nga://notices", setNotices),
       on("nga://notice", (notice) => setToast({ kind: "notice", notice })),
       on("nga://toast", (text) => setToast({ kind: "info", text })),
-      on("nga://mis-theme", setMisTheme),
+      // Switched inside an app: everything follows the account's theme.
+      on("nga://app-theme", (t) => {
+        setMisTheme(t);
+        setThemePref("mis");
+        void saveSetting("theme", "mis");
+      }),
       on("nga://focus-session", setFocusSession),
       on("nga://closed", (keys) => {
         dispatch({ type: "closed", keys });
@@ -152,11 +162,14 @@ export default function App() {
         else if (id === "signout") { setFocus(false); setPage("settings"); }
         else if (id === "notices") { setFocus(false); setPanel((p) => !p); }
         else if (id === "settings") { setFocus(false); setPage("settings"); }
-        else if (id === "theme") setThemePref((p) => {
-          const next: ThemePref = resolveTheme(p, misTheme, systemDark) === "dark" ? "light" : "dark";
-          void saveSetting("theme", next);
-          return next;
-        });
+        else if (id === "theme") {
+          userPicked.current = true;
+          setThemePref((p) => {
+            const next: ThemePref = resolveTheme(p, misTheme, systemDark) === "dark" ? "light" : "dark";
+            void saveSetting("theme", next);
+            return next;
+          });
+        }
         else if (id.startsWith("theme:")) chooseTheme(id.slice(6) as ThemePref);
       }),
       on("nga://signed-out", () => {
