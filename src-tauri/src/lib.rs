@@ -12,7 +12,9 @@ mod webviews;
 use tauri::ipc::CapabilityBuilder;
 use tauri::webview::WebviewBuilder;
 use tauri::window::WindowBuilder;
-use tauri::{App, AppHandle, LogicalPosition, Manager, RunEvent, Runtime, WebviewUrl, WindowEvent};
+#[cfg(target_os = "macos")]
+use tauri::RunEvent;
+use tauri::{App, AppHandle, LogicalPosition, Manager, Runtime, WebviewUrl, WindowEvent};
 use tauri_plugin_store::StoreExt;
 use webviews::{Shell, SHELL, WINDOW};
 
@@ -123,10 +125,12 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building NGA Desktop")
-        .run(|app, event| {
+        .run(|_app, _event| {
             // macOS: clicking the Dock icon brings the hidden window back.
-            if let RunEvent::Reopen { .. } = event {
-                menus::focus_main(app);
+            // (Windows: the tray icon and a second launch do that.)
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Reopen { .. } = _event {
+                menus::focus_main(_app);
             }
         });
 }
