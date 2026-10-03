@@ -192,7 +192,9 @@ http
       log("Tupo page:", url.search);
       return json(res, {});
     }
-    if (url.pathname === "/sso/callback") return html(res, page("Tupo", `<script>location.replace('/app/chat')</script>`));
+    // Like the real Tupo: the callback exchanges the code, then a client-side
+    // navigation (no page load) to the app.
+    if (url.pathname === "/sso/callback") return html(res, page("Tupo", `<p>Verifying your session…</p><script>setTimeout(()=>{history.replaceState(null,'','/app/chat');document.querySelector('h1').textContent='Tupo chat (SPA)';},1200)</script>`));
     if (url.pathname === "/") return html(res, page("Tupo sign-in (fake)", `<p>Signed-out page.</p>`));
     return html(
       res,

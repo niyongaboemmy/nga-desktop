@@ -22,7 +22,8 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, Runtime, Url};
 use tauri_plugin_store::StoreExt;
 
-const TICK: Duration = Duration::from_millis(1500);
+/// Fast enough that an app appears the moment its sign-in lands.
+const TICK: Duration = Duration::from_millis(400);
 /// How long a page must hold before we believe it. "Signed in" needs longer:
 /// MIS first shows /home from a cached token, and only then checks the session
 /// with the server and may move to /login.
@@ -59,6 +60,43 @@ pub fn classify(def: &AppDef, url: &Url) -> Page {
     Page::SignedIn
 }
 
+fn is_callback(def: &AppDef, url: &Url) -> bool {
+    def.owns(url) && url.path().contains("callback")
+}
+
+/// Can this page be shown as soon as it loads? MIS: always. A spoke: only its
+/// own signed-in (or public) pages, never the SSO hop.
+pub fn shows_immediately(def: &AppDef, url: &Url) -> bool {
+    if def.sso.is_none() {
+        return true;
+    }
+    match classify(def, url) {
+        Page::SignedIn => true,
+        Page::Neutral => !is_callback(def, url),
+        Page::SignedOut | Page::Elsewhere => false,
+    }
+}
+
+/// A spoke still hidden while it signs in: show it anyway once it's clear the
+/// person has to act (MIS's sign-in form, or the app's own sign-in page, held
+/// for a few seconds), or after 20 s whatever happens.
+pub fn reveal(
+    shows_now: bool,
+    page: Page,
+    callback: bool,
+    held: Duration,
+    waiting: Duration,
+) -> bool {
+    if shows_now || waiting >= Duration::from_secs(20) {
+        return true;
+    }
+    match page {
+        Page::SignedOut | Page::Elsewhere => held >= Duration::from_secs(4),
+        Page::Neutral if callback => held >= Duration::from_secs(10),
+        _ => false,
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum MisChange {
     SignedIn,
@@ -84,6 +122,8 @@ fn parked_on_mis_login(apps: &[AppDef], url: &Url) -> bool {
 #[derive(Default)]
 struct Watch {
     seen: HashMap<&'static str, (Page, Instant)>,
+    /// When each hidden spoke started signing in.
+    hidden_since: HashMap<&'static str, Instant>,
     mis: Option<bool>,
     last_resso: HashMap<&'static str, Instant>,
 }
@@ -124,6 +164,7 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
     for def in &apps {
         let Some(wv) = app.get_webview(&webviews::label(def.key)) else {
             watch.seen.remove(def.key);
+            watch.hidden_since.remove(def.key);
             continue;
         };
         let Ok(url) = wv.url() else { continue };
@@ -135,6 +176,23 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
                 now
             }
         };
+        // A spoke kept hidden while it signs in: show it when it lands (SPA
+        // redirects don't fire page loads, so this is where it's noticed).
+        if def.sso.is_some() && !webviews::is_ready(app, def.key) {
+            let waiting = now.duration_since(*watch.hidden_since.entry(def.key).or_insert(now));
+            let held = now.duration_since(since);
+            if reveal(
+                shows_immediately(def, &url),
+                page,
+                is_callback(def, &url),
+                held,
+                waiting,
+            ) {
+                log::info!("[{}] signed in and shown ({:?})", def.key, page);
+                watch.hidden_since.remove(def.key);
+                webviews::mark_ready(app, def.key, &url);
+            }
+        }
         let needed = if page == Page::SignedIn {
             STABLE_SIGNED_IN
         } else {
@@ -323,6 +381,39 @@ mod tests {
             classify(tm, &u("http://localhost:5174/taskmentor/dashboard")),
             Page::SignedIn
         );
+    }
+
+    #[test]
+    fn spokes_stay_hidden_during_the_sso_hop() {
+        let apps = apps_for(Env::Production);
+        let tupo = find(&apps, "tupo").unwrap();
+        let mis = find(&apps, "mis").unwrap();
+        assert!(shows_immediately(
+            tupo,
+            &u("https://tupo.amashuri.com/app/chat")
+        ));
+        assert!(!shows_immediately(
+            tupo,
+            &u("https://mis.amashuri.com/login?client_id=tupo&redirect_uri=x")
+        ));
+        assert!(!shows_immediately(
+            tupo,
+            &u("https://tupo.amashuri.com/sso/callback?code=x")
+        ));
+        assert!(!shows_immediately(tupo, &u("https://tupo.amashuri.com/")));
+        assert!(shows_immediately(
+            tupo,
+            &u("https://tupo.amashuri.com/meet/abc")
+        ));
+        assert!(shows_immediately(mis, &u("https://mis.amashuri.com/login")));
+        let s = Duration::from_secs;
+        // The hop in progress: hidden.
+        assert!(!reveal(false, Page::Elsewhere, false, s(2), s(2)));
+        assert!(!reveal(false, Page::Neutral, true, s(3), s(5)));
+        // Stuck on MIS's sign-in form (MIS signed out): the person must act.
+        assert!(reveal(false, Page::Elsewhere, false, s(4), s(6)));
+        // Never longer than 20 s.
+        assert!(reveal(false, Page::Neutral, true, s(1), s(20)));
     }
 
     #[test]

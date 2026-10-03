@@ -106,6 +106,9 @@ A code seen in a browser or a log is useless without the verifier, which never l
 - **MIS signed in:** every other app signs in **in the background** (hidden webviews running MIS's SSO hop, 1 s apart). They're ready, and their notifications flow. A spoke tab parked on MIS's sign-in page is pushed through again.
 - **MIS signed out** (logout, expiry, account switch): the other apps' tabs close and their handshakes are forgotten. Back-channel logout has already ended their server sessions.
 - **A spoke shows its own signed-out page while MIS is signed in:** its SSO hop runs again, at most once a minute.
+- **The handshake stays out of sight:** a spoke's tab is shown only once it is on its own signed-in page. MIS's sign-in screen and the app's "verifying" page stay behind the loading screen.
+  - Apps switch pages in client code, so the watcher (every 400 ms) notices when the app lands.
+  - The tab is shown anyway after 4 s on a sign-in form (the person must act), or after 20 s.
 - **The MIS tab:** if someone signs in to MIS from inside a spoke's tab, the MIS tab leaves its login page too.
 
 The signed-out pages are configured per app in `registry.rs`: Task Mentor `/login`, Tendo `/`, Tupo `/`, MIS `/login` without `client_id`.

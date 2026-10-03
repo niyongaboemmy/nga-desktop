@@ -586,17 +586,26 @@ fn on_page_load<R: Runtime>(app: &AppHandle<R>, wv: &Webview<R>, event: PageLoad
                     mark_sso_done(app, &key);
                 }
             }
-            let first = {
+            // A signed-in app shows only once it is on its own signed-in page:
+            // the SSO hop (MIS's sign-in screen, the app's "verifying" page)
+            // stays behind the loading screen. auth.rs reveals it later if the
+            // person really has to sign in.
+            let showable = def.is_none_or(|d| crate::auth::shows_immediately(d, url));
+            let (first, ready) = {
                 let mut inner = shell.inner.lock().unwrap();
                 if navigation::main_frame_allowed(shell.env, &shell.apps, url)
                     && url.scheme() != "about"
                 {
                     inner.last_good.insert(key.clone(), url.clone());
                 }
-                inner.ready.insert(key.clone())
+                let first = showable && inner.ready.insert(key.clone());
+                (first, inner.ready.contains(&key))
             };
             if first {
                 relayout(app);
+            }
+            if !ready {
+                return;
             }
             emit(
                 app,
@@ -609,6 +618,39 @@ fn on_page_load<R: Runtime>(app: &AppHandle<R>, wv: &Webview<R>, event: PageLoad
             );
         }
     }
+}
+
+pub fn is_ready<R: Runtime>(app: &AppHandle<R>, key: &str) -> bool {
+    app.state::<Shell>()
+        .inner
+        .lock()
+        .unwrap()
+        .ready
+        .contains(key)
+}
+
+/// Show an app that was kept hidden while it signed in (auth.rs decides when).
+pub fn mark_ready<R: Runtime>(app: &AppHandle<R>, key: &str, url: &Url) {
+    if !app
+        .state::<Shell>()
+        .inner
+        .lock()
+        .unwrap()
+        .ready
+        .insert(key.to_string())
+    {
+        return;
+    }
+    relayout(app);
+    emit(
+        app,
+        "nga://loaded",
+        AppEvent {
+            key: key.into(),
+            url: Some(url.to_string()),
+            title: None,
+        },
+    );
 }
 
 pub fn active_webview<R: Runtime>(app: &AppHandle<R>) -> Option<Webview<R>> {
