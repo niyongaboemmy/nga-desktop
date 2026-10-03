@@ -47,6 +47,64 @@ pub struct AppDef {
     pub color: &'static str,
     /// `None` for MIS itself (the identity provider).
     pub sso: Option<Sso>,
+    /// Paths (relative to `base`) where the app shows its signed-out page.
+    #[serde(skip)]
+    pub signed_out_paths: &'static [&'static str],
+    /// Paths that are public and say nothing about the session (prefix match).
+    #[serde(skip)]
+    pub neutral_paths: &'static [&'static str],
+    /// Pages where the person must not be disturbed (a meeting, a quiz). `:id`
+    /// matches one path segment that isn't a word like "new" or "history".
+    #[serde(skip)]
+    pub focus_paths: &'static [&'static str],
+    /// Places worth jumping to from the command palette.
+    pub destinations: &'static [Destination],
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Destination {
+    pub label: &'static str,
+    pub path: &'static str,
+    /// Extra words people may type for it.
+    pub keywords: &'static str,
+}
+
+const fn d(label: &'static str, path: &'static str, keywords: &'static str) -> Destination {
+    Destination {
+        label,
+        path,
+        keywords,
+    }
+}
+
+/// Does `path` match a focus pattern like "/quizzes/:id/take"?
+pub fn path_matches(pattern: &str, path: &str) -> bool {
+    const NOT_IDS: &[&str] = &["new", "history", "create", "public"];
+    let p: Vec<&str> = pattern.trim_matches('/').split('/').collect();
+    let q: Vec<&str> = path
+        .trim_end_matches('/')
+        .trim_start_matches('/')
+        .split('/')
+        .collect();
+    p.len() == q.len()
+        && p.iter().zip(&q).all(|(a, b)| {
+            if *a == ":id" {
+                !b.is_empty() && !NOT_IDS.contains(b)
+            } else {
+                a == b
+            }
+        })
+}
+
+impl AppDef {
+    /// Is this URL (in this app) a meeting / quiz page?
+    pub fn is_focus_page(&self, url: &Url) -> bool {
+        if !self.owns(url) {
+            return false;
+        }
+        let path = url.path().strip_prefix(self.base).unwrap_or(url.path());
+        self.focus_paths.iter().any(|p| path_matches(p, path))
+    }
 }
 
 impl AppDef {
@@ -78,6 +136,60 @@ pub fn origin_of(url: &Url) -> Option<String> {
     })
 }
 
+const MIS_DESTINATIONS: &[Destination] = &[
+    d("Home", "/home", "start welcome"),
+    d("Timetable & calendar", "/calendar", "schedule lessons week"),
+    d("Lesson notes", "/lesson-notes", "notes teaching"),
+    d("Reminders", "/reminders", "alerts telegram"),
+    d("My learning", "/my-learning", "courses e-learning student"),
+    d("E-learning courses", "/elearning/courses", "studio builder"),
+    d("Scheme of work", "/scheme-of-work", "sow plan"),
+    d("Documents", "/documents", "files shared"),
+    d("Office hours", "/office-hours", "mentor meeting"),
+    d("Reporting", "/reporting", "reports"),
+    d("Profile", "/profile", "account me"),
+];
+
+const TASK_MENTOR_DESTINATIONS: &[Destination] = &[
+    d("Dashboard", "/dashboard", "home overview"),
+    d("Courses", "/courses", "subjects classes"),
+    d("Quizzes", "/quizzes", "tests exams"),
+    d("My quizzes", "/my-quizzes", "student tests"),
+    d("Assignments", "/assignments", "homework tasks"),
+    d("Submissions", "/submissions", "marking grading"),
+    d("Grades", "/grades", "marks report card"),
+    d("Question bank", "/question-bank", "questions ai"),
+    d("Ranking", "/ranking", "leaderboard"),
+    d("Live proctoring", "/proctoring/live", "monitor exam"),
+];
+
+const TENDO_DESTINATIONS: &[Destination] = &[
+    d("Today", "/attendance?view=day", "register now"),
+    d(
+        "Take attendance",
+        "/attendance/mark",
+        "register mark roll call",
+    ),
+    d("This week", "/attendance?view=week", "schedule"),
+    d("Attendance records", "/attendance/records", "history"),
+    d("Attendance report", "/attendance/report", "statistics"),
+    d("Excuses", "/excuses", "absence permission"),
+    d("Log discipline", "/discipline/log", "behaviour incident"),
+    d("Discipline records", "/discipline/records", "behaviour"),
+    d("Dashboard", "/dashboard", "overview"),
+    d("Reports", "/reports", "analytics"),
+];
+
+const TUPO_DESTINATIONS: &[Destination] = &[
+    d("Chat", "/app/chat", "messages dm channels"),
+    d("Feed", "/app/feed", "posts news school"),
+    d("Mail", "/app/mail", "email inbox"),
+    d("Meetings", "/app/meet", "video call"),
+    d("New meeting", "/app/meet/new", "start call video"),
+    d("Files", "/app/files", "attachments documents"),
+    d("Reels", "/app/feed/reels", "videos"),
+];
+
 pub fn apps_for(env: Env) -> Vec<AppDef> {
     let (mis, tm, tendo, tupo, tm_base) = match env {
         Env::Production => (
@@ -105,6 +217,17 @@ pub fn apps_for(env: Env) -> Vec<AppDef> {
             start_path: "/home",
             color: "#2f56d9",
             sso: None,
+            signed_out_paths: &["/login"],
+            neutral_paths: &[
+                "/about",
+                "/contact",
+                "/apps",
+                "/verify/",
+                "/download",
+                "/desktop/",
+            ],
+            focus_paths: &[],
+            destinations: MIS_DESTINATIONS,
         },
         AppDef {
             key: "taskmentor",
@@ -118,6 +241,10 @@ pub fn apps_for(env: Env) -> Vec<AppDef> {
                 client_id: "taskmentor_app",
                 callback_path: "/sso/callback",
             }),
+            signed_out_paths: &["/login"],
+            neutral_paths: &["/sso/"],
+            focus_paths: &["/quizzes/:id/take", "/quiz/:id"],
+            destinations: TASK_MENTOR_DESTINATIONS,
         },
         AppDef {
             key: "tendo",
@@ -131,6 +258,10 @@ pub fn apps_for(env: Env) -> Vec<AppDef> {
                 client_id: "discipline_attendance",
                 callback_path: "/sso/callback",
             }),
+            signed_out_paths: &["/"],
+            neutral_paths: &["/sso/", "/callback"],
+            focus_paths: &[],
+            destinations: TENDO_DESTINATIONS,
         },
         AppDef {
             key: "tupo",
@@ -144,6 +275,10 @@ pub fn apps_for(env: Env) -> Vec<AppDef> {
                 client_id: "tupo",
                 callback_path: "/sso/callback",
             }),
+            signed_out_paths: &["/"],
+            neutral_paths: &["/sso/", "/meet/"],
+            focus_paths: &["/app/meet/:id", "/meet/:id"],
+            destinations: TUPO_DESTINATIONS,
         },
     ]
 }
@@ -212,6 +347,20 @@ mod tests {
             "https://taskmentor.amashuri.com/sso/callback"
         );
         assert!(sso_entry_url(&apps, find(&apps, "mis").unwrap()).is_none());
+    }
+
+    #[test]
+    fn focus_pages() {
+        let apps = apps_for(Env::Production);
+        let tupo = find(&apps, "tupo").unwrap();
+        let tm = find(&apps, "taskmentor").unwrap();
+        let u = |s: &str| Url::parse(s).unwrap();
+        assert!(tupo.is_focus_page(&u("https://tupo.amashuri.com/app/meet/abc-123")));
+        assert!(!tupo.is_focus_page(&u("https://tupo.amashuri.com/app/meet/new")));
+        assert!(!tupo.is_focus_page(&u("https://tupo.amashuri.com/app/meet")));
+        assert!(tm.is_focus_page(&u("https://taskmentor.amashuri.com/quizzes/42/take")));
+        assert!(!tm.is_focus_page(&u("https://taskmentor.amashuri.com/quizzes/42")));
+        assert!(!tm.is_focus_page(&u("https://tupo.amashuri.com/quizzes/42/take")));
     }
 
     #[test]

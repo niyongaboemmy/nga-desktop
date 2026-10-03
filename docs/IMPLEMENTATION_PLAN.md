@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **Status** | v0.1 **built and running** (this repo). Remaining work: pilot hardening, signing and distribution, small web-app PRs. |
+| **Status** | v0.2 **built and running** (this repo): title-bar app tabs, themes, ⌘K palette, notification manager for all four apps, central and background sign-in, Google sign-in (with MIS PR #55). Remaining work: pilot hardening, signing and distribution. |
 | **Date** | 2026-10-03 |
 | **Supersedes** | `DESKTOP_APP_IMPLEMENTATION_PLAN.md` (v1, 2026-10-02) |
 | **Repos** | `nga-desktop` (this repo, the only new project). Later, optional small PRs in `nga_central_mis`, `nga-task-mentor`, `nga-discipline-attendance` and `nga-communication-module` (§7, Phase 3). |
@@ -47,6 +47,92 @@ The v1 plan's architecture holds: a Tauri 2 shell, one native child webview per 
 | C14 | Downloads via a custom `downloads.rs` | Engine defaults (both already save to `~/Downloads` with unique names). Rust only reports *finished*, and the shell shows "Show in folder". | wry `download.rs` (macOS) and WebView2's `ResultFilePath`. On macOS the finished path is always `None`, so "Show" opens the folder. |
 | C15 | Shortcuts handled in the shell | **Native menu accelerators** (⌘/Ctrl+1…4, R, P, [, ]) plus the platform default menu. | Focus is usually inside an app webview, where shell key handlers never fire. On macOS the default Edit menu is what makes ⌘C and ⌘V work in webviews. |
 | C16 | Build test installers on every push | **Manual** (`workflow_dispatch`). | macOS runner minutes are billed at a multiple of Linux minutes on private repos, and Actions billing failed on 2026-09-29. |
+
+---
+
+## 2b. Review 2: notifications, Google, layout, central sign-in, browser behaviour (v0.2)
+
+### Notifications: what each app does today, and how they all reach the desktop
+
+| App | Today (web) | In the desktop app (no app change needed) |
+|---|---|---|
+| **Tupo** | `new Notification(...)` when `document.hidden` and permission is granted (`context/NotificationContext.tsx`) | The bridge replaces `window.Notification` with a native-backed one. Hidden tabs report `document.hidden`, so Tupo's own rule decides. `onclick` runs when the notice is clicked. |
+| **NGA MIS** | Bell polls `GET /notifications` every 45 s. Reminders use Web Push from a service worker, which doesn't work in embedded webviews. | **Watcher:** the bridge reads MIS's own `/notifications` responses and raises one desktop notice per new unread item. A click opens its `link` through the SPA router. |
+| **Tendo** | `NotificationCenter` polls `GET /api/notifications` every 30 s | **Watcher**, same as MIS. |
+| **Task Mentor** | `NotificationBell` polls `/dashboard/{student,instructor}/overview`, but **only while visible** | **Watcher + replay:** while Task Mentor is hidden, the bridge repeats its last overview request (same URL and headers, from its own origin) every 3 min. It notifies only for alerts the bell itself marks as worth a badge. |
+
+The **notification manager** (`notifications.rs`):
+
+- **Routing:** an OS banner when NGA isn't focused; a title-bar toast when NGA is focused on another app; nothing when the source app is on screen.
+- **Inbox and badges:** every notice goes into the bell panel, with per-app filters. Tabs show badges from `navigator.setAppBadge` or the unread count, and the macOS Dock badge shows the total.
+- **Quiet rules:** per-app mute (Settings, or right-click a tab), Do Not Disturb (1 h / until 08:00), and **Smart Focus**: banners from other apps wait while you're in a Tupo meeting (`/app/meet/:id`) or taking a Task Mentor quiz (`/quizzes/:id/take`, `/quiz/:id`). A pill in the title bar shows it.
+- **Limits:** at most 12 per app per minute. Text is clipped. The source app comes from the webview label, never from the page.
+- **The OS side** (`os_notify.rs`):
+  - macOS installed app: `UNUserNotificationCenter`. It asks permission (system prompt), reports the status, stacks banners per app, and handles real click callbacks.
+  - Windows: WinRT toasts. A click brings NGA back, and that counts as the click.
+  - Settings → Notifications and the first-run strip show the OS status, plus **Allow**, **System settings** (`x-apple.systempreferences:…Notifications…?id=com.amashuri.nga.desktop` / `ms-settings:notifications`) and **Send a test**.
+- **Background:** app webviews run with background throttling **disabled**. Closing the window **hides** it (setting "Keep running", on by default), so sockets and polls keep going. Quit from the tray or menu bar.
+
+**Native path for the web apps (recommended, optional):** watchers depend on today's endpoint shapes. Each app can instead call the standard `new Notification(title, {body, tag})` and `navigator.setAppBadge(n)` when it has something new. Those work in browsers too, and the desktop picks them up with no watcher. Task Mentor should also poll when hidden in desktop (`isNgaDesktop()`).
+
+### Google sign-in
+
+GIS's popup can't complete in an embedded webview (`disallowed_useragent`). Implemented with RFC 8252 loopback, **frontend-only on MIS** (PR #55, `feat/desktop-google-signin`):
+
+1. In desktop, MIS's login page shows "Continue with Google (opens your browser)", a link to `/desktop/google`.
+2. The app intercepts the link (`google.rs`), listens once on `127.0.0.1:<random>`, and opens the browser at `/desktop/google?redirect_uri=http://127.0.0.1:<port>/google&state=<128-bit hex>`.
+3. The browser page signs in with Google and form-POSTs `{credential, state}` to the loopback (loopback-only URL check on the MIS side).
+4. The app checks `state` and opens `/login?desktop_google=1#credential=…` in the MIS tab. `Login.tsx` finishes with the existing `POST /auth/google`.
+
+No backend change and no deep-link registration (it works in dev too). The listener closes after 5 min or on the next attempt.
+
+### One sign-in for everything (central and background sign-in)
+
+`auth.rs` samples each app webview's URL every 1.5 s and acts on states that hold for 3 s. The apps are SPAs, so page loads don't show redirects.
+
+- **MIS signed in:** every other app signs in **in the background** (hidden webviews running MIS's SSO hop, 1 s apart). They're ready, and their notifications flow. A spoke tab parked on MIS's sign-in page is pushed through again.
+- **MIS signed out** (logout, expiry, account switch): the other apps' tabs close and their handshakes are forgotten. Back-channel logout has already ended their server sessions.
+- **A spoke shows its own signed-out page while MIS is signed in:** its SSO hop runs again, at most once a minute.
+- **The MIS tab:** if someone signs in to MIS from inside a spoke's tab, the MIS tab leaves its login page too.
+
+The signed-out pages are configured per app in `registry.rs`: Task Mentor `/login`, Tendo `/`, Tupo `/`, MIS `/login` without `client_id`.
+
+### Layout and interaction (redesign)
+
+- **Title-bar app tabs:**
+  - macOS: overlay title bar with the traffic lights.
+  - Windows: frameless, with drawn minimise / maximise / close.
+  - A sliding highlight marks the active tab. Each tab shows a badge and a "signed in" dot, and right-click opens a native menu (reload, start page, open in browser, mute).
+  - Below 1100 px the tabs collapse to icons.
+  - **Focus mode** (⌘⇧F) leaves a 30 px bar.
+- **Panels push the app instead of covering it:**
+  - Notification side panel (360 px).
+  - **⌘K command palette:** apps, ~38 curated destinations, recent pages, and actions (theme, focus, notifications, settings, reload, print, sign out).
+  - Onboarding strip.
+
+  Native app views always draw above the shell, so any overlay would be hidden. Native popup menus serve the theme picker, "more" and the tab menu.
+- **Themes:** Match NGA MIS (default: the bridge watches MIS's `html.dark` / `html.light`; MIS keeps it per user as `preferred_theme`), Light, Dark, or This computer. Window chrome follows, and the theme is restored before first paint.
+- **Motion:** tab highlight slide, badge pop, panel slide-in, palette drop, toast drop-in, breathing splash with progress shimmer. All of it respects `prefers-reduced-motion`.
+
+### Browser behaviour checked
+
+| Behaviour | Status in the desktop app |
+|---|---|
+| `alert` / `confirm` / `prompt` | macOS: added natively (wry lacks them). Windows: native. |
+| `beforeunload` "leave page?" (MIS lesson-note editor, Tendo register) | macOS: added (`_webView:runBeforeUnloadConfirmPanel…`). Windows: native. |
+| `window.print()` | macOS: bridged to native print. Windows: native. Plus ⌘P and the "more" menu. |
+| File drag and drop into pages (uploads, chat) | Fixed: Tauri's own drop handler is disabled on app webviews (it swallowed drops). |
+| Element fullscreen (`requestFullscreen`: e-learning, proctoring) | macOS: enabled by wry. Windows: fills the app area only, not the screen (to do: `ContainsFullScreenElementChanged` → window fullscreen). |
+| Autoplay with sound (Tupo ringtones, TM warnings) | Allowed (wry `autoplay`). |
+| Zoom | ⌘= / ⌘- / ⌘0, per app. |
+| Camera / mic | OS prompt (Info.plist strings). WebKit grants per page. |
+| Screen share (Tupo Meet) | macOS 14+. To test on 13. |
+| Clipboard `writeText` | Works on click (user gesture). |
+| `navigator.share` (Tupo feed / meet) | May be missing on WKWebView. Tupo already falls back to copying the link. |
+| Geolocation (activity tracking) | Not granted (no location entitlement). The activity module already handles the error. |
+| Web Push / service workers | Not used in desktop. Replaced by watchers and the bridge. Phase 3: skip SW registration when `isNgaDesktop()`. |
+| `window.close()` from a popup | Not supported yet (wry lacks `webViewDidClose:`). Popups close with their window button. |
+| Saved passwords / autofill | WebView2 autofill on. WKWebView has no Keychain autofill (the password + OTP form still works). |
 
 ---
 
@@ -122,18 +208,18 @@ later opens (< 20 h)  → https://tendo.amashuri.com/  directly (its own 24 h to
 | Capability | Windows (WebView2) | macOS (WKWebView) | Status |
 |---|---|---|---|
 | First-party cookies and localStorage, persistence | ✅ | ✅ | done |
-| `alert` / `confirm` / `prompt` | ✅ native | ❌ in wry → **fixed** (`dialogs.rs`) | done, needs manual click-through test |
+| `alert` / `confirm` / `prompt` / `beforeunload` | ✅ native | ❌ in wry → **fixed** (`dialogs.rs`) | done, needs manual click-through test |
 | Camera / microphone | ✅ prompt | wry grants media capture by default, so the OS prompts; `Info.plist` strings and entitlements are in the repo | Info.plist done; test proctoring and Meet |
 | Screen share (`getDisplayMedia`) | ✅ | works on macOS 14+ (wry fix 0.35.1) | test Tupo Meet on 13/14/15 |
 | Downloads | engine default → Downloads | wry → Downloads, de-duped | done (+ "Show in folder") |
 | Print | `Webview::print` | `printOperationWithPrintInfo` | done (header button, ⌘/Ctrl+P) |
-| `window.print()` from the page | ✅ | unreliable | Phase 3: pages call the shell instead (or users use ⌘P) |
+| `window.print()` from the page | ✅ | ignored by WKWebView → bridged to native print | done |
 | File upload `<input type=file>` | ✅ | ✅ (wry open panel) | — |
 | ⌘C / ⌘V | ✅ | needs an Edit menu → default menu kept | done |
-| Service worker / Web Push | partial | unreliable | Phase 3: skip SW and push in desktop |
-| Google OAuth in webview | ❌ | ❌ | Phase 3 hides it, Phase 4 handoff |
+| Service worker / Web Push | partial | unreliable | replaced by the notification manager (§2b); Phase 3: skip SW in desktop |
+| Google OAuth in webview | ❌ | ❌ | system browser + loopback (§2b, MIS PR #55) |
 | Tray, single instance, window state | ✅ | ✅ | done |
-| Deep links `nga://` | — | — | Phase 4 (only needed for the Google handoff) |
+| Deep links `nga://` | — | — | not needed (Google uses loopback) |
 
 ---
 
@@ -181,7 +267,7 @@ export const isNgaDesktop = () => typeof navigator !== "undefined" && /\bNGADesk
 |---|---|:-:|:-:|:-:|:-:|
 | 3.1 | Hide PWA install UI (`AutoInstallPrompt`, `pwa/ngaInstall.tsx`, nudges). The Safari-like UA on macOS may otherwise show "Add to Dock" guidance. | ✅ | ✅ | ✅ | ✅ |
 | 3.2 | Skip `serviceWorker.register` and Web Push subscription in desktop | ✅ | ✅ | ✅ | ✅ |
-| 3.3 | Hide the Google button in desktop (until 4.2) | ✅ | | | |
+| 3.3 | ~~Hide the Google button~~ Google through the browser: **MIS PR #55** (merge + deploy) | ✅ | | | |
 | 3.4 | Skip the 1.5 s SSO consent pause when `isNgaDesktop()` (faster first open of a spoke) | ✅ | | | |
 | 3.5 | Hide the in-app app switchers (`SystemsMenu`, `AppsSwitcher`); the sidebar replaces them | opt. | opt. | opt. | opt. |
 | 3.6 | Activity tracking: `client: "desktop"` and the version | ✅ | ✅ | ✅ | ✅ |
@@ -193,8 +279,8 @@ None of these block v1.0 except 3.1 (cosmetic) and 3.3 (affects Google-only user
 
 | # | Task |
 |---|---|
-| 4.1 | Opt-in bridge for the web apps (`capabilities/remote-apps.json`, `remote.urls` = the four origins): `nga_notify`, `nga_set_badge`, `nga_print`. Use it for MIS reminders and Tupo unread counts. |
-| 4.2 | Google sign-in through the system browser: `nga://` deep link, MIS `POST /auth/desktop-handoff` + redeem (60 s, single use, nonce-bound), `/desktop/complete` |
+| 4.1 | ✅ Done in v0.2: the bridge (runtime capability `remote-apps`) with `Notification`, `setAppBadge`, `print` and MIS theme, plus watchers. Next: apps adopt `new Notification` / `setAppBadge` natively. |
+| 4.2 | ✅ Done in v0.2: Google through the system browser (loopback, MIS PR #55) |
 | 4.3 | Autostart (setting), "kiosk/shared PC" mode that wipes the profile on quit |
 | 4.4 | Backlog: Task Mentor exam lockdown, Linux row, macOS `.pkg` for MDM, per-app zoom |
 
@@ -227,6 +313,17 @@ Phase 1 is complete, Phase 2 items 2.1–2.6 are done, and 3.1 and 3.3 are merge
 - [ ] Settings → Sign out of this computer → every app signed out; restart → MIS login
 - [ ] Restart while signed in → still signed in everywhere
 - [ ] In-app update from the previous version (once the updater is on)
+- [ ] First run: "Turn on" strip → macOS permission prompt → test banner appears
+- [ ] Tupo message while another app is on screen → title-bar toast + Tupo badge; with NGA in the background → OS banner → click opens Tupo on that chat
+- [ ] New MIS / Tendo notification (bell) → desktop notice → click opens its link
+- [ ] Task Mentor alert arrives while Task Mentor is hidden (replay, ≤ 3 min)
+- [ ] In a Tupo meeting: banners from other apps wait; the "In a meeting" pill shows
+- [ ] Sign in to MIS → the other tabs get their "signed in" dot without being opened; MIS logout → they close
+- [ ] Google: "Continue with Google (opens your browser)" → browser → back in NGA signed in (after MIS #55 is deployed)
+- [ ] Theme follows NGA MIS's toggle; the Appearance menu overrides it; restart keeps it, without a flash
+- [ ] ⌘K → type "attend" → Enter opens Tendo's register
+- [ ] Drag a file into the Tupo composer / an MIS upload box
+- [ ] Close the window → NGA keeps running (tray / Dock) and still notifies
 - [ ] Uninstall leaves no running process
 
 ---
@@ -238,7 +335,9 @@ Phase 1 is complete, Phase 2 items 2.1–2.6 are done, and 3.1 and 3.3 are merge
 | R1 | Tauri `unstable` multi-webview changes or regresses | M | H | Exact pin `=2.12.1`; all use isolated in `webviews.rs`; upgrade deliberately with §8.2 |
 | R2 | Runtime method injection in `dialogs.rs` breaks with a wry or WebKit change | L | M | `class_addMethod` never overrides; logs whether the delegate responds; covered by checklist row |
 | R3 | WebKit differences in the apps (CSS, media, TF.js) | M | M | Phase 1 tests; fixes also help Safari web users |
-| R4 | Google-only accounts can't sign in inside the app | M | M | 3.3 now, 4.2 later; "Open in browser" meanwhile |
+| R4 | Google-only accounts can't sign in inside the app | M | M | Fixed once MIS PR #55 is deployed |
+| R11 | A watcher breaks when an app changes its notification endpoint | M | M | Watchers are a fallback: move apps to `new Notification` / `setAppBadge` (§2b) |
+| R12 | Background sign-in uses memory (four live webviews) | M | L | Setting to turn it off; hidden webviews are cheap compared to four browser tabs |
 | R5 | Signing lead times (Apple D-U-N-S, cert vetting) | M | H | Start Phase 2 now; pilot on unsigned builds |
 | R6 | Updater key lost or leaked | L | Critical | Offline backup; `release` environment with reviewers |
 | R7 | Shared PCs leak sessions | M | H | "Sign out of this computer" wipes the profile; kiosk mode in 4.3 |

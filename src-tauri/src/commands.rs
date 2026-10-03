@@ -49,8 +49,65 @@ pub fn open_app<R: Runtime>(app: AppHandle<R>, key: String) -> CmdResult {
 
 /// The shell reports how much room its sidebar/header take (logical px).
 #[tauri::command]
-pub fn set_insets<R: Runtime>(app: AppHandle<R>, left: f64, top: f64) {
-    webviews::set_insets(&app, left, top);
+pub fn set_insets<R: Runtime>(app: AppHandle<R>, left: f64, top: f64, right: f64, bottom: f64) {
+    webviews::set_insets(&app, left, top, right, bottom);
+}
+
+#[tauri::command]
+pub fn navigate_app<R: Runtime>(app: AppHandle<R>, key: String, path: String) -> CmdResult {
+    webviews::navigate_app(&app, &key, &path).map_err(err)
+}
+
+/// NGA MIS reports its theme (bridge.js). Only MIS's report counts.
+#[tauri::command]
+pub fn web_theme<R: Runtime>(
+    app: AppHandle<R>,
+    webview: tauri::Webview<R>,
+    theme: String,
+) -> CmdResult {
+    let mis_label = {
+        let shell = app.state::<Shell>();
+        webviews::label(registry::identity_provider(&shell.apps).key)
+    };
+    if webview.label() != mis_label || !matches!(theme.as_str(), "light" | "dark") {
+        return Err("ignored".into());
+    }
+    if let Ok(store) = tauri_plugin_store::StoreExt::store(&app, "settings.json") {
+        store.set("misTheme", theme.clone());
+    }
+    let _ = app.emit_to(SHELL, "nga://mis-theme", theme);
+    Ok(())
+}
+
+/// Native window chrome (title bar, traffic lights, menus) follows the shell's theme.
+#[tauri::command]
+pub fn set_window_theme<R: Runtime>(app: AppHandle<R>, theme: String) -> CmdResult {
+    let t = match theme.as_str() {
+        "dark" => Some(tauri::Theme::Dark),
+        "light" => Some(tauri::Theme::Light),
+        _ => None,
+    };
+    if let Some(w) = app.get_window(webviews::WINDOW) {
+        w.set_theme(t).map_err(err)?;
+    }
+    Ok(())
+}
+
+/// A native menu at (x, y) in the shell (tab right-click, the "more" button).
+/// Native, because shell HTML can't draw over the app webviews.
+#[tauri::command]
+pub fn popup_menu<R: Runtime>(
+    app: AppHandle<R>,
+    kind: String,
+    key: Option<String>,
+    x: f64,
+    y: f64,
+) -> CmdResult {
+    let menu = crate::menus::popup(&app, &kind, key.as_deref()).map_err(err)?;
+    let window = app.get_window(webviews::WINDOW).ok_or("no window")?;
+    window
+        .popup_menu_at(&menu, tauri::LogicalPosition::new(x, y))
+        .map_err(err)
 }
 
 /// A shell page (Settings, About, offline) is showing over the app area.
@@ -146,6 +203,8 @@ pub async fn reset_profile<R: Runtime>(app: AppHandle<R>) -> CmdResult {
     }
     webviews::close_all_apps(&app);
     webviews::forget_sso(&app);
+    app.state::<crate::notifications::Notifier>().clear();
+    crate::notifications::publish(&app);
     let _ = app.emit_to(SHELL, "nga://signed-out", ());
     Ok(())
 }

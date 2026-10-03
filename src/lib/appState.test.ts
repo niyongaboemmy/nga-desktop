@@ -27,6 +27,14 @@ describe("app view state", () => {
     expect(isSlow(reduce(v, { type: "loaded", key: "tendo" }).tendo, SLOW_MS * 2)).toBe(false);
   });
 
+  it("closed apps start over, others keep their state", () => {
+    let v: Views = reduce({}, { type: "loaded", key: "mis" });
+    v = reduce(v, { type: "loaded", key: "tupo" });
+    v = reduce(v, { type: "closed", keys: ["tupo"] });
+    expect(v.tupo).toBeUndefined();
+    expect(v.mis?.status).toBe("ready");
+  });
+
   it("sign-out forgets every app", () => {
     expect(reduce(reduce({}, { type: "loaded", key: "mis" }), { type: "reset" })).toEqual({});
   });

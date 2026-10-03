@@ -21,12 +21,18 @@ export type Action =
   | { type: "loaded"; key: AppKey; url?: string }
   | { type: "title"; key: AppKey; title?: string }
   | { type: "retry"; key: AppKey; at: number }
+  | { type: "closed"; keys: AppKey[] }
   | { type: "reset" };
 
 const blank: AppView = { status: "idle", busy: false };
 
 export function reduce(views: Views, action: Action): Views {
   if (action.type === "reset") return {};
+  if (action.type === "closed") {
+    const next = { ...views };
+    for (const k of action.keys) delete next[k];
+    return next;
+  }
   const cur = views[action.key] ?? blank;
   switch (action.type) {
     case "opened":

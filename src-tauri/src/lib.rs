@@ -1,14 +1,19 @@
+mod auth;
 mod commands;
 mod dialogs;
+mod google;
+mod menus;
 mod navigation;
+mod notifications;
+mod os_notify;
 mod registry;
 mod webviews;
 
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::tray::TrayIconBuilder;
+use tauri::ipc::CapabilityBuilder;
 use tauri::webview::WebviewBuilder;
 use tauri::window::WindowBuilder;
-use tauri::{App, AppHandle, LogicalPosition, Manager, Runtime, WebviewUrl, WindowEvent};
+use tauri::{App, AppHandle, LogicalPosition, Manager, RunEvent, Runtime, WebviewUrl, WindowEvent};
+use tauri_plugin_store::StoreExt;
 use webviews::{Shell, SHELL, WINDOW};
 
 /// Updater public key, supplied at build time by the release workflow
@@ -25,9 +30,9 @@ pub const UPDATE_ENDPOINTS: &[&str] = &[
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
-        // Must be first: a second launch focuses the running window instead.
+        // Must be first: a second launch (or a clicked Windows toast) focuses the running window.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            focus_main(app)
+            menus::focus_main(app)
         }))
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -48,9 +53,11 @@ pub fn run() {
 
     builder
         .manage(Shell::new())
+        .manage(notifications::Notifier::default())
         .invoke_handler(tauri::generate_handler![
             commands::shell_info,
             commands::open_app,
+            commands::navigate_app,
             commands::set_insets,
             commands::set_covered,
             commands::reload_active,
@@ -61,37 +68,116 @@ pub fn run() {
             commands::show_downloads,
             commands::sign_out,
             commands::reset_profile,
+            commands::set_window_theme,
+            commands::popup_menu,
+            commands::web_theme,
+            notifications::notices_list,
+            notifications::notices_summary,
+            notifications::notices_open,
+            notifications::notices_read_all,
+            notifications::notices_clear,
+            notifications::os_permission,
+            notifications::os_permission_request,
+            notifications::os_open_settings,
+            notifications::os_test_banner,
+            notifications::focus_session,
+            notifications::web_notify,
+            notifications::web_badge,
+            notifications::web_print,
         ])
         .setup(|app| {
+            grant_bridge(app)?;
             build_main_window(app)?;
-            build_menu(app.handle())?;
-            build_tray(app.handle())?;
+            menus::build_app_menu(app.handle())?;
+            menus::build_tray(app.handle())?;
+            let handle = app.handle().clone();
+            os_notify::init(move |id| {
+                let h = handle.clone();
+                let _ = handle.run_on_main_thread(move || {
+                    menus::focus_main(&h);
+                    notifications::open_notice(&h, id);
+                });
+            });
+            auth::spawn(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
             if window.label() != WINDOW {
                 return;
             }
+            let app = window.app_handle();
             match event {
                 WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
-                    webviews::relayout(window.app_handle())
+                    webviews::relayout(app)
+                }
+                WindowEvent::Focused(true) => notifications::on_focus(app),
+                // Closing the window keeps NGA running (tray / Dock) so the apps
+                // stay signed in and notifications keep arriving. Quit from the
+                // tray or the app menu.
+                WindowEvent::CloseRequested { api, .. } if keep_running(app) => {
+                    api.prevent_close();
+                    let _ = window.hide();
                 }
                 _ => {}
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running NGA Desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building NGA Desktop")
+        .run(|app, event| {
+            // macOS: clicking the Dock icon brings the hidden window back.
+            if let RunEvent::Reopen { .. } = event {
+                menus::focus_main(app);
+            }
+        });
+}
+
+fn keep_running<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.store("settings.json")
+        .ok()
+        .and_then(|s| s.get("keepRunning"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
+}
+
+/// The only IPC the NGA web pages get: the bridge (notifications, badge,
+/// print, MIS theme), for their own webview and origin. Built from the
+/// registry, so a production binary never trusts a localhost page.
+fn grant_bridge<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
+    let shell = app.state::<Shell>();
+    let mut cap = CapabilityBuilder::new("remote-apps").local(false);
+    for a in &shell.apps {
+        cap = cap
+            .webview(webviews::label(a.key))
+            .remote(format!("{}/*", a.origin));
+    }
+    let cap = cap
+        .permission("allow-web-notify")
+        .permission("allow-web-badge")
+        .permission("allow-web-print")
+        .permission("allow-web-theme");
+    app.add_capability(cap)
 }
 
 /// The window is built here, not in tauri.conf.json, because child webviews
 /// need a bare `Window` (multi-webview) rather than a `WebviewWindow`.
+///
+/// The shell draws its own title bar (the app tabs live in it):
+/// - **macOS:** the system traffic lights float over it (overlay title bar, default
+///   position; the shell leaves them room).
+/// - **Windows:** no system frame; the shell draws minimise / maximise / close.
 fn build_main_window<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
-    let window = WindowBuilder::new(app, WINDOW)
+    let builder = WindowBuilder::new(app, WINDOW)
         .title("NGA")
-        .inner_size(1280.0, 820.0)
-        .min_inner_size(960.0, 600.0)
-        .center()
-        .build()?;
+        .inner_size(1320.0, 840.0)
+        .min_inner_size(900.0, 580.0)
+        .center();
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true);
+    #[cfg(not(target_os = "macos"))]
+    let builder = builder.decorations(false).shadow(true);
+    let window = builder.build()?;
     let size = window
         .inner_size()?
         .to_logical::<f64>(window.scale_factor()?);
@@ -102,113 +188,4 @@ fn build_main_window<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
     )?;
     shell.set_auto_resize(true)?;
     Ok(())
-}
-
-fn focus_main<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(w) = app.get_window(WINDOW) {
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
-    }
-}
-
-fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let shell = app.state::<Shell>();
-    let mut items: Vec<MenuItem<R>> = Vec::new();
-    for a in &shell.apps {
-        items.push(MenuItem::with_id(
-            app,
-            format!("open:{}", a.key),
-            a.name,
-            true,
-            None::<&str>,
-        )?);
-    }
-    let sep = PredefinedMenuItem::separator(app)?;
-    let show = MenuItem::with_id(app, "show", "Show NGA", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit NGA", true, None::<&str>)?;
-    let menu = Menu::new(app)?;
-    for i in &items {
-        menu.append(i)?;
-    }
-    menu.append(&sep)?;
-    menu.append(&show)?;
-    menu.append(&quit)?;
-
-    let mut tray = TrayIconBuilder::with_id("nga")
-        .tooltip("NGA")
-        .menu(&menu)
-        .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id().as_ref() {
-            "quit" => app.exit(0),
-            "show" => focus_main(app),
-            id => handle_menu(app, id),
-        });
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
-    }
-    tray.build(app)?;
-    Ok(())
-}
-
-/// The OS menu: the platform default (on macOS its Edit menu is what makes
-/// ⌘C/⌘V work inside the web apps) plus Apps and Go menus whose shortcuts
-/// work while focus is inside an app page.
-fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let menu = Menu::default(app)?;
-    let shell = app.state::<Shell>();
-    let apps = Submenu::with_id(app, "apps", "Apps", true)?;
-    for (i, a) in shell.apps.iter().enumerate() {
-        let accel = format!("CmdOrCtrl+{}", i + 1);
-        apps.append(&MenuItem::with_id(
-            app,
-            format!("open:{}", a.key),
-            a.name,
-            true,
-            Some(accel.as_str()),
-        )?)?;
-    }
-    let go = Submenu::with_items(
-        app,
-        "Go",
-        true,
-        &[
-            &MenuItem::with_id(app, "back", "Back", true, Some("CmdOrCtrl+["))?,
-            &MenuItem::with_id(app, "forward", "Forward", true, Some("CmdOrCtrl+]"))?,
-            &MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "print", "Print…", true, Some("CmdOrCtrl+P"))?,
-            &MenuItem::with_id(
-                app,
-                "browser",
-                "Open in Browser",
-                true,
-                Some("CmdOrCtrl+Shift+O"),
-            )?,
-        ],
-    )?;
-    menu.append(&apps)?;
-    menu.append(&go)?;
-    app.set_menu(menu)?;
-    app.on_menu_event(|app, event| handle_menu(app, event.id().as_ref()));
-    Ok(())
-}
-
-fn handle_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
-    if let Some(key) = id.strip_prefix("open:") {
-        focus_main(app);
-        let _ = webviews::open_app(app, key, None);
-        return;
-    }
-    let active = webviews::active_webview(app);
-    let _ = match (id, active) {
-        ("back", Some(wv)) => wv.eval("history.back()"),
-        ("forward", Some(wv)) => wv.eval("history.forward()"),
-        ("reload", Some(_)) => webviews::reload_active(app),
-        ("print", Some(wv)) => wv.print(),
-        ("browser", Some(_)) => {
-            commands::open_active_in_browser(app.clone()).map_err(|_| tauri::Error::WebviewNotFound)
-        }
-        _ => Ok(()),
-    };
 }

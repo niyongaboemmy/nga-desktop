@@ -1,11 +1,15 @@
-//! `window.alert` / `confirm` / `prompt` on macOS.
+//! `window.alert` / `confirm` / `prompt` and the "leave this page?" prompt on macOS.
 //!
 //! WKWebView shows these only if its `WKUIDelegate` implements the
 //! `runJavaScript…Panel` methods, and wry's delegate (0.57) does not. Without
 //! this, `confirm()` silently returns false (every "Delete this…?" in MIS,
 //! Task Mentor and Tupo would do nothing) and `alert()` is ignored.
 //!
-//! We add the three methods to wry's delegate class at runtime and answer them
+//! The same goes for `beforeunload` (MIS lesson-note editor, Tendo's
+//! attendance register): without the private `_webView:runBeforeUnload…`
+//! method, WebKit leaves the page and unsaved work is lost without a word.
+//!
+//! We add these methods to wry's delegate class at runtime and answer them
 //! with native `NSAlert`s. `class_addMethod` refuses to replace an existing
 //! method, so if wry ever implements them, theirs wins and this is a no-op.
 //! WebView2 (Windows) has its own dialogs; nothing to do there.
@@ -49,6 +53,8 @@ mod mac {
                 confirm as *const (), c"v@:@@@@?");
             add(class, sel!(webView:runJavaScriptTextInputPanelWithPrompt:defaultText:initiatedByFrame:completionHandler:),
                 prompt as *const (), c"v@:@@@@@?");
+            add(class, sel!(_webView:runBeforeUnloadConfirmPanelWithMessage:initiatedByFrame:completionHandler:),
+                before_unload as *const (), c"v@:@@@@?");
             let alert_ok: bool = msg_send![delegate, respondsToSelector: sel!(webView:runJavaScriptConfirmPanelWithMessage:initiatedByFrame:completionHandler:)];
             log::info!("JS dialogs (alert/confirm/prompt) handled natively: {alert_ok}");
         });
@@ -134,6 +140,25 @@ mod mac {
         let ok = run(&host_of(frame), &text(message), &["OK", "Cancel"], None);
         if let Some(h) = handler.as_ref() {
             h.call((Bool::new(ok),));
+        }
+    }
+
+    unsafe extern "C-unwind" fn before_unload(
+        _this: *mut AnyObject,
+        _cmd: Sel,
+        _webview: *mut AnyObject,
+        _message: *mut NSString,
+        frame: *mut AnyObject,
+        handler: *mut Block<dyn Fn(Bool)>,
+    ) {
+        let leave = run(
+            &host_of(frame),
+            "Leave this page? Changes you made may not be saved.",
+            &["Leave", "Stay"],
+            None,
+        );
+        if let Some(h) = handler.as_ref() {
+            h.call((Bool::new(leave),));
         }
     }
 

@@ -1,19 +1,48 @@
 import { useEffect, useState } from "react";
-import { Download, LogOut, RefreshCw, Trash2 } from "lucide-react";
+import { BellOff, BellRing, Download, ExternalLink, LogOut, Monitor, Moon, RefreshCw, Sun, Trash2 } from "lucide-react";
 import type { Update } from "@tauri-apps/plugin-updater";
-import { native, type AppKey, type ShellInfo } from "../lib/native";
+import { native, on, type AppKey, type OsPermission, type ShellInfo } from "../lib/native";
 import { readSettings, saveSetting, type Settings as Prefs } from "../lib/settings";
 import { findUpdate, installUpdate } from "../lib/updater";
+import type { ThemePref } from "../lib/theme";
+import { isMac } from "../lib/platform";
 
-export function Settings({ info }: { info: ShellInfo }) {
+const THEMES: Array<{ id: ThemePref; label: string; icon: React.ReactNode }> = [
+  { id: "mis", label: "Match NGA MIS", icon: <img src="/apps/mis.png" alt="" /> },
+  { id: "light", label: "Light", icon: <Sun size={16} /> },
+  { id: "dark", label: "Dark", icon: <Moon size={16} /> },
+  { id: "system", label: "This computer", icon: <Monitor size={16} /> },
+];
+
+const PERM_TEXT: Record<OsPermission, string> = {
+  granted: "Allowed. NGA can show banners on this computer.",
+  denied: "Blocked by this computer. Turn notifications on for NGA in System Settings.",
+  prompt: "Not set up yet.",
+  unknown: isMac
+    ? "Run the installed app to manage this here."
+    : "On, unless turned off in Windows Settings → System → Notifications.",
+};
+
+export function Settings({ info, themePref, onTheme }: { info: ShellInfo; themePref: ThemePref; onTheme: (t: ThemePref) => void }) {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
+  const [perm, setPerm] = useState<OsPermission>("unknown");
   const [confirm, setConfirm] = useState<"signout" | "reset" | null>(null);
   const [working, setWorking] = useState(false);
   const [update, setUpdate] = useState<Update | null | "none" | "checking">(null);
   const [pct, setPct] = useState<number | null>(null);
 
-  useEffect(() => void readSettings().then(setPrefs), []);
+  useEffect(() => {
+    const load = () => void readSettings().then(setPrefs);
+    load();
+    void native.osPermission().then(setPerm);
+    const sub = on("nga://settings-changed", load);
+    return () => void sub.then((off) => off());
+  }, []);
 
+  const set = <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
+    setPrefs((p) => (p ? { ...p, [key]: value } : p));
+    void saveSetting(key, value);
+  };
   const run = async (fn: () => Promise<void>) => {
     setWorking(true);
     try {
@@ -23,31 +52,115 @@ export function Settings({ info }: { info: ShellInfo }) {
       setConfirm(null);
     }
   };
+  const dndOn = !!prefs && prefs.dndUntil > Date.now();
+  const toggleMute = (key: AppKey) => {
+    if (!prefs) return;
+    set("mutedApps", prefs.mutedApps.includes(key) ? prefs.mutedApps.filter((k) => k !== key) : [...prefs.mutedApps, key]);
+  };
+  const tomorrow8 = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(8, 0, 0, 0);
+    return d.getTime();
+  };
 
   return (
     <div className="settings">
       <section>
-        <h3>Start with</h3>
-        <select
-          value={prefs?.startApp ?? "last"}
-          onChange={(e) => {
-            const v = e.target.value as AppKey | "last";
-            setPrefs((p) => (p ? { ...p, startApp: v } : p));
-            void saveSetting("startApp", v);
-          }}
-        >
-          <option value="last">The app I used last</option>
-          {info.apps.map((a) => (
-            <option key={a.key} value={a.key}>{a.name}</option>
+        <h3>Appearance</h3>
+        <div className="segmented" role="radiogroup" aria-label="Theme">
+          {THEMES.map((t) => (
+            <button key={t.id} role="radio" aria-checked={themePref === t.id} className={themePref === t.id ? "on" : ""} onClick={() => onTheme(t.id)}>
+              {t.icon}
+              <span>{t.label}</span>
+            </button>
           ))}
-        </select>
+        </div>
+        <p className="muted small">"Match NGA MIS" follows the light/dark choice you make in NGA MIS (saved with your account).</p>
+      </section>
+
+      <section>
+        <h3>Notifications</h3>
+        <div className={`perm perm-${perm}`}>
+          <BellRing size={18} />
+          <span>
+            <strong>On this computer</strong>
+            <span className="muted">{PERM_TEXT[perm]}</span>
+          </span>
+          <div className="row tight">
+            {perm === "prompt" && (
+              <button className="btn primary sm" onClick={async () => setPerm(await native.osPermissionRequest())}>Allow</button>
+            )}
+            <button className="btn sm" onClick={() => native.osOpenSettings()}><ExternalLink size={14} /> System settings</button>
+            <button className="btn sm" onClick={() => native.osTestBanner()}>Send a test</button>
+          </div>
+        </div>
+        <div className="row">
+          {dndOn ? (
+            <>
+              <span className="pill-warn">
+                <BellOff size={14} /> Do Not Disturb until{" "}
+                {new Date(prefs!.dndUntil).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+              </span>
+              <button className="btn sm" onClick={() => set("dndUntil", 0)}>Turn off</button>
+            </>
+          ) : (
+            <>
+              <span className="muted">Do Not Disturb:</span>
+              <button className="btn sm" onClick={() => set("dndUntil", Date.now() + 3_600_000)}>1 hour</button>
+              <button className="btn sm" onClick={() => set("dndUntil", tomorrow8())}>Until tomorrow 08:00</button>
+            </>
+          )}
+        </div>
+        <p className="muted small">
+          Banners also wait on their own while you're in a Tupo meeting or taking a Task Mentor quiz. Everything still
+          collects under the bell.
+        </p>
+        <div className="mute-grid">
+          {info.apps.map((a) => (
+            <label key={a.key} className="switch-row">
+              <img src={`/apps/${a.key}.png`} alt="" />
+              <span>{a.name}</span>
+              <input type="checkbox" className="switch" checked={!prefs?.mutedApps.includes(a.key)} onChange={() => toggleMute(a.key)} />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h3>General</h3>
+        <label className="switch-row wide">
+          <span>
+            <strong>Sign in to every app in the background</strong>
+            <span className="muted">After you sign in to NGA MIS, the other apps sign in too, so they open at once and can notify you.</span>
+          </span>
+          <input type="checkbox" className="switch" checked={prefs?.backgroundSignIn ?? true} onChange={(e) => set("backgroundSignIn", e.target.checked)} />
+        </label>
+        <label className="switch-row wide">
+          <span>
+            <strong>Keep NGA running when its window is closed</strong>
+            <span className="muted">Notifications keep arriving. Quit from the {isMac ? "menu bar" : "tray"} icon.</span>
+          </span>
+          <input type="checkbox" className="switch" checked={prefs?.keepRunning ?? true} onChange={(e) => set("keepRunning", e.target.checked)} />
+        </label>
+        <label className="switch-row wide">
+          <span>
+            <strong>Start with</strong>
+          </span>
+          <select value={prefs?.startApp ?? "last"} onChange={(e) => set("startApp", e.target.value as AppKey | "last")}>
+            <option value="last">The app I used last</option>
+            {info.apps.map((a) => (
+              <option key={a.key} value={a.key}>{a.name}</option>
+            ))}
+          </select>
+        </label>
       </section>
 
       <section>
         <h3>Account</h3>
         <p className="muted">
-          You sign in once, in NGA MIS. Task Mentor, Tendo and Tupo then sign in through it. Signing out ends your
-          session in every NGA app and removes your data from this computer. Always do this on a shared computer.
+          You sign in once, in NGA MIS, and the other apps follow. Signing out ends your session in every NGA app and
+          removes your data from this computer. Always do it on a shared computer.
         </p>
         {confirm === "signout" ? (
           <div className="row">
@@ -67,7 +180,7 @@ export function Settings({ info }: { info: ShellInfo }) {
           <p className="muted">This build doesn't update itself (development or unsigned build).</p>
         ) : update && typeof update === "object" ? (
           <div className="row">
-            <span>Version {update.version} is available.</span>
+            <span>Version {update.version} is ready.</span>
             <button className="btn primary" disabled={pct !== null} onClick={() => installUpdate(update, setPct)}>
               <Download size={16} /> {pct === null ? "Restart & update" : `Downloading ${pct}%`}
             </button>
@@ -82,7 +195,7 @@ export function Settings({ info }: { info: ShellInfo }) {
                 setUpdate((await findUpdate()) ?? "none");
               }}
             >
-              <RefreshCw size={16} /> {update === "checking" ? "Checking…" : "Check for updates"}
+              <RefreshCw size={16} className={update === "checking" ? "spin" : ""} /> {update === "checking" ? "Checking…" : "Check for updates"}
             </button>
             {update === "none" && <span className="muted">You have the latest version.</span>}
           </div>
@@ -94,9 +207,7 @@ export function Settings({ info }: { info: ShellInfo }) {
         <p className="muted">If an app keeps showing an old page or won't sign in, reset NGA. This clears everything it saved.</p>
         {confirm === "reset" ? (
           <div className="row">
-            <button className="btn danger" disabled={working} onClick={() => run(native.resetProfile)}>
-              <Trash2 size={16} /> Yes, reset
-            </button>
+            <button className="btn danger" disabled={working} onClick={() => run(native.resetProfile)}><Trash2 size={16} /> Yes, reset</button>
             <button className="btn" onClick={() => setConfirm(null)}>Cancel</button>
           </div>
         ) : (

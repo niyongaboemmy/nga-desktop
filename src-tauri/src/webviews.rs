@@ -40,6 +40,9 @@ struct Inner {
     /// Space the shell UI takes (sidebar on the left, header on top), logical px.
     inset_left: f64,
     inset_top: f64,
+    /// A side panel (notifications) on the right pushes the app instead of covering it.
+    inset_right: f64,
+    inset_bottom: f64,
     /// A shell page (Settings, About, offline…) covers the viewport: hide apps.
     covered: bool,
     /// Apps whose first page has finished loading (shown only from then on).
@@ -47,6 +50,8 @@ struct Inner {
     /// Last allowed top-level URL per app, to return to after a blocked page.
     last_good: HashMap<String, Url>,
     popups: u32,
+    /// Page zoom per app (1.0 = 100 %).
+    zoom: HashMap<String, f64>,
 }
 
 pub struct Shell {
@@ -110,8 +115,8 @@ fn viewport<R: Runtime>(window: &Window<R>, inner: &Inner) -> Option<Rect> {
     Some(Rect {
         position: LogicalPosition::new(inner.inset_left, inner.inset_top).into(),
         size: LogicalSize::new(
-            (size.width - inner.inset_left).max(0.0),
-            (size.height - inner.inset_top).max(0.0),
+            (size.width - inner.inset_left - inner.inset_right).max(0.0),
+            (size.height - inner.inset_top - inner.inset_bottom).max(0.0),
         )
         .into(),
     })
@@ -138,12 +143,14 @@ pub fn relayout<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-pub fn set_insets<R: Runtime>(app: &AppHandle<R>, left: f64, top: f64) {
+pub fn set_insets<R: Runtime>(app: &AppHandle<R>, left: f64, top: f64, right: f64, bottom: f64) {
     {
         let shell = app.state::<Shell>();
         let mut inner = shell.inner.lock().unwrap();
         inner.inset_left = left.max(0.0);
         inner.inset_top = top.max(0.0);
+        inner.inset_right = right.max(0.0);
+        inner.inset_bottom = bottom.max(0.0);
     }
     relayout(app);
 }
@@ -177,6 +184,18 @@ fn mark_sso_done<R: Runtime>(app: &AppHandle<R>, key: &str) {
         store.set(format!("sso.{key}"), now_secs());
         let _ = store.save();
     }
+    // The person signed in to MIS from inside a spoke's tab: the MIS tab is
+    // still showing its sign-in page, so take it home.
+    let shell = app.state::<Shell>();
+    let mis = registry::identity_provider(&shell.apps);
+    if let Some(wv) = app.get_webview(&label(mis.key)) {
+        if wv
+            .url()
+            .is_ok_and(|u| crate::auth::classify(mis, &u) == crate::auth::Page::SignedOut)
+        {
+            let _ = wv.navigate(mis.start_url());
+        }
+    }
 }
 
 pub fn forget_sso<R: Runtime>(app: &AppHandle<R>) {
@@ -184,6 +203,22 @@ pub fn forget_sso<R: Runtime>(app: &AppHandle<R>) {
         store.clear();
         let _ = store.save();
     }
+}
+
+/// Create `key`'s webview (hidden) if it doesn't exist yet, without switching to it.
+/// Used for background sign-in.
+pub fn ensure_app<R: Runtime>(app: &AppHandle<R>, key: &str) -> tauri::Result<()> {
+    if app.get_webview(&label(key)).is_some() {
+        return Ok(());
+    }
+    let shell = app.state::<Shell>();
+    let def = registry::find(&shell.apps, key)
+        .ok_or(tauri::Error::WebviewNotFound)?
+        .clone();
+    let target = initial_url(app, &def, &shell.apps);
+    create_app_webview(app, &def, target)?;
+    relayout(app);
+    Ok(())
 }
 
 /// Switch to `key`, creating its webview on first use. `url` overrides where it goes.
@@ -196,6 +231,12 @@ pub fn open_app<R: Runtime>(app: &AppHandle<R>, key: &str, url: Option<Url>) -> 
         let mut inner = shell.inner.lock().unwrap();
         inner.active = Some(def.key.to_string());
         inner.covered = false;
+    }
+    if app
+        .state::<crate::notifications::Notifier>()
+        .mark_app_read(def.key)
+    {
+        crate::notifications::publish(app);
     }
     match app.get_webview(&label(def.key)) {
         Some(wv) => {
@@ -263,13 +304,17 @@ fn with_routing<R: Runtime>(app: &AppHandle<R>, builder: WebviewBuilder<R>) -> W
     let win_app = app.clone();
     builder
         .user_agent(&user_agent())
-        .on_navigation(move |url| match navigation::frame_navigation(url) {
-            Frame::Allow => true,
-            Frame::OpenWithOs(url) => {
-                let _ = nav_app.opener().open_url(url.as_str(), None::<&str>);
-                false
+        // Pages take file drops themselves (uploads, chat attachments); Tauri's
+        // own handler would swallow them (always on Windows).
+        .disable_drag_drop_handler()
+        .on_navigation(move |url| {
+            let shell = nav_app.state::<Shell>();
+            if crate::google::is_start(&shell.apps, url) {
+                let app = nav_app.clone();
+                let _ = nav_app.run_on_main_thread(move || crate::google::start(&app));
+                return false;
             }
-            Frame::Block => false,
+            frame_rule(&nav_app, url)
         })
         .on_new_window(move |url, features| route_new_window(&win_app, url, features))
         .on_download(|wv, event| {
@@ -286,12 +331,30 @@ fn with_routing<R: Runtime>(app: &AppHandle<R>, builder: WebviewBuilder<R>) -> W
         })
 }
 
+fn frame_rule<R: Runtime>(app: &AppHandle<R>, url: &Url) -> bool {
+    match navigation::frame_navigation(url) {
+        Frame::Allow => true,
+        Frame::OpenWithOs(url) => {
+            let _ = app.opener().open_url(url.as_str(), None::<&str>);
+            false
+        }
+        Frame::Block => false,
+    }
+}
+
 fn route_new_window<R: Runtime>(
     app: &AppHandle<R>,
     url: Url,
     features: tauri::webview::NewWindowFeatures,
 ) -> NewWindowResponse<R> {
     let shell = app.state::<Shell>();
+    if crate::google::is_start(&shell.apps, &url) {
+        let app = app.clone();
+        let _ = app
+            .clone()
+            .run_on_main_thread(move || crate::google::start(&app));
+        return NewWindowResponse::Deny;
+    }
     match navigation::new_window(shell.env, &shell.apps, &url) {
         NewWindow::App(key, url) => {
             log::info!("new window → {key} tab: {}", redact(&url));
@@ -341,6 +404,7 @@ fn create_popup<R: Runtime>(
     )
     .title(url.as_str())
     .inner_size(1000.0, 760.0)
+    .disable_drag_drop_handler()
     .window_features(features)
     .user_agent(&user_agent())
     .on_document_title_changed(|w, title| {
@@ -398,6 +462,11 @@ fn create_app_webview<R: Runtime>(
     let load_app = app.clone();
     let title_app = app.clone();
     let builder = WebviewBuilder::new(label(def.key), WebviewUrl::External(url))
+        // Notification / setAppBadge / print bridge (see bridge.js).
+        .initialization_script(bridge_script(def.key))
+        // Hidden apps keep their sockets and timers running, so Tupo chat and
+        // reminders still arrive while another app is on screen.
+        .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled)
         .on_page_load(move |wv, payload| {
             on_page_load(&load_app, &wv, payload.event(), payload.url())
         })
@@ -515,6 +584,80 @@ pub fn reload_active<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             .clone();
         wv.navigate(initial_url(app, &def, &shell.apps))
     }
+}
+
+fn bridge_script(key: &str) -> String {
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "other"
+    };
+    include_str!("bridge.js")
+        .replace("__NGA_PLATFORM__", &format!("\"{platform}\""))
+        .replace("__NGA_APP__", &format!("\"{key}\""))
+}
+
+/// Go to a page inside an app (command palette, quick destinations).
+pub fn navigate_app<R: Runtime>(app: &AppHandle<R>, key: &str, path: &str) -> tauri::Result<()> {
+    let shell = app.state::<Shell>();
+    let def = registry::find(&shell.apps, key).ok_or(tauri::Error::WebviewNotFound)?;
+    // Only paths inside the app: no scheme, no other host.
+    if !path.starts_with('/') || path.starts_with("//") {
+        return Err(tauri::Error::WebviewNotFound);
+    }
+    let url = Url::parse(&format!("{}{}{}", def.origin, def.base, path))
+        .map_err(|_| tauri::Error::WebviewNotFound)?;
+    if app.get_webview(&label(key)).is_none() && def.sso.is_some() {
+        // Not signed in here yet: sign in first; the destination can wait.
+        return open_app(app, key, None);
+    }
+    open_app(app, key, Some(url))
+}
+
+/// Close the spokes only (MIS signed out: their sessions ended with it).
+pub fn close_spokes<R: Runtime>(app: &AppHandle<R>) {
+    let shell = app.state::<Shell>();
+    let mut closed = Vec::new();
+    for a in shell.apps.iter().filter(|a| a.sso.is_some()) {
+        if let Some(wv) = app.get_webview(&label(a.key)) {
+            let _ = wv.close();
+            closed.push(a.key.to_string());
+        }
+    }
+    {
+        let mut inner = shell.inner.lock().unwrap();
+        for k in &closed {
+            inner.ready.remove(k);
+            inner.last_good.remove(k);
+        }
+        if inner.active.as_ref().is_some_and(|a| closed.contains(a)) {
+            inner.active = None;
+        }
+    }
+    emit(app, "nga://closed", closed);
+}
+
+/// Zoom the active app: `step` +1 / -1, or 0 to reset. Remembered per app.
+pub fn zoom_active<R: Runtime>(app: &AppHandle<R>, step: i32) {
+    let Some(key) = app.state::<Shell>().active() else {
+        return;
+    };
+    let Some(wv) = app.get_webview(&label(&key)) else {
+        return;
+    };
+    let shell = app.state::<Shell>();
+    let level = {
+        let mut inner = shell.inner.lock().unwrap();
+        let cur = inner.zoom.get(&key).copied().unwrap_or(1.0);
+        let next = match step {
+            0 => 1.0,
+            s if s > 0 => (cur + 0.1).min(2.0),
+            _ => (cur - 0.1).max(0.5),
+        };
+        inner.zoom.insert(key, next);
+        next
+    };
+    let _ = wv.set_zoom(level);
 }
 
 /// Close every app webview and forget which were ready (after sign-out/reset).
