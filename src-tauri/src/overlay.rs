@@ -3,8 +3,11 @@
 //!
 //! Native app webviews always draw above the shell's HTML, so the shell
 //! can't float anything over an app. This is a separate transparent,
-//! frameless window glued to the main window (macOS: a child window that moves
-//! with it; Windows: an owned window that we move with it). It loads the
+//! frameless window that we keep exactly over the main window (moved and
+//! resized with it; on Windows it's also owned by it). It is NOT a macOS child
+//! window: `addChildWindow` puts a child on screen even while "hidden", and an
+//! invisible window over NGA swallowed every click. While closed it is hidden
+//! AND ignores the mouse, so it can never block the app. It loads the
 //! shell's own page in overlay mode (`index.html?overlay=1`), dims the app
 //! behind it, and closes when it loses focus, like Spotlight.
 //!
@@ -27,11 +30,13 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             .skip_taskbar(true)
             .visible(false)
             .focused(false);
-    #[cfg(target_os = "macos")]
-    let builder = builder.parent_raw(main.ns_window()?);
     #[cfg(windows)]
     let builder = builder.owner_raw(main.hwnd()?);
+    #[cfg(not(windows))]
+    let _ = &main;
     let overlay = builder.build()?;
+    let _ = overlay.set_ignore_cursor_events(true);
+    let _ = overlay.hide();
     let handle = app.clone();
     overlay.on_window_event(move |event| {
         // Clicking anywhere outside (another app, the NGA window itself) closes it.
@@ -42,8 +47,15 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Cover the main window's content area exactly.
+/// Cover the main window's content area exactly. Only while open: moving or
+/// resizing a hidden window on macOS can put it back on screen.
 pub fn fit<R: Runtime>(app: &AppHandle<R>) {
+    if is_open(app) {
+        place(app);
+    }
+}
+
+fn place<R: Runtime>(app: &AppHandle<R>) {
     let (Some(main), Some(overlay)) = (app.get_window(WINDOW), app.get_webview_window(OVERLAY))
     else {
         return;
@@ -65,14 +77,17 @@ pub fn show<R: Runtime>(app: &AppHandle<R>, view: &str) {
     let Some(overlay) = app.get_webview_window(OVERLAY) else {
         return;
     };
-    fit(app);
+    place(app);
     let _ = app.emit_to(OVERLAY, "nga://overlay", view.to_string());
+    let _ = overlay.set_ignore_cursor_events(false);
     let _ = overlay.show();
     let _ = overlay.set_focus();
 }
 
 pub fn hide<R: Runtime>(app: &AppHandle<R>) {
     if let Some(overlay) = app.get_webview_window(OVERLAY) {
+        // Always make it click-through, even if it already looks hidden.
+        let _ = overlay.set_ignore_cursor_events(true);
         if overlay.is_visible().unwrap_or(false) {
             let _ = overlay.hide();
             let _ = app.emit_to(OVERLAY, "nga://overlay", "closed".to_string());

@@ -101,6 +101,30 @@
     return badge(0);
   };
 
+  // ── Installed-app mode ─────────────────────────────────────────────────────
+  // Inside NGA Desktop every app IS installed. All four apps decide that with
+  // matchMedia("(display-mode: standalone)") / navigator.standalone, so answering
+  // truthfully hides their "Install as an app" prompts (Safari "Add to Dock",
+  // Chrome install cards) without any change to the apps.
+  var realMatchMedia = window.matchMedia ? window.matchMedia.bind(window) : null;
+  var displayMode = /^\s*\(\s*display-mode\s*:\s*([a-z-]+)\s*\)\s*$/i;
+  window.matchMedia = function (query) {
+    var m = displayMode.exec(String(query));
+    if (!m || !realMatchMedia) return realMatchMedia ? realMatchMedia(query) : null;
+    var noop = function () {};
+    return {
+      matches: m[1].toLowerCase() === "standalone",
+      media: String(query),
+      onchange: null,
+      addListener: noop,
+      removeListener: noop,
+      addEventListener: noop,
+      removeEventListener: noop,
+      dispatchEvent: function () { return false; },
+    };
+  };
+  try { Object.defineProperty(navigator, "standalone", { get: function () { return true; }, configurable: true }); } catch (e) { /* read-only */ }
+
   // ── Theme (only NGA MIS's report is used; MIS sets html.dark / html.light) ──
   var lastTheme = "";
   var reportTheme = function () {
