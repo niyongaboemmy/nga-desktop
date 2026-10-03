@@ -28,6 +28,9 @@ fn main() {
             "os_open_settings",
             "os_test_banner",
             "focus_session",
+            "overlay_show",
+            "overlay_hide",
+            "overlay_action",
             // Granted to the NGA web pages at runtime (lib.rs grant_bridge), not to the shell.
             "web_notify",
             "web_badge",

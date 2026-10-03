@@ -4,13 +4,12 @@ import { TitleBar, FocusBar, type Page } from "./components/TitleBar";
 import { Splash } from "./components/Splash";
 import { Settings } from "./components/Settings";
 import { NoticePanel } from "./components/NoticePanel";
-import { Palette } from "./components/Palette";
 import { Onboarding } from "./components/Onboarding";
 import { native, on, type AppKey, type Notice, type NoticeSummary, type ShellInfo } from "./lib/native";
 import { isSlow, reduce } from "./lib/appState";
 import { readSettings, saveSetting, type RecentPage } from "./lib/settings";
 import { applyTheme, resolveTheme, systemPrefersDark, type Theme, type ThemePref } from "./lib/theme";
-import { addRecent, type PaletteItem } from "./lib/palette";
+import { addRecent } from "./lib/palette";
 
 /** Below this width the tabs show icons only, so the app keeps its room. */
 export const COMPACT_BELOW = 1100;
@@ -22,7 +21,6 @@ export default function App() {
   const [active, setActive] = useState<AppKey | null>(null);
   const [page, setPage] = useState<Page>("app");
   const [panel, setPanel] = useState(false);
-  const [palette, setPalette] = useState(false);
   const [focus, setFocus] = useState(false);
   const [views, dispatch] = useReducer(reduce, {});
   const [notices, setNotices] = useState<NoticeSummary | null>(null);
@@ -33,7 +31,8 @@ export default function App() {
   const [misTheme, setMisTheme] = useState<Theme | undefined>();
   const [systemDark, setSystemDark] = useState(systemPrefersDark());
   const [onboarded, setOnboarded] = useState(true);
-  const [recent, setRecent] = useState<RecentPage[]>([]);
+  // Recent pages are recorded here and read by the palette (overlay window).
+  const [, setRecent] = useState<RecentPage[]>([]);
   const [focusSession, setFocusSession] = useState<AppKey | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const lastUrl = useRef<Partial<Record<AppKey, string>>>({});
@@ -55,13 +54,6 @@ export default function App() {
     dispatch({ type: "opened", key, at: Date.now() });
     void saveSetting("lastApp", key);
     void native.openApp(key);
-  }, []);
-
-  const go = useCallback((key: AppKey, path: string) => {
-    setPage("app");
-    setActive(key);
-    dispatch({ type: "opened", key, at: Date.now() });
-    void native.navigate(key, path);
   }, []);
 
   // Start-up: registry and preferences, then the preferred app.
@@ -142,8 +134,10 @@ export default function App() {
         if (!signedIn) setActive((a) => (a === null ? (open("mis"), "mis") : a));
       }),
       on("nga://menu", (id) => {
-        if (id === "palette") setPalette((p) => !p);
-        else if (id === "focus") setFocus((f) => !f);
+        if (id === "focus") setFocus((f) => !f);
+        else if (id === "reload") void native.reload();
+        else if (id === "print") void native.print();
+        else if (id === "signout") { setFocus(false); setPage("settings"); }
         else if (id === "notices") { setFocus(false); setPanel((p) => !p); }
         else if (id === "settings") { setFocus(false); setPage("settings"); }
         else if (id === "theme") setThemePref((p) => {
@@ -178,7 +172,7 @@ export default function App() {
       ro.disconnect();
       window.removeEventListener("resize", report);
     };
-  }, [info, focus, panel, palette, onboarded]);
+  }, [info, focus, panel, onboarded]);
 
   // Settings covers the app area (native app views draw above this page).
   useEffect(() => void native.setCovered(page !== "app"), [page]);
@@ -197,18 +191,7 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [toast]);
 
-  const pick = (it: PaletteItem) => {
-    setPalette(false);
-    if (it.kind === "app") open(it.key);
-    else if (it.kind === "go" || it.kind === "recent") go(it.key, it.path);
-    else if (it.action === "theme") chooseTheme(theme === "dark" ? "light" : "dark");
-    else if (it.action === "focus") setFocus(true);
-    else if (it.action === "notices") setPanel(true);
-    else if (it.action === "settings") setPage("settings");
-    else if (it.action === "reload") void native.reload();
-    else if (it.action === "print") void native.print();
-    else if (it.action === "signout") setPage("settings");
-  };
+
 
   if (!info) return <div className="boot" />;
   const app = info.apps.find((a) => a.key === active) ?? null;
@@ -244,7 +227,7 @@ export default function App() {
           focusSession={focusSession}
           panelOpen={panel}
           onOpen={open}
-          onPalette={() => setPalette((p) => !p)}
+          onPalette={() => void native.overlayShow("palette")}
           onPanel={() => setPanel((p) => !p)}
           onSettings={() => setPage(page === "settings" ? "app" : "settings")}
         />
@@ -257,7 +240,6 @@ export default function App() {
           }}
         />
       )}
-      {palette && <Palette apps={info.apps} recent={recent} onPick={pick} onClose={() => setPalette(false)} />}
       <div className="body">
         <div className="viewport" ref={viewport}>
           <div key={page === "settings" ? "settings" : active ?? "none"} className="page-anim">{content}</div>

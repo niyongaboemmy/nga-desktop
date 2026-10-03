@@ -6,6 +6,7 @@ mod menus;
 mod navigation;
 mod notifications;
 mod os_notify;
+mod overlay;
 mod registry;
 mod webviews;
 
@@ -42,7 +43,11 @@ pub fn run() {
                 .max_file_size(2_000_000)
                 .build(),
         )
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&[overlay::OVERLAY])
+                .build(),
+        )
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -86,10 +91,14 @@ pub fn run() {
             notifications::web_notify,
             notifications::web_badge,
             notifications::web_print,
+            overlay::overlay_show,
+            overlay::overlay_hide,
+            overlay::overlay_action,
         ])
         .setup(|app| {
             grant_bridge(app)?;
             build_main_window(app)?;
+            overlay::create(app.handle())?;
             menus::build_app_menu(app.handle())?;
             menus::build_tray(app.handle())?;
             let handle = app.handle().clone();
@@ -110,8 +119,10 @@ pub fn run() {
             let app = window.app_handle();
             match event {
                 WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
-                    webviews::relayout(app)
+                    webviews::relayout(app);
+                    overlay::fit(app);
                 }
+                WindowEvent::Moved(_) => overlay::fit(app),
                 WindowEvent::Focused(true) => notifications::on_focus(app),
                 // Closing the window keeps NGA running (tray / Dock) so the apps
                 // stay signed in and notifications keep arriving. Quit from the

@@ -127,19 +127,24 @@ kbd { font: 11px/1 var(--font); padding: 3px 5px; border-radius: 5px; border: 1p
 @keyframes drop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* ── Command palette (pushes the app down) ───────────────────────────────── */
-.palette { flex: none; display: flex; flex-direction: column; max-height: 430px; padding: 10px 0 8px; background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: var(--shadow); animation: drop 0.22s var(--ease); }
-.palette-input { display: flex; align-items: center; gap: 10px; margin: 0 auto; width: min(680px, calc(100% - 32px)); padding: 0 12px; height: 42px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); }
-.palette-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.palette-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text); font: 15px var(--font); }
-.palette-list { list-style: none; margin: 6px auto 0; padding: 0; width: min(680px, calc(100% - 32px)); overflow: auto; }
-.palette-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; text-align: left; }
+/* ── Floating overlay window (palette) ───────────────────────────────────── */
+html.overlay-window, html.overlay-window body, html.overlay-window #root { background: transparent !important; }
+.overlay-root { position: fixed; inset: 0; }
+.overlay-root.open { background: rgb(8 12 24 / 0.32); animation: fade-in 0.18s var(--ease); }
+:root[data-theme="dark"] .overlay-root.open { background: rgb(0 0 0 / 0.45); }
+.palette { position: absolute; top: max(56px, 12vh); left: 50%; width: min(660px, calc(100% - 32px)); transform: translateX(-50%); display: flex; flex-direction: column; max-height: min(520px, 76vh); overflow: hidden; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 2px 6px rgb(0 0 0 / 0.08), 0 28px 80px rgb(0 0 0 / 0.32); animation: palette-in 0.22s var(--ease); }
+@keyframes palette-in { from { opacity: 0; transform: translate(-50%, -8px) scale(0.98); } to { opacity: 1; transform: translateX(-50%); } }
+.palette-input { display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.palette-input input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text); font: 16px var(--font); }
+.palette-input input::placeholder { color: var(--muted); }
+.palette-list { list-style: none; margin: 0; padding: 6px; overflow: auto; }
+.palette-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; text-align: left; transition: background 0.12s; }
 .palette-item.sel { background: var(--accent-soft); }
-.palette-icon { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; background: var(--hover); color: var(--muted); flex: none; }
-.palette-icon img { width: 20px; height: 20px; border-radius: 5px; }
-.palette-label { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.palette-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: var(--hover); color: var(--muted); flex: none; }
+.palette-icon img { width: 22px; height: 22px; border-radius: 6px; }
+.palette-label { font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .palette-hint { flex: 1; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.palette-empty { display: flex; gap: 8px; align-items: center; padding: 14px 10px; color: var(--muted); }
+.palette-empty { display: flex; gap: 8px; align-items: center; padding: 16px 12px; color: var(--muted); }
 
 /* ── Notifications side panel (pushes the app left) ─────────────────────── */
 .panel { width: var(--panel-w); flex: none; display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line); animation: from-right 0.28s var(--ease); }

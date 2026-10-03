@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "shell",
-  "description": "The local shell UI (sidebar, header, settings). Applies to the `shell` webview only; the NGA app webviews load remote origins and get no IPC at all.",
+  "description": "The local shell UI (title bar, settings) and its floating overlay window. Applies to the `shell` and `overlay` webviews only; the NGA app webviews load remote origins and get only the bridge (see lib.rs grant_bridge).",
   "webviews": [
-    "shell"
+    "shell",
+    "overlay"
   ],
   "permissions": [
     "core:default",
@@ -43,6 +44,9 @@
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-is-maximized",
-    "core:webview:allow-set-webview-focus"
+    "core:webview:allow-set-webview-focus",
+    "allow-overlay-show",
+    "allow-overlay-hide",
+    "allow-overlay-action"
   ]
 }

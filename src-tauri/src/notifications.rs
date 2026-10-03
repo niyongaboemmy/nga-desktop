@@ -316,8 +316,16 @@ pub fn open_notice<R: Runtime>(app: &AppHandle<R>, id: u64) {
     publish(app);
 }
 
+/// Set when NGA itself hands focus back to the main window (overlay closed),
+/// so that isn't mistaken for a click on a banner.
+pub static INTERNAL_FOCUS: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 /// The main window gained focus: if a banner was just shown, treat it as clicked.
 pub fn on_focus<R: Runtime>(app: &AppHandle<R>) {
+    if INTERNAL_FOCUS.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
     if let Some(id) = app.state::<Notifier>().clicked_banner() {
         open_notice(app, id);
     }

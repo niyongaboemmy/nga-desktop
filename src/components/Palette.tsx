@@ -6,9 +6,8 @@ import type { RecentPage } from "../lib/settings";
 import { buildItems, search, type PaletteItem } from "../lib/palette";
 
 /**
- * ⌘K: jump to any app, page or action. It opens under the title bar and pushes
- * the app down (native app views always draw above the shell, so nothing can
- * float over them).
+ * ⌘K: jump to any app, page or action. Rendered in the floating overlay window
+ * (OverlayApp), so it sits over the app like Spotlight.
  */
 export function Palette({
   apps, recent, onPick, onClose,

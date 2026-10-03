@@ -21,14 +21,22 @@
         "img-src": "'self' data: https://mis.amashuri.com https://taskmentor.amashuri.com https://tendo.amashuri.com https://tupo.amashuri.com",
         "connect-src": "'self' ipc: http://ipc.localhost https://mis.amashuri.com https://taskmentor.amashuri.com https://tendo.amashuri.com https://tupo.amashuri.com"
       },
-      "capabilities": ["shell"]
-    }
+      "capabilities": [
+        "shell"
+      ]
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi", "dmg", "app"],
+    "targets": [
+      "nsis",
+      "msi",
+      "dmg",
+      "app"
+    ],
     "publisher": "New Generation Academy",
-    "copyright": "© 2026 New Generation Academy",
+    "copyright": "\u00a9 2026 New Generation Academy",
     "category": "Education",
     "shortDescription": "NGA MIS, Task Mentor, Tendo and Tupo in one app",
     "longDescription": "One window for every New Generation Academy app: NGA MIS, Task Mentor, Tendo and Tupo, signed in once through NGA MIS.",
@@ -45,12 +53,24 @@
       "minimumSystemVersion": "11.0",
       "entitlements": "./entitlements.plist",
       "infoPlist": "./Info.plist",
-      "dmg": { "windowSize": { "width": 660, "height": 400 } }
+      "dmg": {
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        }
+      }
     },
     "windows": {
-      "webviewInstallMode": { "type": "embedBootstrapper" },
-      "nsis": { "installMode": "currentUser", "displayLanguageSelector": false },
-      "wix": { "language": "en-US" }
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "language": "en-US"
+      }
     }
   }
 }

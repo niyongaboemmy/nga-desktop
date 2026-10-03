@@ -18,6 +18,8 @@ use tauri_plugin_opener::OpenerExt;
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+// Only macOS reports more than `Unknown`.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub enum Permission {
     Granted,
     Denied,

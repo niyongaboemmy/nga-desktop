@@ -314,7 +314,11 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
     match id {
         "quit" => app.exit(0),
         "show" => focus_main(app),
-        "palette" | "focus" | "notices" | "theme" | "settings" => {
+        "palette" => {
+            focus_main(app);
+            crate::overlay::toggle(app, "palette");
+        }
+        "focus" | "notices" | "theme" | "settings" => {
             focus_main(app);
             let _ = app.emit_to(SHELL, "nga://menu", id.to_string());
         }

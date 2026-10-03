@@ -68,6 +68,10 @@ export const native = {
   osOpenSettings: () => invoke<void>("os_open_settings"),
   osTestBanner: () => invoke<void>("os_test_banner"),
   focusSession: () => invoke<AppKey | null>("focus_session"),
+  overlayShow: (view: "palette") => invoke<void>("overlay_show", { view }),
+  overlayHide: () => invoke<void>("overlay_hide"),
+  /** From the overlay: let the main shell do this (theme, focus, notices, settings, reload, print, signout). */
+  overlayAction: (action: string) => invoke<void>("overlay_action", { action }),
   setCovered: (covered: boolean) => invoke<void>("set_covered", { covered }),
   reload: () => invoke<void>("reload_active"),
   back: () => invoke<void>("go_back"),
@@ -104,6 +108,8 @@ type Events = {
   "nga://mis-theme": "light" | "dark";
   /** The app holding a meeting or quiz (banners from others are held), or null. */
   "nga://focus-session": AppKey | null;
+  /** Overlay window: which view to show ("palette"), or "closed". */
+  "nga://overlay": string;
   /** A setting changed natively (e.g. a tab's Mute menu item). */
   "nga://settings-changed": null;
 };

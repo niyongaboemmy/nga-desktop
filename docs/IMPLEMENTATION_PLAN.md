@@ -105,9 +105,9 @@ The signed-out pages are configured per app in `registry.rs`: Task Mentor `/logi
   - A sliding highlight marks the active tab. Each tab shows a badge and a "signed in" dot, and right-click opens a native menu (reload, start page, open in browser, mute).
   - Below 1100 px the tabs collapse to icons.
   - **Focus mode** (⌘⇧F) leaves a 30 px bar.
+- **The ⌘K palette floats over the app:** it's a separate transparent window glued to the main window (`overlay.rs`), which dims the app behind it and closes on Esc, a click outside, or losing focus. Native app views draw above the shell's HTML, so an in-page overlay can't sit on top of an app.
 - **Panels push the app instead of covering it:**
   - Notification side panel (360 px).
-  - **⌘K command palette:** apps, ~38 curated destinations, recent pages, and actions (theme, focus, notifications, settings, reload, print, sign out).
   - Onboarding strip.
 
   Native app views always draw above the shell, so any overlay would be hidden. Native popup menus serve the theme picker, "more" and the tab menu.
