@@ -82,7 +82,10 @@ Google's sign-in popup can't work inside an app window. Opened alone in a browse
 1. **In the app:** "Continue with Google (opens your browser)" links to `/desktop/signin`. If Google's own popup ever appears, it's caught too, and duplicates are dropped, so only one tab opens.
    - The app creates a PKCE verifier and its challenge, and listens once on `127.0.0.1:<random>`.
    - It opens the browser at `/desktop/signin?redirect_uri=…&state=…&challenge=…`.
-2. **In the browser:** if it's already signed in to MIS, the person clicks **"Continue to the NGA app"**. Otherwise MIS's normal login appears (Google, or password + OTP).
+2. **In the browser:** if it's already signed in to MIS, the person clicks **"Continue to the NGA app"**. That click is consent: it stops another local program from quietly taking the browser's session.
+   - Otherwise the page **redirects straight to Google's own account chooser** (OpenID Connect `id_token`). No NGA page appears in between (MIS #57 and #58).
+   - Google may only return to the registered site root, `https://mis.amashuri.com`. So the desktop request travels in Google's `state`, a one-time nonce is kept in sessionStorage, and MIS's `main.tsx` forwards Google's answer from `/` back to `/desktop/signin`.
+   - There MIS signs in with the existing `POST /auth/google`.
    - MIS then issues a **one-time code**: a signed JWT, valid 2 minutes, used once, bound to the challenge.
    - It form-POSTs `{code, state}` to the loopback address only.
 3. **Back in the app:** the MIS tab opens `/desktop/complete#code=…&verifier=…`. MIS redeems the code and runs its usual `completeLogin`, with the same gates as any login.
