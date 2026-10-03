@@ -34,9 +34,13 @@ const WAIT: Duration = Duration::from_secs(300);
 /// Each new flow bumps this; an older listener sees it changed and stops.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
-/// Is this MIS's "sign in through the browser" link (bare, no query)?
+/// Is this MIS's "sign in through the browser" link (`/desktop/signin`, bare or
+/// `?via=google`)? The browser-side page (with redirect_uri/state/challenge)
+/// is never intercepted.
 pub fn is_start(apps: &[registry::AppDef], url: &Url) -> bool {
-    registry::identity_provider(apps).owns(url) && url.path() == START_PATH && url.query().is_none()
+    registry::identity_provider(apps).owns(url)
+        && url.path() == START_PATH
+        && matches!(url.query(), None | Some("via=google"))
 }
 
 fn random_hex(bytes: usize) -> String {
@@ -96,7 +100,11 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
     url.query_pairs_mut()
         .append_pair("redirect_uri", &format!("http://127.0.0.1:{port}/signin"))
         .append_pair("state", &state)
-        .append_pair("challenge", &challenge);
+        .append_pair("challenge", &challenge)
+        // Every way in starts from a Google choice (the desktop Google button,
+        // or Google's own popup): the browser page goes straight to Google
+        // instead of showing MIS's whole sign-in form again.
+        .append_pair("via", "google");
     log::info!("Browser sign-in: waiting on 127.0.0.1:{port}");
     if let Err(e) = app.opener().open_url(url.as_str(), None::<&str>) {
         log::warn!("Browser sign-in: cannot open the browser: {e}");
@@ -215,6 +223,10 @@ mod tests {
         assert!(is_start(
             &apps,
             &Url::parse("https://mis.amashuri.com/desktop/signin").unwrap()
+        ));
+        assert!(is_start(
+            &apps,
+            &Url::parse("https://mis.amashuri.com/desktop/signin?via=google").unwrap()
         ));
         // The browser-side page (with its parameters) must load normally.
         assert!(!is_start(
