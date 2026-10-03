@@ -75,16 +75,26 @@ The **notification manager** (`notifications.rs`):
 
 **Native path for the web apps (recommended, optional):** watchers depend on today's endpoint shapes. Each app can instead call the standard `new Notification(title, {body, tag})` and `navigator.setAppBadge(n)` when it has something new. Those work in browsers too, and the desktop picks them up with no watcher. Task Mentor should also poll when hidden in desktop (`isNgaDesktop()`).
 
-### Google sign-in
+### Google sign-in: through the browser, like Postman
 
-GIS's popup can't complete in an embedded webview (`disallowed_useragent`). Implemented with RFC 8252 loopback, **frontend-only on MIS** (PR #55, `feat/desktop-google-signin`):
+Google's sign-in popup can't work inside an app window. Opened alone in a browser it is a blank `accounts.google.com/gsi/transform` page, because it needs its opener, and the app sent it there twice. So the app signs in to **MIS** in the person's normal browser, the way Postman's desktop app does, and gets back a one-time code (RFC 8252 loopback plus RFC 7636 PKCE). `browser_signin.rs` on the desktop side; MIS PR #55.
 
-1. In desktop, MIS's login page shows "Continue with Google (opens your browser)", a link to `/desktop/google`.
-2. The app intercepts the link (`google.rs`), listens once on `127.0.0.1:<random>`, and opens the browser at `/desktop/google?redirect_uri=http://127.0.0.1:<port>/google&state=<128-bit hex>`.
-3. The browser page signs in with Google and form-POSTs `{credential, state}` to the loopback (loopback-only URL check on the MIS side).
-4. The app checks `state` and opens `/login?desktop_google=1#credential=…` in the MIS tab. `Login.tsx` finishes with the existing `POST /auth/google`.
+1. **In the app:** "Continue with Google (opens your browser)" links to `/desktop/signin`. If Google's own popup ever appears, it's caught too, and duplicates are dropped, so only one tab opens.
+   - The app creates a PKCE verifier and its challenge, and listens once on `127.0.0.1:<random>`.
+   - It opens the browser at `/desktop/signin?redirect_uri=…&state=…&challenge=…`.
+2. **In the browser:** if it's already signed in to MIS, the person clicks **"Continue to the NGA app"**. Otherwise MIS's normal login appears (Google, or password + OTP).
+   - MIS then issues a **one-time code**: a signed JWT, valid 2 minutes, used once, bound to the challenge.
+   - It form-POSTs `{code, state}` to the loopback address only.
+3. **Back in the app:** the MIS tab opens `/desktop/complete#code=…&verifier=…`. MIS redeems the code and runs its usual `completeLogin`, with the same gates as any login.
 
-No backend change and no deep-link registration (it works in dev too). The listener closes after 5 min or on the next attempt.
+A code seen in a browser or a log is useless without the verifier, which never leaves the app.
+
+**Verified:**
+- MIS backend against the local DB: no session → 401; bad challenge → 400; wrong verifier → 400; redeem → 200 for the right user, with the cookie set; replay → 400.
+- Headless Chrome 154 with the local MIS: already signed in → Continue → the loopback receives the code with matching state → the app redeems it and is signed in.
+- Chrome accepts the `https` → `http://127.0.0.1` form POST without a warning.
+
+**Needs:** MIS PR #55 deployed, frontend and backend. No migration, no new env var.
 
 ### One sign-in for everything (central and background sign-in)
 
@@ -113,6 +123,31 @@ The signed-out pages are configured per app in `registry.rs`: Task Mentor `/logi
   Native app views always draw above the shell, so any overlay would be hidden. Native popup menus serve the theme picker, "more" and the tab menu.
 - **Themes:** Match NGA MIS (default: the bridge watches MIS's `html.dark` / `html.light`; MIS keeps it per user as `preferred_theme`), Light, Dark, or This computer. Window chrome follows, and the theme is restored before first paint.
 - **Motion:** tab highlight slide, badge pop, panel slide-in, palette drop, toast drop-in, breathing splash with progress shimmer. All of it respects `prefers-reduced-motion`.
+
+### Testing notifications without real accounts
+
+`npm run fake-apps`, then `npm run tauri:dev:fake`. The first serves stand-ins for the four apps on their dev ports. They behave like the real ones: the MIS SSO hop, MIS and Tendo bell polls, Task Mentor polling only while visible, and Tupo's `new Notification` when hidden. Each produces a new item every 20 s. The app log shows `[app] notification #n -> Banner|Toast|Seen|Quiet` and `[app] badge n`.
+
+Run on 2026-10-03, every path was verified:
+- MIS and Tendo watchers fired; their old items were skipped on first load.
+- Task Mentor's alerts arrived.
+- Tupo's page reported `document.hidden = true`, `permission = granted`, the native-backed `Notification`, then its banners and badge, with the page's own `onclick` running on click.
+- Background sign-in of all three spokes worked through the SSO hop.
+
+The run also found and fixed one bug: when NGA reopened on another app, MIS was never loaded, so nothing signed in in the background. MIS is now always loaded (hidden) at start.
+
+### Everyday app features
+
+- **Keyboard:**
+  - Ctrl+Tab / Ctrl+⇧+Tab cycle apps.
+  - ⌘1…4 jump to an app.
+  - ⌘K opens search.
+  - ⌘⇧C copies the page link.
+  - ⌘/ shows every shortcut in a floating sheet.
+- **Window and tabs:**
+  - The window title follows the page ("Tupo — Chat"): Dock, taskbar, Alt+Tab.
+  - Tabs show the current page title on hover.
+  - An "Offline" pill appears without a connection, and an app that didn't load retries when the connection is back.
 
 ### Browser behaviour checked
 
@@ -319,7 +354,7 @@ Phase 1 is complete, Phase 2 items 2.1–2.6 are done, and 3.1 and 3.3 are merge
 - [ ] Task Mentor alert arrives while Task Mentor is hidden (replay, ≤ 3 min)
 - [ ] In a Tupo meeting: banners from other apps wait; the "In a meeting" pill shows
 - [ ] Sign in to MIS → the other tabs get their "signed in" dot without being opened; MIS logout → they close
-- [ ] Google: "Continue with Google (opens your browser)" → browser → back in NGA signed in (after MIS #55 is deployed)
+- [ ] Google: "Continue with Google (opens your browser)" → ONE browser tab → Google (or "Continue to the NGA app" if already signed in there) → back in NGA, signed in (after MIS #55 is deployed)
 - [ ] Theme follows NGA MIS's toggle; the Appearance menu overrides it; restart keeps it, without a flash
 - [ ] ⌘K → type "attend" → Enter opens Tendo's register
 - [ ] Drag a file into the Tupo composer / an MIS upload box

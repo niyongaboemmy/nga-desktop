@@ -34,6 +34,21 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     apps.append(&PredefinedMenuItem::separator(app)?)?;
     apps.append(&MenuItem::with_id(
         app,
+        "next-app",
+        "Next App",
+        true,
+        Some("Ctrl+Tab"),
+    )?)?;
+    apps.append(&MenuItem::with_id(
+        app,
+        "prev-app",
+        "Previous App",
+        true,
+        Some("Ctrl+Shift+Tab"),
+    )?)?;
+    apps.append(&PredefinedMenuItem::separator(app)?)?;
+    apps.append(&MenuItem::with_id(
+        app,
         "palette",
         "Search NGA…",
         true,
@@ -56,7 +71,26 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 true,
                 Some("CmdOrCtrl+Shift+O"),
             )?,
+            &MenuItem::with_id(
+                app,
+                "copy-link",
+                "Copy Page Link",
+                true,
+                Some("CmdOrCtrl+Shift+C"),
+            )?,
         ],
+    )?;
+    let help = Submenu::with_items(
+        app,
+        "Help",
+        true,
+        &[&MenuItem::with_id(
+            app,
+            "shortcuts",
+            "Keyboard Shortcuts",
+            true,
+            Some("CmdOrCtrl+Slash"),
+        )?],
     )?;
     let display = Submenu::with_items(
         app,
@@ -93,6 +127,7 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     menu.append(&apps)?;
     menu.append(&go)?;
     menu.append(&display)?;
+    menu.append(&help)?;
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| handle(app, event.id().as_ref()));
     Ok(())
@@ -318,6 +353,20 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
             focus_main(app);
             crate::overlay::toggle(app, "palette");
         }
+        "shortcuts" => {
+            focus_main(app);
+            crate::overlay::toggle(app, "shortcuts");
+        }
+        "next-app" => cycle(app, 1),
+        "prev-app" => cycle(app, -1),
+        "copy-link" => {
+            if let Some(Ok(url)) = webviews::active_webview(app).map(|wv| wv.url()) {
+                use tauri_plugin_clipboard_manager::ClipboardExt;
+                if app.clipboard().write_text(url.to_string()).is_ok() {
+                    let _ = app.emit_to(SHELL, "nga://toast", "Link copied".to_string());
+                }
+            }
+        }
         "focus" | "notices" | "theme" | "settings" => {
             focus_main(app);
             let _ = app.emit_to(SHELL, "nga://menu", id.to_string());
@@ -343,4 +392,18 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
             };
         }
     }
+}
+
+/// Ctrl+Tab / Ctrl+Shift+Tab: the next / previous app, like browser tabs.
+fn cycle<R: Runtime>(app: &AppHandle<R>, step: i32) {
+    let shell = app.state::<Shell>();
+    let keys: Vec<&'static str> = shell.apps.iter().map(|a| a.key).collect();
+    let current = shell
+        .active()
+        .and_then(|k| keys.iter().position(|x| *x == k))
+        .unwrap_or(0) as i32;
+    let n = keys.len() as i32;
+    let next = keys[((current + step).rem_euclid(n)) as usize];
+    focus_main(app);
+    let _ = webviews::open_app(app, next, None);
 }

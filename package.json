@@ -14,7 +14,9 @@
     "tauri:dev:local": "NGA_ENV=development tauri dev",
     "bundle": "tauri build",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "release": "node scripts/bump-version.mjs"
+    "release": "node scripts/bump-version.mjs",
+    "fake-apps": "node scripts/fake-apps.mjs",
+    "tauri:dev:fake": "NGA_ENV=development tauri dev --config src-tauri/tauri.dev.conf.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

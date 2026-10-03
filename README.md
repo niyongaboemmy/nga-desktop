@@ -52,8 +52,10 @@ Signing is set up in CI (see [docs/RELEASING.md](docs/RELEASING.md)).
 
 ```bash
 npm run typecheck && npm test -- --run     # shell UI (vitest)
-npm run test:rust                          # registry + navigation rules (cargo test)
+npm run test:rust                          # registry, navigation, auth, notifications, sign-in (cargo test)
 ```
+
+End to end without real accounts: `npm run fake-apps`, and in another terminal `npm run tauri:dev:fake`. Stand-in MIS, Task Mentor, Tendo and Tupo produce notifications every 20 s, and the log shows where each one went.
 
 ## Layout
 
@@ -67,7 +69,7 @@ npm run test:rust                          # registry + navigation rules (cargo 
 | `src-tauri/src/notifications.rs` | The notification manager: inbox, badges, routing (banner / toast / quiet), mute, Do Not Disturb, Smart Focus. |
 | `src-tauri/src/os_notify.rs` | OS permission + delivery (macOS UNUserNotificationCenter with click handling; Windows toasts). |
 | `src-tauri/src/auth.rs` | Central sign-in: background sign-in after MIS, close on MIS sign-out, re-sign-in of spokes. |
-| `src-tauri/src/google.rs` | Google sign-in through the system browser (loopback; MIS side in `nga_central_mis` PR #55). |
+| `src-tauri/src/browser_signin.rs` | Sign-in through the browser, Postman-style (loopback + PKCE one-time code; MIS side in `nga_central_mis` PR #55). |
 | `src-tauri/src/menus.rs` | App menu bar, tray, native popup menus (tab, theme, more). |
 | `src-tauri/src/commands.rs` | What the local shell UI may call (reload, print, sign out…). Remote pages get no IPC. |
 | `src-tauri/capabilities/shell.json` | Grants those commands to the `shell` webview only. |

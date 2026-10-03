@@ -1,7 +1,7 @@
 mod auth;
+mod browser_signin;
 mod commands;
 mod dialogs;
-mod google;
 mod menus;
 mod navigation;
 mod notifications;
@@ -50,6 +50,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init());
 

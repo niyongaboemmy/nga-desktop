@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Bell, Ellipsis, Minimize2, Moon, RotateCw, Search, Settings as Gear, Sun, Video } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Ellipsis, Keyboard, Minimize2, Moon, RotateCw, Search, Settings as Gear, Sun, Video, WifiOff } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { native, type AppKey, type DesktopApp, type NoticeSummary } from "../lib/native";
 import type { Views } from "../lib/appState";
@@ -27,9 +27,11 @@ interface Props {
   theme: Theme;
   themePref: ThemePref;
   focusSession: AppKey | null;
+  online: boolean;
   panelOpen: boolean;
   onOpen: (key: AppKey) => void;
   onPalette: () => void;
+  onShortcuts: () => void;
   onPanel: () => void;
   onSettings: () => void;
 }
@@ -73,7 +75,7 @@ export function TitleBar(p: Props) {
                 e.preventDefault();
                 void native.popupMenu("tab", e.clientX, e.clientY, a.key);
               }}
-              title={`${a.name}: ${a.description} (${mod}${i + 1})`}
+              title={`${a.name}${p.views[a.key]?.title && p.views[a.key]?.title !== a.name ? ` — ${p.views[a.key]?.title}` : `: ${a.description}`}  (${mod}${i + 1})`}
               aria-current={current ? "page" : undefined}
             >
               <span className="tab-icon">
@@ -95,6 +97,12 @@ export function TitleBar(p: Props) {
       </button>
 
       <div className="drag small" data-tauri-drag-region />
+
+      {!p.online && (
+        <span className="offline-pill" title="No internet connection. Apps reconnect on their own.">
+          <WifiOff size={13} /> Offline
+        </span>
+      )}
 
       {session && (
         <span className="session-pill" title="Banners from the other apps wait until you finish">
@@ -118,6 +126,9 @@ export function TitleBar(p: Props) {
           title="Appearance"
         >
           {p.theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
+        </button>
+        <button onClick={p.onShortcuts} title={`Keyboard shortcuts (${mod}/)`}>
+          <Keyboard size={16} />
         </button>
         <button onClick={(e) => { const { x, y } = at(e); void native.popupMenu("more", x, y); }} title="More">
           <Ellipsis size={16} />

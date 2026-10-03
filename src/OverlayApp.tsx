@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Palette } from "./components/Palette";
+import { Shortcuts } from "./components/Shortcuts";
 import { native, on, type ShellInfo } from "./lib/native";
 import { readSettings, type RecentPage } from "./lib/settings";
 import { restoreTheme } from "./lib/theme";
@@ -46,6 +47,7 @@ export function OverlayApp() {
   return (
     <div className="overlay-root open" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       {view === "palette" && <Palette key={session} apps={info.apps} recent={recent} onPick={pick} onClose={close} />}
+      {view === "shortcuts" && <Shortcuts key={session} onClose={close} />}
     </div>
   );
 }

@@ -401,6 +401,8 @@ pub fn web_notify<R: Runtime>(
         notice
     };
 
+    // Diagnostics: which app, where it went. Never the text (it can be personal).
+    log::info!("[{key}] notification #{} -> {:?}", notice.id, routed);
     match routed {
         Route::Banner => {
             let name = crate::registry::find(&app.state::<Shell>().apps, &key)
@@ -437,6 +439,7 @@ pub fn web_badge<R: Runtime>(
     {
         let notifier = app.state::<Notifier>();
         let mut inner = notifier.inner.lock().unwrap();
+        log::info!("[{key}] badge {count}");
         if count == 0 {
             inner.badges.remove(&key);
         } else {

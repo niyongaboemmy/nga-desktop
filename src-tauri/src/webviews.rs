@@ -52,6 +52,8 @@ struct Inner {
     popups: u32,
     /// Page zoom per app (1.0 = 100 %).
     zoom: HashMap<String, f64>,
+    /// Current page title per app (for the window title).
+    titles: HashMap<String, String>,
 }
 
 pub struct Shell {
@@ -252,6 +254,8 @@ pub fn open_app<R: Runtime>(app: &AppHandle<R>, key: &str, url: Option<Url>) -> 
             relayout(app);
         }
     }
+    let page_title = shell.inner.lock().unwrap().titles.get(def.key).cloned();
+    set_window_title(app, def.key, page_title.as_deref());
     emit(
         app,
         "nga://active",
@@ -309,9 +313,9 @@ fn with_routing<R: Runtime>(app: &AppHandle<R>, builder: WebviewBuilder<R>) -> W
         .disable_drag_drop_handler()
         .on_navigation(move |url| {
             let shell = nav_app.state::<Shell>();
-            if crate::google::is_start(&shell.apps, url) {
+            if crate::browser_signin::is_start(&shell.apps, url) {
                 let app = nav_app.clone();
-                let _ = nav_app.run_on_main_thread(move || crate::google::start(&app));
+                let _ = nav_app.run_on_main_thread(move || crate::browser_signin::start(&app));
                 return false;
             }
             frame_rule(&nav_app, url)
@@ -331,6 +335,22 @@ fn with_routing<R: Runtime>(app: &AppHandle<R>, builder: WebviewBuilder<R>) -> W
         })
 }
 
+/// Open a URL in the default browser, once: pages and Google's script often
+/// fire the same window.open twice in a row, which opened two browser tabs.
+pub fn open_external<R: Runtime>(app: &AppHandle<R>, url: &Url) {
+    static LAST: Mutex<Option<(String, std::time::Instant)>> = Mutex::new(None);
+    {
+        let mut last = LAST.lock().unwrap();
+        if last.as_ref().is_some_and(|(u, t)| {
+            u == url.as_str() && t.elapsed() < std::time::Duration::from_secs(3)
+        }) {
+            return;
+        }
+        *last = Some((url.to_string(), std::time::Instant::now()));
+    }
+    let _ = app.opener().open_url(url.as_str(), None::<&str>);
+}
+
 fn frame_rule<R: Runtime>(app: &AppHandle<R>, url: &Url) -> bool {
     match navigation::frame_navigation(url) {
         Frame::Allow => true,
@@ -348,11 +368,11 @@ fn route_new_window<R: Runtime>(
     features: tauri::webview::NewWindowFeatures,
 ) -> NewWindowResponse<R> {
     let shell = app.state::<Shell>();
-    if crate::google::is_start(&shell.apps, &url) {
+    if crate::browser_signin::is_start(&shell.apps, &url) {
         let app = app.clone();
         let _ = app
             .clone()
-            .run_on_main_thread(move || crate::google::start(&app));
+            .run_on_main_thread(move || crate::browser_signin::start(&app));
         return NewWindowResponse::Deny;
     }
     match navigation::new_window(shell.env, &shell.apps, &url) {
@@ -367,7 +387,15 @@ fn route_new_window<R: Runtime>(
             NewWindowResponse::Deny
         }
         NewWindow::External(url) => {
-            let _ = app.opener().open_url(url.as_str(), None::<&str>);
+            open_external(app, &url);
+            NewWindowResponse::Deny
+        }
+        NewWindow::GoogleSignIn => {
+            log::info!("Google sign-in popup → NGA's browser sign-in");
+            let app = app.clone();
+            let _ = app
+                .clone()
+                .run_on_main_thread(move || crate::browser_signin::start(&app));
             NewWindowResponse::Deny
         }
         NewWindow::Block => NewWindowResponse::Deny,
@@ -422,7 +450,11 @@ fn create_popup<R: Runtime>(
                 true
             }
             NewWindow::External(url) => {
-                let _ = guard_app.opener().open_url(url.as_str(), None::<&str>);
+                open_external(&guard_app, &url);
+                true
+            }
+            NewWindow::GoogleSignIn => {
+                crate::browser_signin::start(&guard_app);
                 true
             }
             NewWindow::Block => true,
@@ -472,6 +504,16 @@ fn create_app_webview<R: Runtime>(
         })
         .on_document_title_changed(move |wv, title| {
             if let Some(key) = key_of(wv.label()) {
+                let shell = title_app.state::<Shell>();
+                shell
+                    .inner
+                    .lock()
+                    .unwrap()
+                    .titles
+                    .insert(key.to_string(), title.clone());
+                if shell.active().as_deref() == Some(key) {
+                    set_window_title(&title_app, key, Some(&title));
+                }
                 emit(
                     &title_app,
                     "nga://title",
@@ -500,8 +542,13 @@ fn on_page_load<R: Runtime>(app: &AppHandle<R>, wv: &Webview<R>, event: PageLoad
             log::info!("[{key}] loading {}", redact(url));
             if !navigation::main_frame_allowed(shell.env, &shell.apps, url) {
                 // A top-level page outside NGA: open it in the browser and go back.
-                log::info!("[{key}] outside NGA, sent to browser: {}", redact(url));
-                let _ = app.opener().open_url(url.as_str(), None::<&str>);
+                if navigation::is_google_signin(url) {
+                    log::info!("[{key}] Google sign-in page → NGA's browser sign-in");
+                    crate::browser_signin::start(app);
+                } else {
+                    log::info!("[{key}] outside NGA, sent to browser: {}", redact(url));
+                    open_external(app, url);
+                }
                 let back = shell.inner.lock().unwrap().last_good.get(&key).cloned();
                 let back = back.unwrap_or_else(|| {
                     registry::find(&shell.apps, &key)
@@ -584,6 +631,22 @@ pub fn reload_active<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             .clone();
         wv.navigate(initial_url(app, &def, &shell.apps))
     }
+}
+
+/// "Tupo — Chat" in the Dock, taskbar, Mission Control and Alt+Tab.
+pub fn set_window_title<R: Runtime>(app: &AppHandle<R>, key: &str, page: Option<&str>) {
+    let Some(window) = app.get_window(WINDOW) else {
+        return;
+    };
+    let shell = app.state::<Shell>();
+    let name = registry::find(&shell.apps, key)
+        .map(|d| d.name)
+        .unwrap_or("NGA");
+    let title = match page.map(str::trim).filter(|t| !t.is_empty() && *t != name) {
+        Some(p) => format!("{name} — {p}"),
+        None => name.to_string(),
+    };
+    let _ = window.set_title(&title);
 }
 
 fn bridge_script(key: &str) -> String {

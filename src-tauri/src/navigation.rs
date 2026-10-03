@@ -68,7 +68,16 @@ pub enum NewWindow {
     Popup,
     /// Default browser (or the OS for mailto:/tel:).
     External(Url),
+    /// Google's sign-in popup (GIS). It can't work in the app, and opened alone
+    /// in a browser it is a blank page (it needs its opener): start NGA's own
+    /// browser sign-in instead (google.rs).
+    GoogleSignIn,
     Block,
+}
+
+/// Google's account pages (GIS popup, OAuth): handled by google.rs, never loaded raw.
+pub fn is_google_signin(url: &Url) -> bool {
+    matches!(url.scheme(), "https" | "http") && url.host_str() == Some("accounts.google.com")
 }
 
 pub fn new_window(env: Env, apps: &[AppDef], url: &Url) -> NewWindow {
@@ -77,6 +86,8 @@ pub fn new_window(env: Env, apps: &[AppDef], url: &Url) -> NewWindow {
         "http" | "https" => {
             if let Some(app) = apps.iter().find(|a| a.owns(url)) {
                 NewWindow::App(app.key, url.clone())
+            } else if is_google_signin(url) {
+                NewWindow::GoogleSignIn
             } else if trusted(env, apps, url) {
                 NewWindow::Popup
             } else {
@@ -183,10 +194,10 @@ mod tests {
             new_window(env, &apps, &u("https://www.youtube.com/watch?v=1")),
             NewWindow::External(_)
         ));
-        assert!(matches!(
-            new_window(env, &apps, &u("https://accounts.google.com/x")),
-            NewWindow::External(_)
-        ));
+        assert_eq!(
+            new_window(env, &apps, &u("https://accounts.google.com/gsi/transform")),
+            NewWindow::GoogleSignIn
+        );
         assert!(matches!(
             new_window(env, &apps, &u("mailto:x@y.rw")),
             NewWindow::External(_)

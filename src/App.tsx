@@ -14,7 +14,11 @@ import { addRecent } from "./lib/palette";
 /** Below this width the tabs show icons only, so the app keeps its room. */
 export const COMPACT_BELOW = 1100;
 
-type Toast = { kind: "download"; text: string; path: string | null } | { kind: "notice"; notice: Notice } | null;
+type Toast =
+  | { kind: "download"; text: string; path: string | null }
+  | { kind: "notice"; notice: Notice }
+  | { kind: "info"; text: string }
+  | null;
 
 export default function App() {
   const [info, setInfo] = useState<ShellInfo | null>(null);
@@ -34,6 +38,7 @@ export default function App() {
   // Recent pages are recorded here and read by the palette (overlay window).
   const [, setRecent] = useState<RecentPage[]>([]);
   const [focusSession, setFocusSession] = useState<AppKey | null>(null);
+  const [online, setOnline] = useState(navigator.onLine);
   const viewport = useRef<HTMLDivElement>(null);
   const lastUrl = useRef<Partial<Record<AppKey, string>>>({});
 
@@ -80,9 +85,15 @@ export default function App() {
     mq.addEventListener("change", onChange);
     const onResize = () => setCompact(window.innerWidth < COMPACT_BELOW);
     window.addEventListener("resize", onResize);
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
     return () => {
       mq.removeEventListener("change", onChange);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
     };
   }, []);
 
@@ -124,6 +135,7 @@ export default function App() {
       ),
       on("nga://notices", setNotices),
       on("nga://notice", (notice) => setToast({ kind: "notice", notice })),
+      on("nga://toast", (text) => setToast({ kind: "info", text })),
       on("nga://mis-theme", setMisTheme),
       on("nga://focus-session", setFocusSession),
       on("nga://closed", (keys) => {
@@ -178,6 +190,19 @@ export default function App() {
   useEffect(() => void native.setCovered(page !== "app"), [page]);
 
   const view = active ? views[active] : undefined;
+
+  // Back online: an app that never finished loading tries again on its own.
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && !wasOnline.current) {
+      setToast({ kind: "info", text: "You're back online" });
+      if (active && views[active]?.status !== "ready") {
+        dispatch({ type: "retry", key: active, at: Date.now() });
+        void native.reload();
+      }
+    }
+    wasOnline.current = online;
+  }, [online, active, views]);
   const starting = page === "app" && view?.status === "starting";
   useEffect(() => {
     if (!starting) return;
@@ -225,9 +250,11 @@ export default function App() {
           theme={theme}
           themePref={themePref}
           focusSession={focusSession}
+          online={online}
           panelOpen={panel}
           onOpen={open}
           onPalette={() => void native.overlayShow("palette")}
+          onShortcuts={() => void native.overlayShow("shortcuts")}
           onPanel={() => setPanel((p) => !p)}
           onSettings={() => setPage(page === "settings" ? "app" : "settings")}
         />
@@ -248,7 +275,9 @@ export default function App() {
       </div>
       {toast && !focus && (toast.kind === "download" || !panel) && (
         <div className="toast" role="status">
-          {toast.kind === "download" ? (
+          {toast.kind === "info" ? (
+            <span>{toast.text}</span>
+          ) : toast.kind === "download" ? (
             <>
               <Download size={15} />
               <span>{toast.text}</span>

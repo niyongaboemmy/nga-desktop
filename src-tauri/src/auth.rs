@@ -98,6 +98,17 @@ fn background_sign_in<R: Runtime>(app: &AppHandle<R>) -> bool {
 
 pub fn spawn<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
+        // MIS is the identity hub: keep it loaded (hidden) even when another app
+        // is on screen, or nothing could tell that the person is signed in,
+        // background sign-in would never start and MIS's notifications would stay silent.
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let mis = registry::identity_provider(&handle.state::<Shell>().apps).key;
+            if let Err(e) = webviews::ensure_app(&handle, mis) {
+                log::warn!("could not start NGA MIS in the background: {e}");
+            }
+        });
         let mut watch = Watch::default();
         loop {
             tokio::time::sleep(TICK).await;
