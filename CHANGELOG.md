@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.2.1 — 2026-10-04
+
 - macOS: the app is signed as a whole (ad-hoc), so a downloaded copy opens through System Settings → Privacy & Security → Open Anyway instead of being reported as "damaged". (A Developer ID signature, once configured, removes the warning.)
 
 ## 0.2.0 — 2026-10-04
