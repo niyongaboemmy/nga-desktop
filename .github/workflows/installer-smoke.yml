@@ -1,0 +1,86 @@
+# Installs a PUBLISHED release the way a person would (from api.amashuri.com,
+# not from a build artifact) on clean Windows and macOS machines, launches it,
+# and checks it runs and talks to the update service. Screenshots are kept.
+# Run after "Publish release": Actions -> Installer smoke test.
+name: Installer smoke test
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published version to test (e.g. 0.2.0)"
+        required: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download, install (NSIS, per-user, silent), launch
+        shell: pwsh
+        run: |
+          $v = "${{ inputs.version }}"
+          $base = "https://api.amashuri.com/desktop/files/$v"
+          New-Item -ItemType Directory -Force out | Out-Null
+          Invoke-WebRequest "$base/NGA_${v}_x64-setup.exe" -OutFile setup.exe
+          Invoke-WebRequest "$base/NGA_${v}_x64_en-US.msi" -OutFile nga.msi
+          "setup.exe: $((Get-Item setup.exe).Length) bytes" | Tee-Object -Append out/report.txt
+          Start-Process .\setup.exe -ArgumentList "/S" -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA" -Recurse -Filter "NGA.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw "NGA.exe not found after install" }
+          "installed: $($exe.FullName) $($exe.VersionInfo.ProductVersion)" | Tee-Object -Append out/report.txt
+          Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Recurse -Filter "NGA*.lnk" | ForEach-Object { "start menu: $($_.Name)" } | Tee-Object -Append out/report.txt
+          $p = Start-Process $exe.FullName -PassThru
+          Start-Sleep 60   # the first update check runs 45 s after start
+          if ($p.HasExited) { throw "NGA exited with code $($p.ExitCode)" }
+          "running after 60 s (pid $($p.Id))" | Tee-Object -Append out/report.txt
+          Add-Type -AssemblyName System.Windows.Forms,System.Drawing
+          $b=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bmp=New-Object Drawing.Bitmap $b.Width,$b.Height
+          [Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location,[Drawing.Point]::Empty,$b.Size); $bmp.Save("$PWD\out\windows-running.png")
+          $log = Get-ChildItem "$env:LOCALAPPDATA\com.amashuri.nga.desktop\logs" -Filter *.log -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($log) { Copy-Item $log.FullName out/app.log; Select-String -Path $log.FullName -Pattern "update" | ForEach-Object { "log: $($_.Line)" } | Tee-Object -Append out/report.txt }
+          Stop-Process -Id $p.Id -Force
+      - name: MSI (IT install, silent, per-machine)
+        shell: pwsh
+        run: |
+          $r = Start-Process msiexec -ArgumentList "/i nga.msi /qn /l*v out\msi.log" -Wait -PassThru
+          "msi exit code: $($r.ExitCode)" | Tee-Object -Append out/report.txt
+          if ($r.ExitCode -ne 0) { throw "MSI install failed ($($r.ExitCode))" }
+      - if: always()
+        shell: pwsh
+        run: if (Test-Path out/report.txt) { Get-Content out/report.txt | Out-File -Append $env:GITHUB_STEP_SUMMARY }
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: smoke-windows, path: out/ }
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download, install (dmg -> Applications), launch
+        run: |
+          set -e
+          v="${{ inputs.version }}"
+          mkdir -p out
+          curl -fsSL -o nga.dmg "https://api.amashuri.com/desktop/files/$v/NGA_${v}_universal.dmg"
+          hdiutil verify nga.dmg | tail -1 | tee -a out/report.txt
+          m=$(hdiutil attach -nobrowse -readonly nga.dmg | grep -o '/Volumes/.*' | head -1)
+          ditto "$m/NGA.app" /Applications/NGA.app
+          hdiutil detach "$m" -quiet
+          echo "installed: $(plutil -extract CFBundleShortVersionString raw /Applications/NGA.app/Contents/Info.plist) ($(lipo -archs /Applications/NGA.app/Contents/MacOS/NGA))" | tee -a out/report.txt
+          # A downloaded copy is quarantined: Gatekeeper's verdict is what people get on first open.
+          xattr -w com.apple.quarantine "0081;$(printf %x $(date +%s));Safari;" /Applications/NGA.app
+          echo "gatekeeper: $(spctl -a -vvv -t exec /Applications/NGA.app 2>&1 | head -2 | tr '\n' ' ')" | tee -a out/report.txt
+          xattr -dr com.apple.quarantine /Applications/NGA.app   # as after "Open Anyway"
+          /Applications/NGA.app/Contents/MacOS/NGA > out/app-stdout.log 2>&1 &
+          pid=$!
+          sleep 60
+          kill -0 $pid && echo "running after 60 s (pid $pid)" | tee -a out/report.txt
+          screencapture -x out/macos-running.png || true
+          grep -i "update" ~/Library/Logs/com.amashuri.nga.desktop/*.log 2>/dev/null | sed 's/^/log: /' | tee -a out/report.txt || true
+          kill $pid || true
+      - if: always()
+        run: test -f out/report.txt && cat out/report.txt >> "$GITHUB_STEP_SUMMARY" || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: smoke-macos, path: out/ }
