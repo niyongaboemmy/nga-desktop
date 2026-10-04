@@ -14,9 +14,7 @@ on:
       - scripts/probe-ci.mjs
       - scripts/fake-apps.mjs
       - scripts/fixtures/**
-      - src-tauri/src/bridge.js
-      - src-tauri/src/webviews.rs
-      - src-tauri/src/navigation.rs
+      - src-tauri/src/**
       - src-tauri/Info.plist
       - .github/workflows/probe.yml
 
