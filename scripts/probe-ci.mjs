@@ -176,6 +176,13 @@ while (Date.now() < deadline && !exited) {
     clicksForState = 0;
     if (st === "in-fullscreen") screenshot("2-fullscreen");
     if (st === "after-fullscreen") screenshot("2b-after-fullscreen");
+    if (st === "warmup-blocking") {
+      // The page blocks its thread 1.5 s from now, for 4 s: shoot twice inside.
+      await sleep(2300);
+      screenshot("4a-warmup");
+      await sleep(700);
+      screenshot("4b-warmup");
+    }
   }
   if (st.startsWith("awaiting-click")) {
     if (!shot) {

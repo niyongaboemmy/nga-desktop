@@ -332,6 +332,36 @@ if (faceDet && coco) {
 if (faceTimer) clearInterval(faceTimer);
 faceDet?.close();
 
+// ── 4c. Task Mentor's GPU warm-up indicator stays animated while blocked ───
+// The first detection blocks the page 1–3 s (shader compile). Task Mentor
+// shows an indicator whose animation is CSS transform only, which should
+// keep moving on the compositor. CI takes two screenshots during the block.
+if (CI) {
+  await t("warm-up indicator while the page is blocked (see 4a/4b screenshots)", async () => {
+    const box = document.createElement("div");
+    box.innerHTML = `<style>
+      @keyframes w-spin{to{transform:rotate(360deg)}} @keyframes w-bar{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+      .w-spin{animation:w-spin .9s linear infinite;will-change:transform} .w-bar{animation:w-bar 1.3s cubic-bezier(.4,0,.2,1) infinite;will-change:transform}</style>
+      <div style="position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.4)">
+        <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;font:15px system-ui">
+          <div style="position:relative;width:64px;height:64px;margin:0 auto">
+            <div style="position:absolute;inset:0;border-radius:50%;border:4px solid #dbeafe"></div>
+            <div class="w-spin" style="position:absolute;inset:0;border-radius:50%;border:4px solid transparent;border-top-color:#2563eb;border-right-color:#60a5fa"></div>
+          </div>
+          <b style="display:block;margin-top:14px">Preparing camera checks…</b>
+          <div style="margin-top:14px;height:6px;border-radius:9px;background:#f3f4f6;overflow:hidden"><div class="w-bar" style="height:100%;width:40%;border-radius:9px;background:#4f46e5"></div></div>
+        </div></div>`;
+    document.body.appendChild(box);
+    await sleep(800);
+    await state("warmup-blocking"); // the runner screenshots twice during the block
+    await sleep(1500);
+    const until = performance.now() + 4000;
+    while (performance.now() < until) { /* like a shader compile: the page's thread is busy */ }
+    box.remove();
+    return "blocked 4 s; compare screenshots 4a-warmup and 4b-warmup (spinner angle and bar position should differ)";
+  }, 20000);
+}
+
 // ── 5. Gesture-only APIs: wait for a real click (CI's OS mouse) ────────────
 const btn = document.getElementById("gesture");
 async function onClick(name, fn, ms = 15000) {
