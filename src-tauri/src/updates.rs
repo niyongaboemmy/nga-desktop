@@ -52,7 +52,10 @@ fn install_id<R: Runtime>(app: &AppHandle<R>) -> String {
     let Ok(store) = app.store("settings.json") else {
         return "unknown".into();
     };
-    if let Some(id) = store.get("installId").and_then(|v| v.as_str().map(String::from)) {
+    if let Some(id) = store
+        .get("installId")
+        .and_then(|v| v.as_str().map(String::from))
+    {
         return id;
     }
     let id = format!("{:016x}{:016x}", random_u64(), random_u64());
@@ -128,11 +131,16 @@ fn announce<R: Runtime>(app: &AppHandle<R>, info: &UpdateInfo) {
         .store("settings.json")
         .ok()
         .map(|s| {
-            let seen = s.get("updateAnnounced").and_then(|v| v.as_str().map(String::from));
+            let seen = s
+                .get("updateAnnounced")
+                .and_then(|v| v.as_str().map(String::from));
             if seen.as_deref() == Some(info.version.as_str()) {
                 false
             } else {
-                s.set("updateAnnounced", serde_json::Value::String(info.version.clone()));
+                s.set(
+                    "updateAnnounced",
+                    serde_json::Value::String(info.version.clone()),
+                );
                 let _ = s.save();
                 true
             }
