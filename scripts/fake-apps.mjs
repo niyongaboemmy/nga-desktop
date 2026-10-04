@@ -16,7 +16,7 @@
 //
 // Each app produces a new item every ~20 s, so notifications keep arriving.
 import http from "node:http";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const started = Date.now();
 let misFirstRequest = 0;
@@ -24,6 +24,7 @@ let misFirstRequest = 0;
 // visiting MIS's /login then counts as signed out, and the person signs in
 // again 15 s later.
 let misLoggedOutAt = 0;
+let faceJpg = null;
 const tick = () => Math.floor((Date.now() - started) / 20_000); // a new item every 20 s
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -57,9 +58,30 @@ http
   .createServer((req, res) => {
     const url = new URL(req.url, "http://localhost:5173");
     // PROBE=1: a capability probe runs inside the app (scripts/probe.js).
-    if (process.env.PROBE && url.pathname === "/home") return redirect(res, "/probe");
+    // PROBE_CI=1 adds the tests that need a person (camera, clicks, speech): scripts/probe-ci.mjs.
+    if (process.env.PROBE && url.pathname === "/home") return redirect(res, process.env.PROBE_CI ? "/probe?ci=1" : "/probe");
     if (url.pathname === "/probe") return html(res, page("Capability probe", `<p>Testing web APIs inside NGA Desktop…</p><script src="/probe.js"></script>`));
-    if (url.pathname === "/probe.js") { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end(readFileSync(new URL("./probe.js", import.meta.url))); }
+    if (url.pathname === "/probe.js" || url.pathname === "/probe-deep.js") { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end(readFileSync(new URL("." + url.pathname, import.meta.url))); }
+    // Recordings the probe makes (→ probe-out/), and ones other engines made (scripts/fixtures/).
+    if (url.pathname === "/probe-upload") {
+      const name = (url.searchParams.get("name") || "x").replace(/[^\w.-]/g, "");
+      const parts = []; req.on("data", (c) => parts.push(c));
+      req.on("end", () => { mkdirSync(new URL("../probe-out/", import.meta.url), { recursive: true }); writeFileSync(new URL("../probe-out/" + name, import.meta.url), Buffer.concat(parts)); log("PROBE upload", name); res.writeHead(204); res.end(); });
+      return;
+    }
+    if (url.pathname === "/probe-fixtures") { let f = []; try { f = readdirSync(new URL("./fixtures/", import.meta.url)).filter((x) => /^(voice|meet)-/.test(x)); } catch { /* none */ } return json(res, f); }
+    if (url.pathname.startsWith("/probe-fixtures/")) {
+      const f = url.pathname.slice(16).replace(/[^\w.-]/g, "");
+      const type = { m4a: "audio/mp4", mp4: "video/mp4", ogg: "audio/ogg", webm: f.startsWith("meet") ? "video/webm" : "audio/webm" }[f.split(".").pop()];
+      try { const b = readFileSync(new URL("./fixtures/" + f, import.meta.url)); res.writeHead(200, { "Content-Type": type, "Content-Length": b.length, "Accept-Ranges": "bytes" }); return res.end(b); } catch { res.writeHead(404); return res.end(); }
+    }
+    // A portrait for the face-detection test (MediaPipe's own test asset), served same-origin.
+    if (url.pathname === "/probe-face.jpg") {
+      (faceJpg ??= fetch("https://storage.googleapis.com/mediapipe-assets/portrait.jpg").then((r) => r.arrayBuffer()).then((b) => Buffer.from(b)))
+        .then((b) => { res.writeHead(200, { "Content-Type": "image/jpeg", "Access-Control-Allow-Origin": "*" }); res.end(b); })
+        .catch(() => { res.writeHead(502); res.end(); });
+      return;
+    }
     if (url.pathname === "/sw-probe.js") { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end("self.addEventListener('fetch',()=>{});"); }
     if (url.pathname === "/sse") { res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" }); res.write("data: hello-from-sse\n\n"); return setTimeout(() => res.end(), 1500); }
     if (url.pathname === "/beacon") { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { log("MIS  beacon/keepalive received:", b); res.writeHead(204); res.end(); }); return; }

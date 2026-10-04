@@ -1,0 +1,61 @@
+# Browser probe: builds NGA Desktop (dev config, stand-in apps) on Windows and
+# macOS, runs scripts/probe.js + probe-deep.js inside the real engines
+# (WebView2 / WKWebView) with real clicks, and publishes the results as the
+# job summary plus screenshots, recordings and logs as artifacts.
+# See docs/BROWSER_COMPATIBILITY.md.
+name: Browser probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/probe*.js
+      - scripts/probe-ci.mjs
+      - scripts/fake-apps.mjs
+      - scripts/fixtures/**
+      - src-tauri/src/bridge.js
+      - src-tauri/src/webviews.rs
+      - src-tauri/src/navigation.rs
+      - src-tauri/Info.plist
+      - .github/workflows/probe.yml
+
+concurrency:
+  group: probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            build: --no-bundle
+            bin: src-tauri/target/debug/nga-desktop.exe
+          # A bundle, so macOS reads its Info.plist (camera / speech purpose strings).
+          - os: macos-latest
+            build: --bundles app
+            bin: src-tauri/target/debug/bundle/macos/NGA Dev.app/Contents/MacOS/nga-desktop
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      NGA_ENV: development
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri, key: probe }
+      - run: npm ci
+      - name: Build (debug, dev config)
+        run: npx tauri build --debug ${{ matrix.build }} --config src-tauri/tauri.dev.conf.json
+      - name: Run the probe
+        run: node scripts/probe-ci.mjs "${{ matrix.bin }}"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-${{ matrix.os }}
+          path: probe-out/

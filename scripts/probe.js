@@ -1,6 +1,8 @@
 // Browser-capability probe, run INSIDE an NGA Desktop app webview (served by
 // scripts/fake-apps.mjs at http://localhost:5173/probe with PROBE=1). It tests
-// every web API the NGA apps use and POSTs the results to /probe-result.
+// every web API the NGA apps use and POSTs the results to /probe-result, then
+// hands over to probe-deep.js (real workloads: recording, WebRTC media, face
+// detection, gesture-only APIs).
 (async () => {
   const R = {};
   const t = async (name, fn) => {
@@ -178,4 +180,10 @@
 
   await fetch("/probe-result", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(R) });
   document.body.insertAdjacentHTML("beforeend", "<pre>" + JSON.stringify(R, null, 2) + "</pre>");
+  // The real-workload tests (scripts/probe-deep.js) add to the same results.
+  window.__probe = R;
+  const s = document.createElement("script");
+  s.type = "module";
+  s.src = "/probe-deep.js";
+  document.body.appendChild(s);
 })();
