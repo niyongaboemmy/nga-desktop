@@ -68,7 +68,18 @@ jobs:
               echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
             fi
           fi
-          echo '{"bundle":{"createUpdaterArtifacts":true}}' > "$RUNNER_TEMP/release.conf.json"
+          # The bundler signs the update packages and needs the updater config
+          # (public key; the endpoint mirrors src-tauri/src/updates.rs).
+          node -e '
+            const fs = require("fs");
+            fs.writeFileSync(process.argv[1], JSON.stringify({
+              bundle: { createUpdaterArtifacts: true },
+              plugins: { updater: {
+                pubkey: process.env.NGA_UPDATER_PUBKEY.trim(),
+                endpoints: ["https://api.amashuri.com/desktop/update/{{target}}/{{arch}}/{{current_version}}"],
+              } },
+            }));
+          ' "$RUNNER_TEMP/release.conf.json"
 
       - name: Build
         shell: bash
