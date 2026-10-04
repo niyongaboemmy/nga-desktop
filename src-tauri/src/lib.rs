@@ -98,6 +98,7 @@ pub fn run() {
             overlay::overlay_hide,
             overlay::overlay_action,
             browser_signin::signin_cancel,
+            webviews::web_fullscreen,
             browser_signin::signin_reopen,
         ])
         .setup(|app| {
@@ -174,7 +175,8 @@ fn grant_bridge<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         .permission("allow-web-notify")
         .permission("allow-web-badge")
         .permission("allow-web-print")
-        .permission("allow-web-theme");
+        .permission("allow-web-theme")
+        .permission("allow-web-fullscreen");
     app.add_capability(cap)
 }
 

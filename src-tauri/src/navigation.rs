@@ -29,7 +29,7 @@ pub enum Frame {
 pub fn frame_navigation(url: &Url) -> Frame {
     match url.scheme() {
         "https" | "http" | "about" | "blob" | "data" => Frame::Allow,
-        "mailto" | "tel" | "sms" => Frame::OpenWithOs(url.clone()),
+        s if os_scheme(s) => Frame::OpenWithOs(url.clone()),
         _ => Frame::Block,
     }
 }
@@ -75,9 +75,34 @@ pub enum NewWindow {
     Block,
 }
 
-/// Google's account pages (GIS popup, OAuth): handled by google.rs, never loaded raw.
+/// Google's *sign-in* popup (Google Identity Services, `/gsi/…`): handled by
+/// browser_signin.rs. Other Google OAuth pages — e.g. MIS Reminders → "Connect
+/// Google Calendar", a server-side consent flow — go to the system browser,
+/// where they complete normally.
 pub fn is_google_signin(url: &Url) -> bool {
-    matches!(url.scheme(), "https" | "http") && url.host_str() == Some("accounts.google.com")
+    matches!(url.scheme(), "https" | "http")
+        && url.host_str() == Some("accounts.google.com")
+        && url.path().starts_with("/gsi/")
+}
+
+/// Link types the operating system handles: mail, phone, calendar
+/// subscriptions (MIS Reminders' webcal: feed), Telegram (reminder channel),
+/// messaging and meeting apps.
+pub fn os_scheme(scheme: &str) -> bool {
+    matches!(
+        scheme,
+        "mailto"
+            | "tel"
+            | "sms"
+            | "webcal"
+            | "tg"
+            | "whatsapp"
+            | "facetime"
+            | "facetime-audio"
+            | "zoommtg"
+            | "msteams"
+            | "skype"
+    )
 }
 
 pub fn new_window(env: Env, apps: &[AppDef], url: &Url) -> NewWindow {
@@ -94,7 +119,7 @@ pub fn new_window(env: Env, apps: &[AppDef], url: &Url) -> NewWindow {
                 NewWindow::External(url.clone())
             }
         }
-        "mailto" | "tel" | "sms" => NewWindow::External(url.clone()),
+        s if os_scheme(s) => NewWindow::External(url.clone()),
         _ => NewWindow::Block,
     }
 }
@@ -121,6 +146,14 @@ mod tests {
         assert_eq!(frame_navigation(&u("about:blank")), Frame::Allow);
         assert!(matches!(
             frame_navigation(&u("mailto:a@b.rw")),
+            Frame::OpenWithOs(_)
+        ));
+        assert!(matches!(
+            frame_navigation(&u("webcal://api.amashuri.com/f.ics")),
+            Frame::OpenWithOs(_)
+        ));
+        assert!(matches!(
+            frame_navigation(&u("tg://resolve?domain=nga_bot")),
             Frame::OpenWithOs(_)
         ));
         assert_eq!(frame_navigation(&u("file:///etc/passwd")), Frame::Block);
@@ -198,6 +231,23 @@ mod tests {
             new_window(env, &apps, &u("https://accounts.google.com/gsi/transform")),
             NewWindow::GoogleSignIn
         );
+        // MIS Reminders → "Connect Google Calendar": a consent page, in the browser.
+        assert!(matches!(
+            new_window(
+                env,
+                &apps,
+                &u("https://accounts.google.com/o/oauth2/v2/auth?scope=calendar")
+            ),
+            NewWindow::External(_)
+        ));
+        assert!(matches!(
+            new_window(
+                env,
+                &apps,
+                &u("webcal://api.amashuri.com/reminders/feed/x.ics")
+            ),
+            NewWindow::External(_)
+        ));
         assert!(matches!(
             new_window(env, &apps, &u("mailto:x@y.rw")),
             NewWindow::External(_)

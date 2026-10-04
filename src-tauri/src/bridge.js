@@ -126,6 +126,36 @@
   };
   try { Object.defineProperty(navigator, "standalone", { get: function () { return true; }, configurable: true }); } catch (e) { /* read-only */ }
 
+  // ── Service workers and Web Push: off inside NGA Desktop ─────────────────
+  // The app pages are always online here, and a service worker's cache is
+  // what kept old releases running after deploys. Web Push has no push service
+  // in an app window (WebKit has no PushManager; WebView2's subscribe fails),
+  // and NGA Desktop delivers notifications natively instead (notifications.rs,
+  // including MIS reminders through its bell). Hiding both lets each app take
+  // its own "no push here" path rather than offer a setup that cannot work.
+  if (navigator.serviceWorker) {
+    try {
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        regs.forEach(function (r) { r.unregister(); });
+      }).catch(function () {});
+      navigator.serviceWorker.register = function () {
+        return Promise.reject(new DOMException("Service workers are off in NGA Desktop", "NotSupportedError"));
+      };
+    } catch (e) { /* read-only in some engines */ }
+  }
+  try { delete window.PushManager; } catch (e) { /* ignore */ }
+  try { if (window.PushManager) Object.defineProperty(window, "PushManager", { value: undefined, configurable: true }); } catch (e) { /* ignore */ }
+
+  // ── Fullscreen (Windows) ─────────────────────────────────────────────────
+  // WebView2 shows requestFullscreen() only inside the app area. Ask NGA to
+  // make the window itself fullscreen (Task Mentor's proctored quizzes,
+  // e-learning lessons, videos). WKWebView (macOS) already does it natively.
+  if (__NGA_PLATFORM__ !== "macos") {
+    document.addEventListener("fullscreenchange", function () {
+      invoke("web_fullscreen", { on: !!document.fullscreenElement }).catch(function () {});
+    });
+  }
+
   // ── Theme, in sync with the shell and the other apps (theme.rs) ─────────
   // Each app shows its theme on <html>: MIS, Task Mentor and Tupo with the
   // `dark` class, Tendo with data-theme. A switch made in this app is

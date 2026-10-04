@@ -54,6 +54,8 @@ struct Inner {
     zoom: HashMap<String, f64>,
     /// Current page title per app (for the window title).
     titles: HashMap<String, String>,
+    /// An app page is in element fullscreen (Windows): it fills the window.
+    fullscreen: bool,
 }
 
 pub struct Shell {
@@ -114,6 +116,12 @@ fn emit<R: Runtime, S: Serialize + Clone>(app: &AppHandle<R>, event: &str, paylo
 fn viewport<R: Runtime>(window: &Window<R>, inner: &Inner) -> Option<Rect> {
     let scale = window.scale_factor().ok()?;
     let size = window.inner_size().ok()?.to_logical::<f64>(scale);
+    if inner.fullscreen {
+        return Some(Rect {
+            position: LogicalPosition::new(0.0, 0.0).into(),
+            size: LogicalSize::new(size.width, size.height).into(),
+        });
+    }
     Some(Rect {
         position: LogicalPosition::new(inner.inset_left, inner.inset_top).into(),
         size: LogicalSize::new(
@@ -674,6 +682,26 @@ pub fn mark_ready<R: Runtime>(app: &AppHandle<R>, key: &str, url: &Url) {
             title: None,
         },
     );
+}
+
+/// An app page entered or left element fullscreen (bridge.js, Windows only:
+/// WebView2 would otherwise show it inside the app area). The window goes
+/// fullscreen and the app's view covers all of it.
+#[tauri::command]
+pub fn web_fullscreen<R: Runtime>(
+    app: AppHandle<R>,
+    webview: Webview<R>,
+    on: bool,
+) -> Result<(), String> {
+    if cfg!(target_os = "macos") || !webview.label().starts_with("app-") {
+        return Ok(());
+    }
+    app.state::<Shell>().inner.lock().unwrap().fullscreen = on;
+    if let Some(w) = app.get_window(WINDOW) {
+        let _ = w.set_fullscreen(on);
+    }
+    relayout(&app);
+    Ok(())
 }
 
 /// Hide an app behind its loading screen while it signs in (again).

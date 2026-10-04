@@ -21,7 +21,7 @@ and needs no desktop release.
 Stack: **Tauri 2.12** (pinned; multi-webview `unstable` API) + **React 19 / Vite 8 / TypeScript**, Rust 1.85+.
 Installers: `.exe` (NSIS, per-user) and `.msi` (school IT) for Windows; universal `.dmg` for macOS.
 
-The full design, what was verified, and the roadmap are in [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+The full design, what was verified, and the roadmap are in [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). Which browser features of the four apps work inside the app, and what NGA does about the rest, is in [docs/BROWSER_COMPATIBILITY.md](docs/BROWSER_COMPATIBILITY.md).
 
 ## Run it
 

@@ -16,6 +16,7 @@
 //
 // Each app produces a new item every ~20 s, so notifications keep arriving.
 import http from "node:http";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const started = Date.now();
 let misFirstRequest = 0;
@@ -55,6 +56,18 @@ const redirect = (res, to) => {
 http
   .createServer((req, res) => {
     const url = new URL(req.url, "http://localhost:5173");
+    // PROBE=1: a capability probe runs inside the app (scripts/probe.js).
+    if (process.env.PROBE && url.pathname === "/home") return redirect(res, "/probe");
+    if (url.pathname === "/probe") return html(res, page("Capability probe", `<p>Testing web APIs inside NGA Desktop…</p><script src="/probe.js"></script>`));
+    if (url.pathname === "/probe.js") { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end(readFileSync(new URL("./probe.js", import.meta.url))); }
+    if (url.pathname === "/sw-probe.js") { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end("self.addEventListener('fetch',()=>{});"); }
+    if (url.pathname === "/sse") { res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" }); res.write("data: hello-from-sse\n\n"); return setTimeout(() => res.end(), 1500); }
+    if (url.pathname === "/beacon") { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { log("MIS  beacon/keepalive received:", b); res.writeHead(204); res.end(); }); return; }
+    if (url.pathname === "/probe-result") {
+      let b = ""; req.on("data", (c) => (b += c));
+      req.on("end", () => { writeFileSync(new URL("../probe-result.json", import.meta.url), b); log("PROBE RESULT saved"); res.writeHead(204); res.end(); });
+      return;
+    }
     // FAKE_SIGNED_OUT_FOR=<s>: MIS starts signed out and "signs in" after that long.
     misFirstRequest ||= Date.now(); // counted from the app's first visit
     if (process.env.FAKE_SIGNOUT_TEST && url.pathname === "/login" && !url.searchParams.get("client_id") && !misLoggedOutAt && Date.now() - misFirstRequest > 5000) {

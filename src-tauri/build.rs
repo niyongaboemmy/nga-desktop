@@ -38,6 +38,7 @@ fn main() {
             "web_badge",
             "web_print",
             "web_theme",
+            "web_fullscreen",
         ]),
     ))
     .expect("failed to run tauri-build");

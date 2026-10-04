@@ -6,5 +6,9 @@
   <string>Task Mentor uses the camera for proctored quizzes, and Tupo uses it for video meetings.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Tupo uses the microphone for meetings and voice messages.</string>
+  <!-- Tupo Meet live captions use WebKit speech recognition. Without this
+       description macOS terminates the app the moment captions start. -->
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Tupo uses speech recognition to show live captions in meetings.</string>
 </dict>
 </plist>
