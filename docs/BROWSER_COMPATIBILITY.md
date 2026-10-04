@@ -48,7 +48,7 @@ The probe has three parts:
 | **Voice messages:** play the other engine's recordings | ✅ plays macOS WebM, M4A and MP4 | ✅ plays WebM |
 | **Face detection** (Task Mentor; MediaPipe on GPU) | ✅ 1 face, 24–35 ms per frame | ✅ 1 face, 7 ms per frame (real Mac) |
 | **COCO-SSD** (Task Mentor) | ✅ finds the person. ⚠️ The CI VM has no GPU, so TF.js fell back to CPU (1.4–3.3 s per frame); it uses WebGL on real PCs | ✅ WebGL, 20 ms |
-| **Fullscreen** (Task Mentor proctored quiz, e-learning) | 🔧 The whole window goes fullscreen (it used to fill only the app area), and comes back. The CI screenshot also showed the view **48 px short** of the screen (720 of 768); a fix is pushed but unconfirmed on CI | 🔧 fullscreen 1024×768, and the app is back on screen afterwards |
+| **Fullscreen** (Task Mentor proctored quiz, e-learning) | 🔧 The whole window goes fullscreen (it used to fill only the app area), and comes back. ⚠️ **Open:** the app view stays 48 px short of the screen (720 of 768, a black strip where the taskbar was), even after a re-layout | 🔧 fullscreen 1024×768, and the app is back on screen afterwards |
 | **Clipboard copy** (≈115 buttons) | ✅ | ✅ from a click (as in Safari) |
 | **`window.open`** (MIS previews, reports) | 🔧 now a real window; it used to replace the page | 🔧 same |
 | **Screen share** (Tupo Meet) | 🖐 the API is there; CI couldn't press the system picker | 🖐 the macOS picker and Screen Recording permission need a person |
@@ -76,7 +76,7 @@ The probe has three parts:
 |---|---|---|---|
 | 1 | **Windows froze on the first app** (deadlock). Creating an app's WebView2 inside a WebView2 callback, such as the shell's `open_app` IPC, waits on a message loop that callback holds | No app ever loaded on Windows ("NGA MIS is taking a while") | `create_later()` creates app views on a worker thread (`webviews.rs`) |
 | 2 | **Lock-order deadlock.** `relayout()` held the shell's lock while moving webviews. Off the main thread (the auth watcher, workers) those calls wait for the main thread, which was waiting for that lock | Windows "Not Responding" after a fullscreen request; could hit macOS at random | Window calls are made outside the lock everywhere; `window_size()` is read first |
-| 3 | **Fullscreen on Windows** filled only the app area, then the view was 48 px short of the screen | Proctored quiz not truly fullscreen | Native fullscreen plus a re-layout after the window settles |
+| 3 | **Fullscreen on Windows** filled only the app area | Proctored quiz not truly fullscreen | Native fullscreen. ⚠️ **Still open:** a 48 px strip at the bottom. The view keeps the maximized window's height; a re-layout after the transition didn't fix it. Next to try: un-maximize before going fullscreen |
 | 4 | **macOS after fullscreen.** WebKit puts the view back *under* the shell | Another app showed, and the quiz page took no clicks | Re-attach the app view on top after exit (`reparent`) |
 | 5 | **`window.open` into the same app** switched tabs, which navigated the opener away | MIS "open in new tab" replaced the page; unsaved work was lost | `new_window_from()`: a window into your own app stays a window |
 | 6 | **Banner-click guess.** Focusing NGA within 10 s of any banner switched to that banner's app | Jumped apps by itself; in a proctored quiz that counts as leaving the quiz | Off where macOS reports real clicks; Windows only within 6 s |
