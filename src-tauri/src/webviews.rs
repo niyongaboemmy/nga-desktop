@@ -226,9 +226,38 @@ pub fn ensure_app<R: Runtime>(app: &AppHandle<R>, key: &str) -> tauri::Result<()
         .ok_or(tauri::Error::WebviewNotFound)?
         .clone();
     let target = initial_url(app, &def, &shell.apps);
-    create_app_webview(app, &def, target)?;
-    relayout(app);
+    create_later(app, def, target);
     Ok(())
+}
+
+/// Apps whose webview is being created (so two quick requests make one).
+static CREATING: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Creates an app's webview on a worker thread, never inline.
+///
+/// On Windows, creating a WebView2 waits for the main thread's message loop.
+/// Called from inside a WebView2 callback (a sync IPC command from the shell,
+/// a link's new-window request, a page-load handler) that wait never ends:
+/// the app froze on its first tab. From a worker, Tauri hands the creation
+/// to the main thread and the callback returns first. Same on macOS, harmlessly.
+fn create_later<R: Runtime>(app: &AppHandle<R>, def: AppDef, url: Url) {
+    {
+        let mut creating = CREATING.lock().unwrap();
+        if creating.iter().any(|k| k == def.key) {
+            return;
+        }
+        creating.push(def.key.to_string());
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if app.get_webview(&label(def.key)).is_none() {
+            match create_app_webview(&app, &def, url) {
+                Ok(_) => relayout(&app),
+                Err(e) => log::warn!("[{}] couldn't create its view: {e}", def.key),
+            }
+        }
+        CREATING.lock().unwrap().retain(|k| k != def.key);
+    });
 }
 
 /// Switch to `key`, creating its webview on first use. `url` overrides where it goes.
@@ -258,8 +287,7 @@ pub fn open_app<R: Runtime>(app: &AppHandle<R>, key: &str, url: Option<Url>) -> 
         }
         None => {
             let target = url.unwrap_or_else(|| initial_url(app, &def, &shell.apps));
-            create_app_webview(app, &def, target)?;
-            relayout(app);
+            create_later(app, def.clone(), target);
         }
     }
     let page_title = shell.inner.lock().unwrap().titles.get(def.key).cloned();
