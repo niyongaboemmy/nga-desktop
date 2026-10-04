@@ -124,6 +124,18 @@ pub fn new_window(env: Env, apps: &[AppDef], url: &Url) -> NewWindow {
     }
 }
 
+/// [`new_window`] for a request made by `opener`'s page. A window into the
+/// opener's OWN app (MIS's report preview, a lesson note "in a new tab") is a
+/// real second window, like a browser tab: switching tabs would navigate the
+/// opener itself away and lose what the person was doing. Links into another
+/// NGA app still switch to that app's tab.
+pub fn new_window_from(env: Env, apps: &[AppDef], opener: Option<&str>, url: &Url) -> NewWindow {
+    match new_window(env, apps, url) {
+        NewWindow::App(key, _) if Some(key) == opener => NewWindow::Popup,
+        other => other,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,6 +143,25 @@ mod tests {
 
     fn u(s: &str) -> Url {
         Url::parse(s).unwrap()
+    }
+
+    #[test]
+    fn own_app_new_windows_stay_windows_other_apps_switch_tabs() {
+        let apps = apps_for(Env::Production);
+        let report = u("https://mis.amashuri.com/reports/123");
+        assert_eq!(
+            new_window_from(Env::Production, &apps, Some("mis"), &report),
+            NewWindow::Popup
+        );
+        assert!(matches!(
+            new_window_from(Env::Production, &apps, Some("tupo"), &report),
+            NewWindow::App("mis", _)
+        ));
+        // Not an app page (e.g. the shell): routed as before.
+        assert!(matches!(
+            new_window_from(Env::Production, &apps, None, &report),
+            NewWindow::App("mis", _)
+        ));
     }
 
     #[test]

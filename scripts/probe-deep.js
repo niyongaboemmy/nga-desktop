@@ -313,6 +313,8 @@ if (CI) {
     await state("after-fullscreen"); // CI takes a screenshot: this page should be on screen again
     await sleep(2000);
     const after = `${innerWidth}x${innerHeight}`;
+    // The app must be on screen again (macOS put it under the shell once).
+    if (document.visibilityState !== "visible") throw new Error("after leaving fullscreen this app is " + document.visibilityState);
     if (!el) throw new Error("fullscreenElement not set");
     if (!covers) throw new Error(`app view ${during} doesn't cover the screen ${screen.width}x${screen.height}`);
     return `before ${before}, fullscreen ${during} (screen ${screen.width}x${screen.height}), after exit ${after}`;

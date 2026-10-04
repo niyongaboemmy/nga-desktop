@@ -279,6 +279,10 @@ fn create_later<R: Runtime>(app: &AppHandle<R>, def: AppDef, url: Url) {
 
 /// Switch to `key`, creating its webview on first use. `url` overrides where it goes.
 pub fn open_app<R: Runtime>(app: &AppHandle<R>, key: &str, url: Option<Url>) -> tauri::Result<()> {
+    log::info!(
+        "[{key}] opened{}",
+        if url.is_some() { " (with a page)" } else { "" }
+    );
     let shell = app.state::<Shell>();
     let def = registry::find(&shell.apps, key)
         .ok_or_else(|| tauri::Error::WebviewNotFound)?
@@ -356,7 +360,11 @@ fn user_agent() -> String {
 
 /// What every NGA-hosting webview (app tabs and their popups) does with links,
 /// new windows and downloads.
-fn with_routing<R: Runtime>(app: &AppHandle<R>, builder: WebviewBuilder<R>) -> WebviewBuilder<R> {
+fn with_routing<R: Runtime>(
+    app: &AppHandle<R>,
+    builder: WebviewBuilder<R>,
+    opener: &'static str,
+) -> WebviewBuilder<R> {
     let nav_app = app.clone();
     let win_app = app.clone();
     builder
@@ -373,7 +381,7 @@ fn with_routing<R: Runtime>(app: &AppHandle<R>, builder: WebviewBuilder<R>) -> W
             }
             frame_rule(&nav_app, url)
         })
-        .on_new_window(move |url, features| route_new_window(&win_app, url, features))
+        .on_new_window(move |url, features| route_new_window(&win_app, url, features, opener))
         .on_download(|wv, event| {
             if let DownloadEvent::Finished { path, success, .. } = event {
                 let path = path.map(|p| p.display().to_string());
@@ -419,6 +427,7 @@ fn route_new_window<R: Runtime>(
     app: &AppHandle<R>,
     url: Url,
     features: tauri::webview::NewWindowFeatures,
+    opener: &'static str,
 ) -> NewWindowResponse<R> {
     let shell = app.state::<Shell>();
     if crate::browser_signin::is_start(&shell.apps, &url) {
@@ -428,7 +437,7 @@ fn route_new_window<R: Runtime>(
             .run_on_main_thread(move || crate::browser_signin::start(&app));
         return NewWindowResponse::Deny;
     }
-    match navigation::new_window(shell.env, &shell.apps, &url) {
+    match navigation::new_window_from(shell.env, &shell.apps, Some(opener), &url) {
         NewWindow::App(key, url) => {
             log::info!("new window → {key} tab: {}", redact(&url));
             // Switch tabs on the main thread; this callback may hold engine locks.
@@ -452,7 +461,7 @@ fn route_new_window<R: Runtime>(
             NewWindowResponse::Deny
         }
         NewWindow::Block => NewWindowResponse::Deny,
-        NewWindow::Popup => match create_popup(app, &url, features) {
+        NewWindow::Popup => match create_popup(app, &url, features, opener) {
             Ok(window) => NewWindowResponse::Create { window },
             Err(e) => {
                 log::warn!("popup for {url} failed: {e}");
@@ -469,6 +478,7 @@ fn create_popup<R: Runtime>(
     app: &AppHandle<R>,
     url: &Url,
     features: tauri::webview::NewWindowFeatures,
+    opener: &'static str,
 ) -> tauri::Result<tauri::WebviewWindow<R>> {
     let n = {
         let shell = app.state::<Shell>();
@@ -498,7 +508,7 @@ fn create_popup<R: Runtime>(
         }
         let url = payload.url().clone();
         let shell = guard_app.state::<Shell>();
-        let routed = match navigation::new_window(shell.env, &shell.apps, &url) {
+        let routed = match navigation::new_window_from(shell.env, &shell.apps, Some(opener), &url) {
             NewWindow::App(key, url) => {
                 let _ = open_app(&guard_app, key, Some(url));
                 true
@@ -581,7 +591,7 @@ fn create_app_webview<R: Runtime>(
                 );
             }
         });
-    let builder = with_routing(app, builder);
+    let builder = with_routing(app, builder, def.key);
     let webview = window.add_child(builder, rect.position, rect.size)?;
     let _ = webview.hide();
     crate::dialogs::install(&webview);
@@ -732,9 +742,22 @@ pub fn mark_ready<R: Runtime>(app: &AppHandle<R>, key: &str, url: &Url) {
     );
 }
 
-/// An app page entered or left element fullscreen (bridge.js, Windows only:
-/// WebView2 would otherwise show it inside the app area). The window goes
-/// fullscreen and the app's view covers all of it.
+/// Runs `fix` and re-lays out twice, after the window's own fullscreen
+/// transition has settled (it reports sizes and views late).
+fn settle<R: Runtime>(app: AppHandle<R>, fix: impl Fn(&AppHandle<R>) + Send + 'static) {
+    std::thread::spawn(move || {
+        for ms in [400, 1200] {
+            std::thread::sleep(std::time::Duration::from_millis(ms));
+            fix(&app);
+            relayout(&app);
+        }
+    });
+}
+
+/// An app page entered or left element fullscreen (bridge.js).
+/// - Windows: WebView2 would show it inside the app area only, so the window
+///   goes fullscreen and the app's view covers all of it.
+/// - macOS: WebKit does it natively; NGA only restores the view afterwards.
 #[tauri::command]
 pub async fn web_fullscreen<R: Runtime>(
     app: AppHandle<R>,
@@ -744,6 +767,7 @@ pub async fn web_fullscreen<R: Runtime>(
     if !webview.label().starts_with("app-") {
         return Ok(());
     }
+    let label = webview.label().to_string();
     if cfg!(target_os = "macos") {
         // WebKit does fullscreen itself, but on the way out it puts the app's
         // view back at the BOTTOM of the window: under the shell's
@@ -751,14 +775,9 @@ pub async fn web_fullscreen<R: Runtime>(
         // clicks (found by the CI probe after a Task Mentor-style quiz).
         // Put it back on top once WebKit's exit animation is done.
         if !on {
-            let label = webview.label().to_string();
-            std::thread::spawn(move || {
-                for ms in [400, 1200] {
-                    std::thread::sleep(std::time::Duration::from_millis(ms));
-                    if let (Some(wv), Some(w)) = (app.get_webview(&label), app.get_window(WINDOW)) {
-                        let _ = wv.reparent(&w);
-                    }
-                    relayout(&app);
+            settle(app, move |app| {
+                if let (Some(wv), Some(w)) = (app.get_webview(&label), app.get_window(WINDOW)) {
+                    let _ = wv.reparent(&w);
                 }
             });
         }
@@ -768,7 +787,9 @@ pub async fn web_fullscreen<R: Runtime>(
     if let Some(w) = app.get_window(WINDOW) {
         let _ = w.set_fullscreen(on);
     }
-    relayout(&app);
+    // The window reports its new size a moment later (the view was left
+    // 48 px short of the screen: the taskbar's height).
+    settle(app, |_| {});
     Ok(())
 }
 
