@@ -1,26 +1,22 @@
-// In-app updates (only in release builds that carry an updater key).
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+// In-app updates: the checks and the install run natively (src-tauri/src/updates.rs);
+// the shell shows them (title-bar pill, toast, Settings → Updates).
+import { native, type UpdateInfo } from "./native";
 
-export async function findUpdate(): Promise<Update | null> {
+export type { UpdateInfo };
+
+/** The state the shell shows: nothing yet, checking, up to date, or a newer version. */
+export type UpdateState = { kind: "idle" } | { kind: "checking" } | { kind: "current" } | { kind: "available"; info: UpdateInfo } | { kind: "error"; message: string };
+
+export async function checkNow(): Promise<UpdateState> {
   try {
-    return await check({ timeout: 20_000 });
+    const info = await native.updateCheck();
+    return info ? { kind: "available", info } : { kind: "current" };
   } catch (e) {
-    console.warn("update check failed", e);
-    return null;
+    return { kind: "error", message: String(e) };
   }
 }
 
-/** Download, install and restart. Only on the user's click: never mid-quiz or mid-meeting. */
-export async function installUpdate(update: Update, onProgress: (pct: number) => void) {
-  let total = 0;
-  let done = 0;
-  await update.downloadAndInstall((event) => {
-    if (event.event === "Started") total = event.data.contentLength ?? 0;
-    if (event.event === "Progress") {
-      done += event.data.chunkLength;
-      if (total) onProgress(Math.round((done / total) * 100));
-    }
-  });
-  await relaunch();
+/** Only on the person's click: it restarts NGA, so never in the middle of a quiz or meeting. */
+export async function installNow(): Promise<void> {
+  await native.updateInstall();
 }

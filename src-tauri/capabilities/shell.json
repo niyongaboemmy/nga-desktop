@@ -12,7 +12,6 @@
     "store:default",
     "notification:default",
     "process:allow-restart",
-    "updater:default",
     "allow-shell-info",
     "allow-open-app",
     "allow-set-insets",
@@ -49,6 +48,8 @@
     "allow-overlay-hide",
     "allow-overlay-action",
     "allow-signin-cancel",
-    "allow-signin-reopen"
+    "allow-signin-reopen",
+    "allow-update-check",
+    "allow-update-install"
   ]
 }

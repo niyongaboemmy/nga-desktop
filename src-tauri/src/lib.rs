@@ -9,6 +9,7 @@ mod os_notify;
 mod overlay;
 mod registry;
 mod theme;
+mod updates;
 mod webviews;
 
 use tauri::ipc::CapabilityBuilder;
@@ -25,11 +26,6 @@ use webviews::{Shell, SHELL, WINDOW};
 pub fn updater_pubkey() -> Option<&'static str> {
     option_env!("NGA_UPDATER_PUBKEY").filter(|k| !k.trim().is_empty())
 }
-
-pub const UPDATE_ENDPOINTS: &[&str] = &[
-    "https://downloads.amashuri.com/desktop/latest.json",
-    "https://github.com/niyongaboemmy/nga-desktop/releases/latest/download/latest.json",
-];
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -64,8 +60,11 @@ pub fn run() {
         .manage(Shell::new())
         .manage(notifications::Notifier::default())
         .manage(theme::SharedTheme::default())
+        .manage(updates::Pending::default())
         .invoke_handler(tauri::generate_handler![
             commands::shell_info,
+            updates::update_check,
+            updates::update_install,
             commands::open_app,
             commands::navigate_app,
             commands::set_insets,
@@ -116,6 +115,7 @@ pub fn run() {
                 });
             });
             auth::spawn(app.handle().clone());
+            updates::spawn(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {

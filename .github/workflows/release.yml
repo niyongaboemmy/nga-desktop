@@ -1,19 +1,23 @@
-# Signed release on a version tag:  npm run release -- 1.2.0  (tags v1.2.0)
-# Produces a DRAFT GitHub Release; a maintainer smoke-tests and publishes it.
-# Signing and the updater switch on per platform as their secrets are added
-# (see docs/RELEASING.md); without them the installers are built unsigned.
+# Release on a version tag:  npm run release -- 1.2.0  (tags v1.2.0), push --follow-tags.
+#
+# Builds the signed installers + update packages on Windows and macOS and
+# uploads them, with a release.json manifest, to the NGA server
+# (/opt/apps/desktop-releases/<version>/). That makes them downloadable for
+# testing at https://api.amashuri.com/desktop/files/<version>/..., but NOT the
+# version the download page offers or installed apps update to: run the
+# "Publish release" workflow for that, after a smoke test (docs/RELEASING.md).
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    environment: release
+  build:
     strategy:
       fail-fast: false
       matrix:
@@ -24,7 +28,7 @@ jobs:
             args: --bundles nsis,msi
     runs-on: ${{ matrix.platform }}
     env:
-      # Compiled into the app: enables the in-app updater (public key, not a secret).
+      # Compiled into the app: switches the in-app updater on (public key, not a secret).
       NGA_UPDATER_PUBKEY: ${{ vars.NGA_UPDATER_PUBKEY }}
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +56,10 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
           put() { if [ -n "${!1}" ]; then { echo "$1<<__EOF__"; echo "${!1}"; echo "__EOF__"; } >> "$GITHUB_ENV"; fi; }
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ] || [ -z "$NGA_UPDATER_PUBKEY" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY (secret) and NGA_UPDATER_PUBKEY (variable) are required: installed apps could not update from this release."
+            exit 1
+          fi
           for v in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do put $v; done
           if [ "$RUNNER_OS" = "macOS" ]; then
             for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_ISSUER APPLE_API_KEY; do put $v; done
@@ -60,18 +68,56 @@ jobs:
               echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
             fi
           fi
-          # Updater artifacts (.sig + latest.json) only when we can sign them.
-          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then updater=true; else updater=false; fi
-          echo "{\"bundle\":{\"createUpdaterArtifacts\":$updater}}" > "$RUNNER_TEMP/release.conf.json"
+          echo '{"bundle":{"createUpdaterArtifacts":true}}' > "$RUNNER_TEMP/release.conf.json"
 
-      - uses: tauri-apps/tauri-action@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        shell: bash
+        run: npx tauri build ${{ matrix.args }} --config "$RUNNER_TEMP/release.conf.json"
+
+      # Installers + update packages (and their .sig), under one flat folder.
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p out
+          V=$(node -p "require('./package.json').version")
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            B=src-tauri/target/universal-apple-darwin/release/bundle
+            cp "$B"/dmg/*.dmg out/
+            cp "$B/macos/NGA.app.tar.gz" "out/NGA_${V}_universal.app.tar.gz"
+            cp "$B/macos/NGA.app.tar.gz.sig" "out/NGA_${V}_universal.app.tar.gz.sig"
+          else
+            B=src-tauri/target/release/bundle
+            cp "$B"/nsis/*-setup.exe "$B"/nsis/*-setup.exe.sig out/
+            cp "$B"/msi/*.msi out/
+          fi
+          ls -la out
+      - uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "NGA Desktop ${{ github.ref_name }}"
-          releaseBody: "See CHANGELOG.md. Windows: NGA_*_x64-setup.exe (everyone) or the .msi (school IT). macOS: NGA_*_universal.dmg."
-          releaseDraft: true
-          prerelease: false
-          uploadUpdaterJson: true
-          args: ${{ matrix.args }} --config ${{ runner.temp }}/release.conf.json
+          name: release-${{ matrix.platform }}
+          path: out/
+
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Manifest (release.json)
+        run: node scripts/release-manifest.mjs dist > dist/release.json && cat dist/release.json
+      - name: Upload to the NGA server (not published yet)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          V=$(node -p "require('./package.json').version")
+          install -m 600 /dev/null key && printf '%s\n' "$EC2_SSH_KEY" > key
+          SSH="ssh -i key -o StrictHostKeyChecking=accept-new"
+          $SSH "$EC2_USER@$EC2_HOST" "mkdir -p /opt/apps/desktop-releases/$V"
+          rsync -az -e "$SSH" dist/ "$EC2_USER@$EC2_HOST:/opt/apps/desktop-releases/$V/"
+          rm -f key
+          {
+            echo "### NGA Desktop $V uploaded (not published)"
+            echo "Test it: https://api.amashuri.com/desktop/files/$V/ , then run **Publish release** with version $V."
+          } >> "$GITHUB_STEP_SUMMARY"

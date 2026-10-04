@@ -33,6 +33,14 @@ export interface ShellInfo {
   updater: boolean;
 }
 
+/** A newer NGA Desktop on the update service (updates.rs). */
+export interface UpdateInfo {
+  version: string;
+  current: string;
+  notes: string | null;
+  date: string | null;
+}
+
 export interface AppEvent {
   key: AppKey;
   url?: string;
@@ -89,6 +97,10 @@ export const native = {
   openNotice: (id: number) => invoke<void>("notices_open", { id }),
   readAllNotices: () => invoke<void>("notices_read_all"),
   clearNotices: () => invoke<void>("notices_clear"),
+  /** Asks the update service now (null: up to date or no updater). */
+  updateCheck: () => invoke<UpdateInfo | null>("update_check"),
+  /** Downloads, installs and restarts NGA. */
+  updateInstall: () => invoke<void>("update_install"),
 };
 
 type Events = {
@@ -123,6 +135,10 @@ type Events = {
   "nga://overlay": string;
   /** A setting changed natively (e.g. a tab's Mute menu item). */
   "nga://settings-changed": null;
+  /** A newer version is available; `announce` the first time this version is seen. */
+  "nga://update": { info: UpdateInfo; announce: boolean };
+  /** Update download progress, 0-100. */
+  "nga://update-progress": number;
 };
 
 export const on = <K extends keyof Events>(event: K, handler: (payload: Events[K]) => void): Promise<UnlistenFn> =>

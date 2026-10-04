@@ -1,0 +1,37 @@
+# Makes an uploaded release (release.yml) THE current one: the download page
+# offers it and installed apps are prompted to update to it. Also the
+# rollback: publish an older version again (apps on a newer one aren't
+# downgraded; new downloads get the older one).
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 0.2.0), already uploaded by the Release workflow"
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point current.json at the version
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          case "$VERSION" in (*[!0-9A-Za-z.-]*|"") echo "::error::bad version '$VERSION'"; exit 1;; esac
+          install -m 600 /dev/null key && printf '%s\n' "$EC2_SSH_KEY" > key
+          ssh -i key -o StrictHostKeyChecking=accept-new "$EC2_USER@$EC2_HOST" "
+            set -e
+            D=/opt/apps/desktop-releases
+            test -s \$D/$VERSION/release.json || { echo 'version $VERSION was not uploaded'; exit 1; }
+            printf '{\"version\":\"%s\",\"published_at\":\"%s\"}\n' '$VERSION' \"\$(date -u +%Y-%m-%dT%H:%M:%SZ)\" > \$D/current.json.tmp
+            mv \$D/current.json.tmp \$D/current.json
+            cat \$D/current.json
+          "
+          rm -f key
+          echo "### NGA Desktop $VERSION is now the current release" >> "$GITHUB_STEP_SUMMARY"
+          curl -fsS https://api.amashuri.com/desktop/release | head -c 600 >> "$GITHUB_STEP_SUMMARY" || true

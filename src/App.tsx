@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
-import { Bell, Download, X } from "lucide-react";
+import { ArrowDownCircle, Bell, Download, X } from "lucide-react";
 import { TitleBar, FocusBar, type Page } from "./components/TitleBar";
 import { Splash } from "./components/Splash";
 import { Settings } from "./components/Settings";
@@ -10,6 +10,7 @@ import { SignedOutScreen, SigningOutScreen } from "./components/AuthScreens";
 import { native, on, type AppKey, type Notice, type NoticeSummary, type ShellInfo } from "./lib/native";
 import { isSlow, reduce } from "./lib/appState";
 import { readSettings, saveSetting, type RecentPage } from "./lib/settings";
+import type { UpdateState } from "./lib/updater";
 import { applyTheme, resolveTheme, systemPrefersDark, type Theme, type ThemePref } from "./lib/theme";
 import { addRecent } from "./lib/palette";
 
@@ -20,6 +21,7 @@ type Toast =
   | { kind: "download"; text: string; path: string | null }
   | { kind: "notice"; notice: Notice }
   | { kind: "info"; text: string }
+  | { kind: "update"; version: string }
   | null;
 
 export default function App() {
@@ -40,6 +42,8 @@ export default function App() {
   // Recent pages are recorded here and read by the palette (overlay window).
   const [, setRecent] = useState<RecentPage[]>([]);
   const [focusSession, setFocusSession] = useState<AppKey | null>(null);
+  const [update, setUpdate] = useState<UpdateState>({ kind: "idle" });
+  const [updatePct, setUpdatePct] = useState<number | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
   const [signin, setSignin] = useState<"waiting" | "completing" | "idle">("idle");
   const [signingOut, setSigningOut] = useState(false);
@@ -152,6 +156,12 @@ export default function App() {
       on("nga://notices", setNotices),
       on("nga://notice", (notice) => setToast({ kind: "notice", notice })),
       on("nga://toast", (text) => setToast({ kind: "info", text })),
+      // A newer NGA (updates.rs checks after start and every few hours).
+      on("nga://update", ({ info, announce }) => {
+        setUpdate({ kind: "available", info });
+        if (announce) setToast({ kind: "update", version: info.version });
+      }),
+      on("nga://update-progress", setUpdatePct),
       on("nga://signin", (phase) => {
         setSignin(phase);
         if (phase !== "idle") {
@@ -269,7 +279,7 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), toast.kind === "notice" ? 6000 : 7000);
+    const t = window.setTimeout(() => setToast(null), toast.kind === "notice" ? 6000 : toast.kind === "update" ? 15000 : 7000);
     return () => window.clearTimeout(t);
   }, [toast]);
 
@@ -284,7 +294,15 @@ export default function App() {
     ) : signin !== "idle" ? (
       <SigninProgress phase={signin} />
     ) : page === "settings" ? (
-      <Settings info={info} themePref={themePref} onTheme={chooseTheme} />
+      <Settings
+        info={info}
+        themePref={themePref}
+        onTheme={chooseTheme}
+        update={update}
+        setUpdate={setUpdate}
+        updatePct={updatePct}
+        busyIn={focusSession ? `${info.apps.find((a) => a.key === focusSession)?.name ?? "app"} quiz or meeting` : null}
+      />
     ) : app && waitingForSignIn ? (
       <SignedOutScreen app={app} onSignIn={() => open("mis")} />
     ) : app && view?.status !== "ready" ? (
@@ -313,6 +331,8 @@ export default function App() {
           theme={theme}
           themePref={themePref}
           focusSession={focusSession}
+          updateVersion={update.kind === "available" ? update.info.version : null}
+          onUpdate={() => setPage("settings")}
           online={online}
           panelOpen={panel}
           onOpen={open}
@@ -345,6 +365,12 @@ export default function App() {
         <div className="toast" role="status">
           {toast.kind === "info" ? (
             <span>{toast.text}</span>
+          ) : toast.kind === "update" ? (
+            <>
+              <ArrowDownCircle size={15} />
+              <span>NGA {toast.version} is available</span>
+              <button className="link" onClick={() => { setPage("settings"); setToast(null); }}>Update…</button>
+            </>
           ) : toast.kind === "download" ? (
             <>
               <Download size={15} />

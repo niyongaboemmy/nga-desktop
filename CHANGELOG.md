@@ -4,6 +4,13 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+### Updates and downloads
+
+- In-app updates: NGA checks the NGA update service after start and every 6 hours, shows an Update pill in the title bar and a toast once per version, and installs on "Restart & update" in Settings (not while a quiz or meeting is open). Updates are signed; each check counts the install (random id, version) for the school's stats.
+- Downloads from mis.amashuri.com/apps (detects Windows or macOS), counted per download; releases upload to NGA's server and go live with the Publish workflow.
+- Windows: the app no longer freezes on the first app, and fullscreen no longer hangs (two deadlocks); new windows into the same app open as windows; the window fits small screens.
+- macOS: the app's page comes back on top after fullscreen; banner clicks no longer guessed.
+
 ### v0.2: redesign, notifications from every app, one sign-in
 
 - New look: app tabs in the title bar (macOS overlay title bar; frameless Windows with its own controls), sliding tab highlight, badges, compact icon tabs on narrow windows, focus mode (⌘⇧F).

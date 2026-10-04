@@ -33,6 +33,8 @@ fn main() {
             "overlay_action",
             "signin_cancel",
             "signin_reopen",
+            "update_check",
+            "update_install",
             // Granted to the NGA web pages at runtime (lib.rs grant_bridge), not to the shell.
             "web_notify",
             "web_badge",

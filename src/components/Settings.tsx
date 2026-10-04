@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { BellOff, BellRing, Download, ExternalLink, LogOut, Monitor, Moon, RefreshCw, Sun, Trash2 } from "lucide-react";
-import type { Update } from "@tauri-apps/plugin-updater";
 import { native, on, type AppKey, type OsPermission, type ShellInfo } from "../lib/native";
 import { readSettings, saveSetting, type Settings as Prefs } from "../lib/settings";
-import { findUpdate, installUpdate } from "../lib/updater";
+import { checkNow, installNow, type UpdateState } from "../lib/updater";
 import type { ThemePref } from "../lib/theme";
 import { isMac } from "../lib/platform";
 
@@ -23,13 +22,30 @@ const PERM_TEXT: Record<OsPermission, string> = {
     : "On, unless turned off in Windows Settings → System → Notifications.",
 };
 
-export function Settings({ info, themePref, onTheme }: { info: ShellInfo; themePref: ThemePref; onTheme: (t: ThemePref) => void }) {
+export function Settings({
+  info,
+  themePref,
+  onTheme,
+  update,
+  setUpdate,
+  updatePct,
+  busyIn,
+}: {
+  info: ShellInfo;
+  themePref: ThemePref;
+  onTheme: (t: ThemePref) => void;
+  /** Shared with the title bar's "Update" pill (App). */
+  update: UpdateState;
+  setUpdate: (u: UpdateState) => void;
+  updatePct: number | null;
+  /** An app holding a quiz or meeting: restarting now would end it. */
+  busyIn: string | null;
+}) {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [perm, setPerm] = useState<OsPermission>("unknown");
   const [confirm, setConfirm] = useState<"signout" | "reset" | null>(null);
   const [working, setWorking] = useState(false);
-  const [update, setUpdate] = useState<Update | null | "none" | "checking">(null);
-  const [pct, setPct] = useState<number | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = () => void readSettings().then(setPrefs);
@@ -181,26 +197,42 @@ export function Settings({ info, themePref, onTheme }: { info: ShellInfo; themeP
         <h3>Updates</h3>
         {!info.updater ? (
           <p className="muted">This build doesn't update itself (development or unsigned build).</p>
-        ) : update && typeof update === "object" ? (
-          <div className="row">
-            <span>Version {update.version} is ready.</span>
-            <button className="btn primary" disabled={pct !== null} onClick={() => installUpdate(update, setPct)}>
-              <Download size={16} /> {pct === null ? "Restart & update" : `Downloading ${pct}%`}
-            </button>
+        ) : update.kind === "available" ? (
+          <div className="update-card">
+            <div className="row">
+              <span>
+                <strong>NGA {update.info.version}</strong> is ready <span className="muted">(you have {update.info.current})</span>
+              </span>
+              <button
+                className="btn primary"
+                disabled={updatePct !== null || !!busyIn}
+                onClick={() => {
+                  setInstallError(null);
+                  installNow().catch((e) => setInstallError(String(e)));
+                }}
+              >
+                <Download size={16} /> {updatePct === null ? "Restart & update" : `Downloading ${updatePct}%`}
+              </button>
+            </div>
+            {busyIn && <p className="muted">Finish the {busyIn} first: updating restarts NGA.</p>}
+            {update.info.notes && <p className="notes">{update.info.notes}</p>}
+            {installError && <p className="error">Couldn't update: {installError}</p>}
           </div>
         ) : (
           <div className="row">
             <button
               className="btn"
-              disabled={update === "checking"}
+              disabled={update.kind === "checking"}
               onClick={async () => {
-                setUpdate("checking");
-                setUpdate((await findUpdate()) ?? "none");
+                setUpdate({ kind: "checking" });
+                setUpdate(await checkNow());
               }}
             >
-              <RefreshCw size={16} className={update === "checking" ? "spin" : ""} /> {update === "checking" ? "Checking…" : "Check for updates"}
+              <RefreshCw size={16} className={update.kind === "checking" ? "spin" : ""} />{" "}
+              {update.kind === "checking" ? "Checking…" : "Check for updates"}
             </button>
-            {update === "none" && <span className="muted">You have the latest version.</span>}
+            {update.kind === "current" && <span className="muted">You have the latest version ({info.version}).</span>}
+            {update.kind === "error" && <span className="muted">Couldn't reach the update service. Try again later.</span>}
           </div>
         )}
       </section>
