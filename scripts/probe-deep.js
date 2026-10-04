@@ -225,6 +225,8 @@ face.crossOrigin = "anonymous";
 face.src = "/probe-face.jpg";
 await face.decode().catch(() => {});
 let vision = null;
+// Kept for the load test below: the face detector, its video, and COCO-SSD.
+let faceDet = null, faceVideo = null, faceTimer = null, coco = null;
 await t("proctoring: MediaPipe FaceDetector (Task Mentor's JS + wasm 0.10.0, GPU)", async () => {
   vision = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/+esm");
   const files = await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm");
@@ -256,8 +258,9 @@ await t("proctoring: MediaPipe FaceDetector (Task Mentor's JS + wasm 0.10.0, GPU
   let n = 0;
   for (let i = 0; i < 10; i++) n = det.detectForVideo(v, ++ts + performance.now()).detections.length;
   const ms = (performance.now() - t0) / 10;
-  clearInterval(timer);
-  det.close();
+  faceDet = det;
+  faceVideo = v;
+  faceTimer = timer;
   if (!n) throw new Error("no face found in the test photo");
   return `${n} face(s) found, ${ms.toFixed(0)} ms per frame (first frame ${first.toFixed(0)} ms)`;
 }, 60000);
@@ -269,12 +272,65 @@ await t("proctoring: TF.js WebGL backend + COCO-SSD", async () => {
   const model = await cocoSsd.load();
   await model.detect(face); // warm-up
   const t0 = performance.now();
+  coco = model;
   const found = await model.detect(face);
   const ms = performance.now() - t0;
   const classes = found.map((x) => x.class).join(",") || "nothing";
   if (!found.some((x) => x.class === "person")) throw new Error("no person found (" + classes + ")");
   return `backend ${tf.getBackend()}, found ${classes}, ${ms.toFixed(0)} ms`;
 }, 90000);
+
+// ── 4b. Task Mentor quiz page under proctoring load ────────────────────────
+// Students said the quiz page froze on first open. The camera component
+// restarted its detection loop on every re-render while the models loaded,
+// leaving many 1 s loops (face + COCO-SSD each) running at once. Measure the
+// worst main-thread stall (what a student feels as a frozen page) for that
+// pattern and for the fixed one: one serial loop, COCO-SSD shared every 3 s.
+async function worstStall(start, ms) {
+  let worst = 0, last = performance.now();
+  const iv = setInterval(() => {
+    const n = performance.now();
+    worst = Math.max(worst, n - last - 50);
+    last = n;
+  }, 50);
+  const stop = start();
+  await sleep(ms);
+  stop();
+  clearInterval(iv);
+  await sleep(1500); // let in-flight work drain
+  return Math.round(worst);
+}
+const checkOnce = async (withObjects) => {
+  faceDet.detectForVideo(faceVideo, performance.now());
+  if (withObjects) await coco.detect(faceVideo);
+};
+if (faceDet && coco) {
+  await t("quiz page under proctoring: before the fix (12 stacked loops)", async () => {
+    const stall = await worstStall(() => {
+      const loops = Array.from({ length: 12 }, () => setInterval(() => void checkOnce(true), 1000));
+      return () => loops.forEach(clearInterval);
+    }, 8000);
+    return `worst main-thread stall ${stall} ms`;
+  }, 30000);
+  await t("quiz page under proctoring: after the fix (1 serial loop)", async () => {
+    let lastObjects = 0;
+    const stall = await worstStall(() => {
+      let on = true;
+      const loop = async () => {
+        if (!on) return;
+        const objects = Date.now() - lastObjects >= 3000;
+        if (objects) lastObjects = Date.now();
+        await checkOnce(objects);
+        if (on) setTimeout(loop, 1000);
+      };
+      setTimeout(loop, 1000);
+      return () => (on = false);
+    }, 8000);
+    return `worst main-thread stall ${stall} ms`;
+  }, 30000);
+}
+if (faceTimer) clearInterval(faceTimer);
+faceDet?.close();
 
 // ── 5. Gesture-only APIs: wait for a real click (CI's OS mouse) ────────────
 const btn = document.getElementById("gesture");
