@@ -1,0 +1,32 @@
+# Validates the winget manifests (packaging/winget) with the real winget and
+# installs NGA through them on a clean Windows machine, before they are
+# submitted to microsoft/winget-pkgs.
+name: winget manifest test
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Manifest version folder (e.g. 0.2.1)"
+        required: true
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate and install with winget
+        shell: pwsh
+        run: |
+          $dir = "packaging/winget/manifests/n/NewGenerationAcademy/NGADesktop/${{ inputs.version }}"
+          winget --version
+          winget validate --manifest $dir
+          if ($LASTEXITCODE -ne 0) { throw "winget validate failed" }
+          winget settings --enable LocalManifestFiles
+          winget install --manifest $dir --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
+          if ($LASTEXITCODE -ne 0) { throw "winget install failed ($LASTEXITCODE)" }
+          $exe = Join-Path $env:LOCALAPPDATA 'NGA\NGA.exe'
+          if (-not (Test-Path $exe)) { throw "NGA.exe not installed" }
+          "installed with winget: $exe $((Get-Item $exe).VersionInfo.ProductVersion)" | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+          winget list --name "NGA" --accept-source-agreements | Out-String | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
