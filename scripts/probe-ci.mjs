@@ -42,11 +42,25 @@ const WIN_API = `Add-Type @"
 using System; using System.Runtime.InteropServices;
 public class U {
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  [StructLayout(LayoutKind.Sequential)] public struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr extra; }
+  [StructLayout(LayoutKind.Explicit)] public struct INPUT { [FieldOffset(0)] public uint type; [FieldOffset(8)] public MOUSEINPUT mi; }
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
-  [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, UIntPtr e);
+  [DllImport("user32.dll")] public static extern int GetSystemMetrics(int i);
+  [DllImport("user32.dll", SetLastError = true)] public static extern uint SendInput(uint n, INPUT[] inputs, int size);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  public static uint Click(int x, int y) {
+    int w = GetSystemMetrics(0) - 1, h = GetSystemMetrics(1) - 1;
+    int ax = x * 65535 / w, ay = y * 65535 / h;
+    uint[] flags = { 0x8001, 0x8003, 0x8005 }; // move, +down, +up (absolute)
+    uint sent = 0;
+    foreach (var f in flags) {
+      var i = new INPUT { type = 0, mi = new MOUSEINPUT { dx = ax, dy = ay, dwFlags = f } };
+      sent += SendInput(1, new[] { i }, Marshal.SizeOf(typeof(INPUT)));
+      System.Threading.Thread.Sleep(80);
+    }
+    return sent;
+  }
 }
 "@
 [U]::SetProcessDPIAware() | Out-Null`;
@@ -104,9 +118,8 @@ function click(pid) {
 $p = Get-Process -Id ${pid}; $h = $p.MainWindowHandle; $r = New-Object U+RECT; [U]::GetWindowRect($h, [ref]$r) | Out-Null
 [U]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 300
 $x = [int](($r.L + $r.R) / 2); $y = [int]($r.T + ($r.B - $r.T) * 0.75)
-[U]::SetCursorPos($x, $y) | Out-Null; Start-Sleep -Milliseconds 150
-[U]::mouse_event(2,0,0,0,[UIntPtr]::Zero); Start-Sleep -Milliseconds 80; [U]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
-"$($r.L),$($r.T),$($r.R),$($r.B) -> $x,$y"`);
+$sent = [U]::Click($x, $y)
+"$($r.L),$($r.T),$($r.R),$($r.B) -> $x,$y (SendInput events: $sent)"`);
       log("click", r);
     } else if (MAC) {
       const [x, y, w, h] = execFileSync(macHelper(), ["bounds", String(pid)], { encoding: "utf8" }).trim().split(" ").map(Number);
@@ -162,6 +175,7 @@ while (Date.now() < deadline && !exited) {
     last = st;
     clicksForState = 0;
     if (st === "in-fullscreen") screenshot("2-fullscreen");
+    if (st === "after-fullscreen") screenshot("2b-after-fullscreen");
   }
   if (st.startsWith("awaiting-click")) {
     if (!shot) {

@@ -149,12 +149,11 @@
   // ── Fullscreen (Windows) ─────────────────────────────────────────────────
   // WebView2 shows requestFullscreen() only inside the app area. Ask NGA to
   // make the window itself fullscreen (Task Mentor's proctored quizzes,
-  // e-learning lessons, videos). WKWebView (macOS) already does it natively.
-  if (__NGA_PLATFORM__ !== "macos") {
-    document.addEventListener("fullscreenchange", function () {
-      invoke("web_fullscreen", { on: !!document.fullscreenElement }).catch(function () {});
-    });
-  }
+  // e-learning lessons, videos). WKWebView (macOS) does it natively.
+  // macOS: reported too, so the app's view is put back on top afterwards.
+  document.addEventListener("fullscreenchange", function () {
+    invoke("web_fullscreen", { on: !!document.fullscreenElement }).catch(function () {});
+  });
 
   // ── Theme, in sync with the shell and the other apps (theme.rs) ─────────
   // Each app shows its theme on <html>: MIS, Task Mentor and Tupo with the

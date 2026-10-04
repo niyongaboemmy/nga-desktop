@@ -73,7 +73,8 @@
   await t("clipboard.writeText (no click)", async () => { await navigator.clipboard.writeText("nga-probe"); return "allowed"; });
   await t("execCommand copy exists", () => (typeof document.execCommand === "function" ? "yes" : "NO"));
   await t("navigator.share", () => (typeof navigator.share === "function" ? "yes" : "NO"));
-  await t("geolocation.getCurrentPosition", () => new Promise((res) => {
+  // Not in CI: WebView2 answers with a permission flyout that then sits over the page.
+  if (!new URLSearchParams(location.search).has("ci")) await t("geolocation.getCurrentPosition", () => new Promise((res) => {
     if (!navigator.geolocation) return res("NO");
     navigator.geolocation.getCurrentPosition(() => res("position ok"), (e) => res("error code " + e.code + " (" + e.message + ")"), { timeout: 4000 });
   }));

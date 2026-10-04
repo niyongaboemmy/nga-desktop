@@ -309,6 +309,8 @@ if (CI) {
     const el = !!document.fullscreenElement;
     const covers = innerWidth >= screen.width - 2 && innerHeight >= screen.height - 80;
     await document.exitFullscreen();
+    await sleep(2500);
+    await state("after-fullscreen"); // CI takes a screenshot: this page should be on screen again
     await sleep(2000);
     const after = `${innerWidth}x${innerHeight}`;
     if (!el) throw new Error("fullscreenElement not set");

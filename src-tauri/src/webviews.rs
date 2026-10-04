@@ -741,7 +741,27 @@ pub async fn web_fullscreen<R: Runtime>(
     webview: Webview<R>,
     on: bool,
 ) -> Result<(), String> {
-    if cfg!(target_os = "macos") || !webview.label().starts_with("app-") {
+    if !webview.label().starts_with("app-") {
+        return Ok(());
+    }
+    if cfg!(target_os = "macos") {
+        // WebKit does fullscreen itself, but on the way out it puts the app's
+        // view back at the BOTTOM of the window: under the shell's
+        // full-window view, so the page showed another app and took no
+        // clicks (found by the CI probe after a Task Mentor-style quiz).
+        // Put it back on top once WebKit's exit animation is done.
+        if !on {
+            let label = webview.label().to_string();
+            std::thread::spawn(move || {
+                for ms in [400, 1200] {
+                    std::thread::sleep(std::time::Duration::from_millis(ms));
+                    if let (Some(wv), Some(w)) = (app.get_webview(&label), app.get_window(WINDOW)) {
+                        let _ = wv.reparent(&w);
+                    }
+                    relayout(&app);
+                }
+            });
+        }
         return Ok(());
     }
     app.state::<Shell>().inner.lock().unwrap().fullscreen = on;
