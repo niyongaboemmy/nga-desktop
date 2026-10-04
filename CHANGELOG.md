@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.2.0 — 2026-10-04
+
 ### Updates and downloads
 
 - In-app updates: NGA checks the NGA update service after start and every 6 hours, shows an Update pill in the title bar and a toast once per version, and installs on "Restart & update" in Settings (not while a quiz or meeting is open). Updates are signed; each check counts the install (random id, version) for the school's stats.
