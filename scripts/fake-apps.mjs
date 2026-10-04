@@ -83,11 +83,16 @@ http
       return;
     }
     if (url.pathname === "/sw-probe.js") { res.writeHead(200, { "Content-Type": "text/javascript" }); return res.end("self.addEventListener('fetch',()=>{});"); }
+    if (url.pathname === "/probe-bg") { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { try { probeBg = JSON.parse(b); log("PROBE background audio", b); } catch { /* bad */ } res.writeHead(204, { "Access-Control-Allow-Origin": "*" }); res.end(); }); return; }
     if (url.pathname === "/sse") { res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" }); res.write("data: hello-from-sse\n\n"); return setTimeout(() => res.end(), 1500); }
     if (url.pathname === "/beacon") { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { log("MIS  beacon/keepalive received:", b); res.writeHead(204); res.end(); }); return; }
     if (url.pathname === "/probe-result") {
       let b = ""; req.on("data", (c) => (b += c));
-      req.on("end", () => { writeFileSync(new URL("../probe-result.json", import.meta.url), b); log("PROBE RESULT saved"); res.writeHead(204); res.end(); });
+      req.on("end", () => {
+        // Merge in what the hidden Tupo stand-in measured (BG_AUDIO).
+        try { b = JSON.stringify({ ...JSON.parse(b), ...probeBg }); } catch { /* keep as sent */ }
+        writeFileSync(new URL("../probe-result.json", import.meta.url), b); log("PROBE RESULT saved"); res.writeHead(204); res.end();
+      });
       return;
     }
     // FAKE_SIGNED_OUT_FOR=<s>: MIS starts signed out and "signs in" after that long.
@@ -239,6 +244,47 @@ http
   })
   .listen(3000, () => log("Tendo      http://localhost:3000"));
 
+// PROBE: Tupo usually sits hidden behind another app. Can it still ring?
+// An unmuted <audio> tone and a Web Audio oscillator (Tupo's sounds.ts) play
+// while hidden; their clocks must advance. Reported to MIS's /probe-bg.
+const BG_AUDIO = !process.env.PROBE ? "" : `<script>
+setTimeout(async()=>{
+  const R={'background: Tupo visibility when tested':document.visibilityState};
+  try{
+    const rate=8000,n=16000,buf=new ArrayBuffer(44+n*2),v=new DataView(buf);
+    const w=(o,str)=>[...str].forEach((c,i)=>v.setUint8(o+i,c.charCodeAt(0)));
+    w(0,'RIFF');v.setUint32(4,36+n*2,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+    v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,n*2,true);
+    for(let i=0;i<n;i++)v.setInt16(44+i*2,Math.sin(2*Math.PI*440*i/rate)*800,true);
+    const a=new Audio(URL.createObjectURL(new Blob([buf],{type:'audio/wav'})));a.volume=0.03;
+    await a.play();await new Promise(r=>setTimeout(r,1500));
+    R['background: ringtone <audio> plays while hidden']=(a.currentTime>0.5?'yes':'STUCK')+' (advanced '+a.currentTime.toFixed(2)+' s in 1.5 s)';a.pause();
+  }catch(e){R['background: ringtone <audio> plays while hidden']='ERROR '+e.name+': '+e.message;}
+  try{
+    const c=new AudioContext();await c.resume();const o=c.createOscillator(),g=c.createGain();g.gain.value=0.02;o.connect(g);g.connect(c.destination);o.start();
+    const t0=c.currentTime;await new Promise(r=>setTimeout(r,1500));
+    R['background: Web Audio sound plays while hidden']=(c.currentTime-t0>0.5?'yes':'STUCK')+' ('+c.state+', clock advanced '+(c.currentTime-t0).toFixed(2)+' s in 1.5 s)';o.stop();c.close();
+  }catch(e){R['background: Web Audio sound plays while hidden']='ERROR '+e.name+': '+e.message;}
+  try{
+    // A meeting's far-side audio: WebRTC in, played by an <audio>, while hidden.
+    const c=new AudioContext();await c.resume();const o=c.createOscillator(),d=c.createMediaStreamDestination();o.connect(d);o.start();
+    const a=new RTCPeerConnection(),b=new RTCPeerConnection();
+    a.onicecandidate=e=>e.candidate&&b.addIceCandidate(e.candidate);b.onicecandidate=e=>e.candidate&&a.addIceCandidate(e.candidate);
+    const got=new Promise(r=>b.ontrack=e=>r(e.streams[0]||new MediaStream([e.track])));
+    d.stream.getTracks().forEach(t=>a.addTrack(t,d.stream));
+    await a.setLocalDescription(await a.createOffer());await b.setRemoteDescription(a.localDescription);
+    await b.setLocalDescription(await b.createAnswer());await a.setRemoteDescription(b.localDescription);
+    const el=new Audio();el.volume=0.02;el.srcObject=await got;await el.play();
+    const pk=async()=>{let n=0;(await b.getStats()).forEach(s=>{if(s.type==='inbound-rtp'&&s.kind==='audio')n=s.totalSamplesReceived||s.packetsReceived||0});return n};
+    const p0=await pk(),t0=el.currentTime;await new Promise(r=>setTimeout(r,3000));const p1=await pk();
+    R['background: meeting audio (WebRTC) keeps playing while hidden']=(p1>p0&&el.currentTime-t0>1?'yes':'STUCK')+' ('+b.connectionState+', received '+(p1-p0)+', element advanced '+(el.currentTime-t0).toFixed(2)+' s in 3 s)';
+    el.pause();a.close();b.close();o.stop();c.close();
+  }catch(e){R['background: meeting audio (WebRTC) keeps playing while hidden']='ERROR '+e.name+': '+e.message;}
+  fetch('http://localhost:5173/probe-bg',{method:'POST',mode:'no-cors',body:JSON.stringify(R)}).catch(()=>{});
+},9000);
+</script>`;
+let probeBg = {};
+
 // ── Tupo :5194 ───────────────────────────────────────────────────────────────
 http
   .createServer((req, res) => {
@@ -255,13 +301,13 @@ http
     }
     // Like the real Tupo: the callback exchanges the code, then a client-side
     // navigation (no page load) to the app.
-    if (url.pathname === "/sso/callback") return html(res, page("Tupo", `<p>Verifying your session…</p><script>setTimeout(()=>{history.replaceState(null,'','/app/chat');document.querySelector('h1').textContent='Tupo chat (SPA)';},1200)${process.env.FAKE_SIGNOUT_TEST ? ";if(!sessionStorage.getItem('so')){setTimeout(()=>{sessionStorage.setItem('so','1');location.href='/';},25000);}" : ""}</script>`));
+    if (url.pathname === "/sso/callback") return html(res, page("Tupo", `<p>Verifying your session…</p>${BG_AUDIO}<script>setTimeout(()=>{history.replaceState(null,'','/app/chat');document.querySelector('h1').textContent='Tupo chat (SPA)';},1200)${process.env.FAKE_SIGNOUT_TEST ? ";if(!sessionStorage.getItem('so')){setTimeout(()=>{sessionStorage.setItem('so','1');location.href='/';},25000);}" : ""}</script>`));
     if (url.pathname === "/") return html(res, page("Tupo sign-in (fake)", `<p>Signed-out page.</p>`));
     return html(
       res,
       page(
         "Tupo (fake)",
-        `<p>Like Tupo: a system notification for each new message while the tab is hidden; badge = unread.</p>
+        `<p>Like Tupo: a system notification for each new message while the tab is hidden; badge = unread.</p>${BG_AUDIO}
 <script>
 ${process.env.FAKE_SIGNOUT_TEST ? "if(!sessionStorage.getItem('so')){setTimeout(()=>{sessionStorage.setItem('so','1');out('Tupo: Sign out pressed');location.href='/';},25000);}" : ""}
 let unread=0, n=0;

@@ -128,9 +128,8 @@ await sleep(1500);
 
 const env = { ...process.env, RUST_BACKTRACE: "1" };
 if (WIN)
-  // Replaces wry's own arguments, so they're repeated here (Tauri's defaults).
-  env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = [
-    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection",
+  // Development builds add these to every WebView2 (registry::browser_args).
+  env.NGA_TEST_BROWSER_ARGS = [
     "--use-fake-device-for-media-stream",
     "--use-fake-ui-for-media-stream",
     '--auto-select-desktop-capture-source="Entire screen"',

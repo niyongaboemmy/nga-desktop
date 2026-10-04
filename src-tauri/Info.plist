@@ -8,6 +8,8 @@
   <string>Tupo uses the microphone for meetings and voice messages.</string>
   <!-- Tupo Meet live captions use WebKit speech recognition. Without this
        description macOS terminates the app the moment captions start. -->
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Tupo meetings and live proctoring connect calls directly over your school network when they can, for clearer audio and video.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>Tupo uses speech recognition to show live captions in meetings.</string>
 </dict>

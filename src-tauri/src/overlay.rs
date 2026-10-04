@@ -22,6 +22,7 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let main = app.get_window(WINDOW).ok_or(tauri::Error::WindowNotFound)?;
     let builder =
         WebviewWindowBuilder::new(app, OVERLAY, WebviewUrl::App("index.html?overlay=1".into()))
+            .additional_browser_args(&crate::registry::browser_args())
             .title("NGA")
             .decorations(false)
             .transparent(true)

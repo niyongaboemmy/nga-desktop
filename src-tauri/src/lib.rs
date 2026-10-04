@@ -180,6 +180,32 @@ fn grant_bridge<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
     app.add_capability(cap)
 }
 
+/// The main window's first size on a screen with this work area (logical px).
+#[derive(Debug, PartialEq)]
+struct WindowFit {
+    width: f64,
+    height: f64,
+    min_width: f64,
+    min_height: f64,
+    maximized: bool,
+}
+
+/// 1320×840 where it fits with room to spare; on smaller screens, maximized
+/// (a fixed 1320×840 hung off a 1366×768 laptop, and macOS restored that
+/// oversized frame after fullscreen, pushing the window off screen).
+fn fit_window(work: Option<(f64, f64)>) -> WindowFit {
+    let (ww, wh) = work.unwrap_or((1440.0, 900.0));
+    let width = 1320.0_f64.min(ww * 0.94).floor();
+    let height = 840.0_f64.min(wh * 0.92).floor();
+    WindowFit {
+        width,
+        height,
+        min_width: 900.0_f64.min(width),
+        min_height: 580.0_f64.min(height),
+        maximized: ww < 1400.0 || wh < 860.0,
+    }
+}
+
 /// The window is built here, not in tauri.conf.json, because child webviews
 /// need a bare `Window` (multi-webview) rather than a `WebviewWindow`.
 ///
@@ -188,10 +214,17 @@ fn grant_bridge<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
 ///   position; the shell leaves them room).
 /// - **Windows:** no system frame; the shell draws minimise / maximise / close.
 fn build_main_window<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
+    // Fit the screen it opens on: school laptops are often 1366×768 or 1280×720.
+    let work = app.primary_monitor().ok().flatten().map(|m| {
+        let a = m.work_area().size.to_logical::<f64>(m.scale_factor());
+        (a.width, a.height)
+    });
+    let fit = fit_window(work);
     let builder = WindowBuilder::new(app, WINDOW)
         .title("NGA")
-        .inner_size(1320.0, 840.0)
-        .min_inner_size(900.0, 580.0)
+        .inner_size(fit.width, fit.height)
+        .min_inner_size(fit.min_width, fit.min_height)
+        .maximized(fit.maximized)
         .center();
     #[cfg(target_os = "macos")]
     let builder = builder
@@ -204,10 +237,32 @@ fn build_main_window<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         .inner_size()?
         .to_logical::<f64>(window.scale_factor()?);
     let shell = window.add_child(
-        WebviewBuilder::new(SHELL, WebviewUrl::App("index.html".into())),
+        WebviewBuilder::new(SHELL, WebviewUrl::App("index.html".into()))
+            .additional_browser_args(&registry::browser_args()),
         LogicalPosition::new(0.0, 0.0),
         size,
     )?;
     shell.set_auto_resize(true)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn big_screens_get_the_usual_window() {
+        let f = fit_window(Some((1920.0, 1050.0)));
+        assert_eq!((f.width, f.height, f.maximized), (1320.0, 840.0, false));
+    }
+
+    #[test]
+    fn school_laptops_open_maximized_and_never_larger_than_the_screen() {
+        for (w, h) in [(1366.0, 738.0), (1280.0, 680.0), (1024.0, 728.0)] {
+            let f = fit_window(Some((w, h)));
+            assert!(f.maximized, "{w}x{h}");
+            assert!(f.width <= w && f.height <= h, "{w}x{h} -> {f:?}");
+            assert!(f.min_width <= f.width && f.min_height <= f.height);
+        }
+    }
 }

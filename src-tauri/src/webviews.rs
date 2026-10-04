@@ -113,23 +113,29 @@ fn emit<R: Runtime, S: Serialize + Clone>(app: &AppHandle<R>, event: &str, paylo
 }
 
 /// The viewport rect (logical px) the active app occupies.
-fn viewport<R: Runtime>(window: &Window<R>, inner: &Inner) -> Option<Rect> {
+/// The window's content size. Read it BEFORE locking `Shell::inner`: off the
+/// main thread, window calls wait for the main thread, which may itself be
+/// waiting for that lock (a sync command) — a deadlock.
+fn window_size<R: Runtime>(window: &Window<R>) -> Option<LogicalSize<f64>> {
     let scale = window.scale_factor().ok()?;
-    let size = window.inner_size().ok()?.to_logical::<f64>(scale);
+    Some(window.inner_size().ok()?.to_logical::<f64>(scale))
+}
+
+fn viewport(size: LogicalSize<f64>, inner: &Inner) -> Rect {
     if inner.fullscreen {
-        return Some(Rect {
+        return Rect {
             position: LogicalPosition::new(0.0, 0.0).into(),
             size: LogicalSize::new(size.width, size.height).into(),
-        });
+        };
     }
-    Some(Rect {
+    Rect {
         position: LogicalPosition::new(inner.inset_left, inner.inset_top).into(),
         size: LogicalSize::new(
             (size.width - inner.inset_left - inner.inset_right).max(0.0),
             (size.height - inner.inset_top - inner.inset_bottom).max(0.0),
         )
         .into(),
-    })
+    }
 }
 
 /// Position every app webview and show only the active one (if ready and not covered).
@@ -137,16 +143,27 @@ pub fn relayout<R: Runtime>(app: &AppHandle<R>) {
     let Some(window) = app.get_window(WINDOW) else {
         return;
     };
-    let shell = app.state::<Shell>();
-    let inner = shell.inner.lock().unwrap();
-    let Some(rect) = viewport(&window, &inner) else {
+    let Some(size) = window_size(&window) else {
         return;
     };
-    for a in &shell.apps {
-        if let Some(wv) = app.get_webview(&label(a.key)) {
-            let visible = inner.active.as_deref() == Some(a.key)
-                && !inner.covered
-                && inner.ready.contains(a.key);
+    let shell = app.state::<Shell>();
+    // Decide under the lock, move the webviews after it (see `window_size`).
+    let (rect, plan): (Rect, Vec<(&str, bool)>) = {
+        let inner = shell.inner.lock().unwrap();
+        let plan = shell
+            .apps
+            .iter()
+            .map(|a| {
+                let visible = inner.active.as_deref() == Some(a.key)
+                    && !inner.covered
+                    && inner.ready.contains(a.key);
+                (a.key, visible)
+            })
+            .collect();
+        (viewport(size, &inner), plan)
+    };
+    for (key, visible) in plan {
+        if let Some(wv) = app.get_webview(&label(key)) {
             let _ = wv.set_bounds(rect);
             let _ = if visible { wv.show() } else { wv.hide() };
         }
@@ -470,6 +487,7 @@ fn create_popup<R: Runtime>(
     .inner_size(1000.0, 760.0)
     .disable_drag_drop_handler()
     .window_features(features)
+    .additional_browser_args(&registry::browser_args())
     .user_agent(&user_agent())
     .on_document_title_changed(|w, title| {
         let _ = w.set_title(&title);
@@ -522,14 +540,16 @@ fn create_app_webview<R: Runtime>(
     url: Url,
 ) -> tauri::Result<Webview<R>> {
     let window = app.get_window(WINDOW).ok_or(tauri::Error::WindowNotFound)?;
+    let size = window_size(&window).ok_or(tauri::Error::WindowNotFound)?;
     let rect = {
         let shell = app.state::<Shell>();
         let inner = shell.inner.lock().unwrap();
-        viewport(&window, &inner).ok_or(tauri::Error::WindowNotFound)?
+        viewport(size, &inner)
     };
     let load_app = app.clone();
     let title_app = app.clone();
     let builder = WebviewBuilder::new(label(def.key), WebviewUrl::External(url))
+        .additional_browser_args(&registry::browser_args())
         // Notification / setAppBadge / print bridge (see bridge.js).
         .initialization_script(bridge_script(def.key))
         // Hidden apps keep their sockets and timers running, so Tupo chat and
@@ -716,7 +736,7 @@ pub fn mark_ready<R: Runtime>(app: &AppHandle<R>, key: &str, url: &Url) {
 /// WebView2 would otherwise show it inside the app area). The window goes
 /// fullscreen and the app's view covers all of it.
 #[tauri::command]
-pub fn web_fullscreen<R: Runtime>(
+pub async fn web_fullscreen<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
     on: bool,

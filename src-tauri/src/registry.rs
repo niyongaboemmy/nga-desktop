@@ -17,6 +17,21 @@ pub enum Env {
     Development,
 }
 
+/// WebView2 arguments for every webview (they must match across webviews that
+/// share a profile). Development builds add `NGA_TEST_BROWSER_ARGS`, e.g. a
+/// fake camera for the CI probe (scripts/probe-ci.mjs); release builds never.
+pub fn browser_args() -> String {
+    // Tauri's defaults, which a custom value replaces.
+    let mut args = String::from("--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection");
+    if current_env() == Env::Development {
+        if let Ok(extra) = std::env::var("NGA_TEST_BROWSER_ARGS") {
+            args.push(' ');
+            args.push_str(&extra);
+        }
+    }
+    args
+}
+
 pub fn current_env() -> Env {
     match option_env!("NGA_ENV") {
         Some("development") => Env::Development,

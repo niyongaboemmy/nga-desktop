@@ -113,7 +113,8 @@ async function record(stream, mimeType, ms, timeslice) {
 /** Plays a recording the way Tupo does (an <audio>/<video> element). */
 async function playback(url, kind = "audio") {
   const el = document.createElement(kind);
-  el.muted = true;
+  // Unmuted (quietly), like Tupo: WebKit pauses MUTED media in a hidden page.
+  el.volume = 0.02;
   el.preload = "auto";
   el.src = url;
   await new Promise((res, rej) => {
