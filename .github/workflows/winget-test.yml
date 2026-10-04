@@ -21,8 +21,10 @@ jobs:
         run: |
           $dir = "packaging/winget/manifests/n/NewGenerationAcademy/NGADesktop/${{ inputs.version }}"
           winget --version
-          winget validate --manifest $dir
-          if ($LASTEXITCODE -ne 0) { throw "winget validate failed" }
+          # "succeeded with warnings" exits non-zero; only a real failure stops the test.
+          $v = winget validate --manifest $dir | Out-String
+          $v | Tee-Object -Append $env:GITHUB_STEP_SUMMARY
+          if ($v -notmatch "validation succeeded") { throw "winget validate failed" }
           winget settings --enable LocalManifestFiles
           winget install --manifest $dir --accept-package-agreements --accept-source-agreements --silent --disable-interactivity
           if ($LASTEXITCODE -ne 0) { throw "winget install failed ($LASTEXITCODE)" }
