@@ -1,0 +1,46 @@
+# Runs the one-line installers exactly as people paste them (mis.amashuri.com/apps,
+# "No warnings: one command") on clean Windows and macOS machines: NGA must be
+# installed, running, and carry no "downloaded from the internet" mark (the
+# thing that makes Gatekeeper / SmartScreen warn).
+name: One-line installer test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: irm https://api.amashuri.com/desktop/install.ps1 | iex  (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          irm https://api.amashuri.com/desktop/install.ps1 | iex
+          Start-Sleep 20
+          $exe = Join-Path $env:LOCALAPPDATA 'NGA\NGA.exe'
+          if (-not (Test-Path $exe)) { throw "NGA.exe not installed" }
+          "installed: $exe $((Get-Item $exe).VersionInfo.ProductVersion)" | Tee-Object -Append report.txt
+          $zone = Get-Item $exe -Stream Zone.Identifier -ErrorAction SilentlyContinue
+          if ($zone) { throw "NGA.exe is marked as downloaded from the internet" }
+          "no Mark-of-the-Web on NGA.exe (no SmartScreen prompt)" | Tee-Object -Append report.txt
+          $p = Get-Process -Name NGA -ErrorAction SilentlyContinue
+          if (-not $p) { throw "NGA isn't running" }
+          "running: pid $($p[0].Id)" | Tee-Object -Append report.txt
+          Get-Content report.txt | Out-File -Append $env:GITHUB_STEP_SUMMARY
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: curl -fsSL https://api.amashuri.com/desktop/install.sh | sh
+        run: |
+          set -e
+          curl -fsSL https://api.amashuri.com/desktop/install.sh | sh | tee install.log
+          sleep 15
+          APP=/Applications/NGA.app; [ -d "$APP" ] || APP="$HOME/Applications/NGA.app"
+          echo "installed: $APP $(plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist")" | tee -a report.txt
+          if xattr -p com.apple.quarantine "$APP" >/dev/null 2>&1; then echo "quarantined!"; exit 1; fi
+          echo "no quarantine flag (no Gatekeeper prompt)" | tee -a report.txt
+          pgrep -fl "NGA.app/Contents/MacOS/NGA" | head -1 | sed 's/^/running: /' | tee -a report.txt
+          pgrep -f "NGA.app/Contents/MacOS/NGA" >/dev/null || { echo "NGA isn't running"; exit 1; }
+          cat report.txt >> "$GITHUB_STEP_SUMMARY"
