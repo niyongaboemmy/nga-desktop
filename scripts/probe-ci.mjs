@@ -11,7 +11,7 @@
 // - writes probe-out/summary.md (also to the GitHub job summary).
 // Used by .github/workflows/probe.yml; also works locally on a desktop.
 import { spawn, execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, createWriteStream } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -122,7 +122,7 @@ $x = [int](($r.L + $r.R) / 2); $y = [int]($r.T + ($r.B - $r.T) * 0.75)
 // ── Run ─────────────────────────────────────────────────────────────────────
 const fake = spawn(process.execPath, [join(root, "scripts/fake-apps.mjs")], {
   env: { ...process.env, PROBE: "1", PROBE_CI: "1" },
-  stdio: ["ignore", createWriteStream(join(out, "fake-apps.log")), "inherit"],
+  stdio: ["ignore", openSync(join(out, "fake-apps.log"), "w"), "inherit"],
 });
 await sleep(1500);
 
@@ -135,10 +135,9 @@ if (WIN)
     "--use-fake-ui-for-media-stream",
     '--auto-select-desktop-capture-source="Entire screen"',
   ].join(" ");
-const appLog = createWriteStream(join(out, "app.log"));
-const app = spawn(bin, [], { env, stdio: ["ignore", "pipe", "pipe"] });
-app.stdout.pipe(appLog);
-app.stderr.pipe(appLog);
+// A file descriptor, not a stream: it must exist before spawn, and survives a crash.
+const appLog = openSync(join(out, "app.log"), "w");
+const app = spawn(bin, [], { env, stdio: ["ignore", appLog, appLog] });
 let exited = null;
 app.on("exit", (code, signal) => {
   exited = { code, signal, at: Date.now() };
