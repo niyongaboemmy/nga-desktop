@@ -224,8 +224,14 @@ fn build_main_window<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         .title("NGA")
         .inner_size(fit.width, fit.height)
         .min_inner_size(fit.min_width, fit.min_height)
-        .maximized(fit.maximized)
-        .center();
+        .maximized(fit.maximized);
+    // Centring a maximized window moves it by the difference (macOS put it
+    // 31 px past the right edge of a 1024-wide screen).
+    let builder = if fit.maximized {
+        builder
+    } else {
+        builder.center()
+    };
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)

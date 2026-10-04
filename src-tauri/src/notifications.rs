@@ -32,8 +32,10 @@ use tauri_plugin_store::StoreExt;
 
 const KEEP: usize = 200;
 const PER_MINUTE: usize = 12;
-/// Coming back to NGA this soon after a banner counts as clicking it.
-const CLICK_WINDOW: Duration = Duration::from_secs(10);
+/// Where the OS doesn't report banner clicks (Windows): coming back to NGA
+/// this soon after a banner counts as clicking it. Short, because a wrong
+/// guess switches apps under the person.
+const CLICK_WINDOW: Duration = Duration::from_secs(6);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -322,8 +324,17 @@ pub static INTERNAL_FOCUS: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
 /// The main window gained focus: if a banner was just shown, treat it as clicked.
+///
+/// Only where banner clicks aren't reported. macOS reports them
+/// (os_notify), and there the guess was wrong: clicking back into NGA
+/// within seconds of an unrelated banner switched to that banner's app
+/// (seen in the CI probe; in a proctored quiz that's a "left the quiz").
 pub fn on_focus<R: Runtime>(app: &AppHandle<R>) {
     if INTERNAL_FOCUS.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    if crate::os_notify::reports_clicks() {
+        app.state::<Notifier>().inner.lock().unwrap().last_banner = None;
         return;
     }
     if let Some(id) = app.state::<Notifier>().clicked_banner() {

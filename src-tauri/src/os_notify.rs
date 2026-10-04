@@ -46,6 +46,15 @@ pub fn init(on_click: impl Fn(u64) + Send + Sync + 'static) {
     let _ = on_click;
 }
 
+/// Does the OS tell NGA when a banner is clicked? (macOS .app: yes, through
+/// UNUserNotificationCenter. Elsewhere the notification plugin doesn't.)
+pub fn reports_clicks() -> bool {
+    #[cfg(target_os = "macos")]
+    return mac::available();
+    #[cfg(not(target_os = "macos"))]
+    false
+}
+
 pub fn show<R: Runtime>(app: &AppHandle<R>, b: Banner<'_>) {
     #[cfg(target_os = "macos")]
     if mac::available() {
