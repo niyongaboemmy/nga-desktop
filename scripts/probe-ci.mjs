@@ -177,10 +177,11 @@ while (Date.now() < deadline && !exited) {
     if (st === "in-fullscreen") screenshot("2-fullscreen");
     if (st === "after-fullscreen") screenshot("2b-after-fullscreen");
     if (st === "warmup-blocking") {
-      // The page blocks its thread 1.5 s from now, for 4 s: shoot twice inside.
-      await sleep(2300);
+      // The page blocks its thread ~1.5 s from now, for 8 s: shoot twice
+      // inside (a Windows screenshot itself takes 1-2 s).
+      await sleep(1500);
       screenshot("4a-warmup");
-      await sleep(700);
+      await sleep(500);
       screenshot("4b-warmup");
     }
   }

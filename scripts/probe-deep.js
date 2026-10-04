@@ -355,10 +355,10 @@ if (CI) {
     await sleep(800);
     await state("warmup-blocking"); // the runner screenshots twice during the block
     await sleep(1500);
-    const until = performance.now() + 4000;
+    const until = performance.now() + 8000;
     while (performance.now() < until) { /* like a shader compile: the page's thread is busy */ }
     box.remove();
-    return "blocked 4 s; compare screenshots 4a-warmup and 4b-warmup (spinner angle and bar position should differ)";
+    return "blocked 8 s; compare screenshots 4a-warmup and 4b-warmup (spinner angle and bar position should differ)";
   }, 20000);
 }
 
