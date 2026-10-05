@@ -31,6 +31,8 @@ interface Props {
   panelOpen: boolean;
   /** A newer NGA is ready to install (shows the "Update" pill). */
   updateVersion: string | null;
+  /** Download progress while updating (0-100), else null. */
+  updatePct: number | null;
   onUpdate: () => void;
   onOpen: (key: AppKey) => void;
   onPalette: () => void;
@@ -121,8 +123,13 @@ export function TitleBar(p: Props) {
         </button>
         <span className="sep" />
         {p.updateVersion && (
-          <button className="update-pill" onClick={p.onUpdate} title={`NGA ${p.updateVersion} is ready to install`}>
-            <ArrowDownCircle size={14} /> Update
+          <button
+            className="update-pill"
+            onClick={p.onUpdate}
+            disabled={p.updatePct !== null}
+            title={`Update to NGA ${p.updateVersion} now (NGA restarts)`}
+          >
+            <ArrowDownCircle size={14} /> {p.updatePct === null ? "Update" : `Updating ${p.updatePct}%`}
           </button>
         )}
         <button className={`bell${p.panelOpen ? " on" : ""}`} onClick={p.onPanel} title="Notifications">

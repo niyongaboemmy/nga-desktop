@@ -65,6 +65,8 @@ pub fn run() {
             commands::shell_info,
             updates::update_check,
             updates::update_install,
+            updates::web_update_check,
+            updates::web_update_install,
             commands::open_app,
             commands::navigate_app,
             commands::set_insets,
@@ -176,7 +178,10 @@ fn grant_bridge<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         .permission("allow-web-badge")
         .permission("allow-web-print")
         .permission("allow-web-theme")
-        .permission("allow-web-fullscreen");
+        .permission("allow-web-fullscreen")
+        // The /apps page's "Update now" (the commands refuse every page but MIS's).
+        .permission("allow-web-update-check")
+        .permission("allow-web-update-install");
     app.add_capability(cap)
 }
 

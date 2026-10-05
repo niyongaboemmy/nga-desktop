@@ -880,6 +880,10 @@ fn bridge_script(key: &str) -> String {
     include_str!("bridge.js")
         .replace("__NGA_PLATFORM__", &format!("\"{platform}\""))
         .replace("__NGA_APP__", &format!("\"{key}\""))
+        .replace(
+            "__NGA_VERSION__",
+            &format!("\"{}\"", env!("CARGO_PKG_VERSION")),
+        )
 }
 
 /// Go to a page inside an app (command palette, quick destinations).

@@ -41,6 +41,8 @@ fn main() {
             "web_print",
             "web_theme",
             "web_fullscreen",
+            "web_update_check",
+            "web_update_install",
         ]),
     ))
     .expect("failed to run tauri-build");

@@ -332,7 +332,17 @@ export default function App() {
           themePref={themePref}
           focusSession={focusSession}
           updateVersion={update.kind === "available" ? update.info.version : null}
-          onUpdate={() => setPage("settings")}
+          updatePct={updatePct}
+          onUpdate={() => {
+            // One click: download, install, restart. During a quiz or meeting
+            // (restarting would end it) or if it fails, Settings explains.
+            if (focusSession) return setPage("settings");
+            setUpdatePct(0);
+            native.updateInstall().catch(() => {
+              setUpdatePct(null);
+              setPage("settings");
+            });
+          }}
           online={online}
           panelOpen={panel}
           onOpen={open}

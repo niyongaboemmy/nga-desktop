@@ -370,4 +370,20 @@
       invoke("web_print").catch(function () {});
     };
   }
+
+  // ── NGA MIS only: the /apps page's one-click "Update now" ───────────────
+  // (updates.rs web_update_*: they refuse any other page; the update is NGA's
+  // own signed package, and NGA restarts into it.)
+  if (__NGA_APP__ === "mis") {
+    try {
+      Object.defineProperty(window, "ngaDesktop", {
+        value: Object.freeze({
+          version: __NGA_VERSION__,
+          checkUpdate: function () { return invoke("web_update_check"); },
+          installUpdate: function () { return invoke("web_update_install"); },
+        }),
+        configurable: false,
+      });
+    } catch (e) { /* already defined */ }
+  }
 })();

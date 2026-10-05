@@ -165,9 +165,24 @@ pub async fn update_check<R: Runtime>(app: AppHandle<R>) -> Result<Option<Update
 /// Downloads (reporting `nga://update-progress` 0-100), installs and restarts.
 #[tauri::command]
 pub async fn update_install<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    install(app).await
+}
+
+/// The one install path (title-bar Update button, Settings, the MIS /apps page).
+/// Not while a quiz or meeting is open: restarting would end it.
+async fn install<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    if let Some(busy) = app
+        .state::<crate::notifications::Notifier>()
+        .focus_session()
+    {
+        return Err(format!("busy: finish the {busy} quiz or meeting first"));
+    }
+    if app.state::<Pending>().0.lock().unwrap().is_none() {
+        check(&app).await?;
+    }
     let pending = app.state::<Pending>().0.lock().unwrap().take();
     let Some(update) = pending else {
-        return Err("no update to install".into());
+        return Err("NGA is up to date".into());
     };
     let progress = app.clone();
     let mut done: u64 = 0;
@@ -186,4 +201,38 @@ pub async fn update_install<R: Runtime>(app: AppHandle<R>) -> Result<(), String>
         .map_err(|e| e.to_string())?;
     log::info!("update installed; restarting");
     app.restart();
+}
+
+/// Only NGA MIS's pages (its /apps page) may ask; any other page gets an error.
+fn from_mis<R: Runtime>(webview: &tauri::Webview<R>) -> Result<(), String> {
+    if webview.label() == crate::webviews::label("mis") {
+        Ok(())
+    } else {
+        Err("not allowed".into())
+    }
+}
+
+/// For the MIS /apps page (bridge.js `ngaDesktop.checkUpdate()`): a newer version, or null.
+#[tauri::command]
+pub async fn web_update_check<R: Runtime>(
+    app: AppHandle<R>,
+    webview: tauri::Webview<R>,
+) -> Result<Option<UpdateInfo>, String> {
+    from_mis(&webview)?;
+    let found = check(&app).await?;
+    if let Some(info) = &found {
+        announce(&app, info);
+    }
+    Ok(found)
+}
+
+/// For the MIS /apps page (bridge.js `ngaDesktop.installUpdate()`): one click to
+/// update. It can only install NGA's own signed update, then restarts NGA.
+#[tauri::command]
+pub async fn web_update_install<R: Runtime>(
+    app: AppHandle<R>,
+    webview: tauri::Webview<R>,
+) -> Result<(), String> {
+    from_mis(&webview)?;
+    install(app).await
 }
