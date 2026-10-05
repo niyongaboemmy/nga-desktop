@@ -45,6 +45,8 @@ fn main() {
             "tools_shortcut_set",
             "tools_api",
             "tools_api_cancel",
+            "tooltip_show",
+            "tooltip_hide",
             // Granted to the NGA web pages at runtime (lib.rs grant_bridge), not to the shell.
             "web_notify",
             "web_badge",

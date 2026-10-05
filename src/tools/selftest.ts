@@ -134,6 +134,19 @@ export async function runShellSelftest() {
     await sleep(400);
     check("the modal closes", !!overlay && !(await overlay.isVisible()));
   });
+  await step("tooltips", async () => {
+    const main = await Window.getByLabel("main");
+    await main?.setFocus();
+    await sleep(500);
+    await invoke("tooltip_show", { text: "Notifications", hint: "From every NGA app", keys: "⌘⇧N", x: 900, y: 40 });
+    await sleep(500);
+    const tip = await Window.getByLabel("tooltip");
+    check("tooltip shows under the button", !!tip && (await tip.isVisible()));
+    check("showing a tooltip never takes focus", !!main && (await main.isFocused()));
+    await invoke("tooltip_hide");
+    await sleep(300);
+    check("tooltip hides", !!tip && !(await tip.isVisible()));
+  });
   await step("MIS API proxy", async () => {
     let refused = "";
     try {

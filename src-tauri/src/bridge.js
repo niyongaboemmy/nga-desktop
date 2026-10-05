@@ -423,11 +423,11 @@
       value: function (id) { if (toolCalls[id]) toolCalls[id].abort(); },
     });
     Object.defineProperty(window, "__ngaToolsApi", {
-      value: function (id, method, path, body) {
+      value: function (id, method, path, body, query) {
         var send = function (kind, data) {
           return invoke("web_tools_api_event", { id: id, kind: kind, data: data == null ? null : String(data) }).catch(function () {});
         };
-        if (!TOOL_PATH.test(path) || (method !== "GET" && method !== "POST")) { send("error", "refused"); return; }
+        if (!TOOL_PATH.test(path) || (method !== "GET" && method !== "POST") || (query != null && !/^[A-Za-z0-9=&_-]{0,100}$/.test(query))) { send("error", "refused"); return; }
         var ctrl = new AbortController();
         toolCalls[id] = ctrl;
         var token = "";
@@ -435,7 +435,7 @@
         var headers = { Accept: "application/json, application/x-ndjson" };
         if (token) headers.Authorization = "Bearer " + token;
         if (body != null) headers["Content-Type"] = "application/json";
-        fetch(__NGA_API__ + path, { method: method, headers: headers, body: body == null ? undefined : body, credentials: "include", signal: ctrl.signal })
+        fetch(__NGA_API__ + path + (query ? "?" + query : ""), { method: method, headers: headers, body: body == null ? undefined : body, credentials: "include", signal: ctrl.signal })
           .then(function (res) {
             var type = res.headers.get("content-type") || "";
             if (res.ok && type.indexOf("ndjson") >= 0 && res.body && res.body.getReader) {

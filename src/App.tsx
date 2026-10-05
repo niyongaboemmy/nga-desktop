@@ -377,6 +377,7 @@ export default function App() {
           panelOpen={panel === "notices"}
           toolsOpen={false}
           toolsLabel={t("panel.title")}
+          toolsHint={t("tooltip.tools")}
           timersRunning={timersRunning}
           onTools={() => void native.overlayShow("tools")}
           onOpen={open}

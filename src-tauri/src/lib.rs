@@ -10,6 +10,7 @@ mod overlay;
 mod registry;
 mod theme;
 mod tools;
+mod tooltip;
 mod updates;
 mod webviews;
 
@@ -43,7 +44,7 @@ pub fn run() {
         )
         .plugin(
             tauri_plugin_window_state::Builder::default()
-                .with_denylist(&[overlay::OVERLAY])
+                .with_denylist(&[overlay::OVERLAY, tooltip::TOOLTIP])
                 // A Present window must never reopen full screen by surprise.
                 .with_filter(|label| !label.starts_with(tools::windows::PRESENT_PREFIX))
                 .build(),
@@ -123,11 +124,16 @@ pub fn run() {
             tools::api::tools_api,
             tools::api::tools_api_cancel,
             tools::api::web_tools_api_event,
+            tooltip::tooltip_show,
+            tooltip::tooltip_hide,
         ])
         .setup(|app| {
             grant_bridge(app)?;
             build_main_window(app)?;
             overlay::create(app.handle())?;
+            if let Err(e) = tooltip::create(app.handle()) {
+                log::warn!("tooltips unavailable: {e}");
+            }
             menus::build_app_menu(app.handle())?;
             menus::build_tray(app.handle())?;
             let handle = app.handle().clone();
@@ -151,10 +157,15 @@ pub fn run() {
             let app = window.app_handle();
             match event {
                 WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {
+                    tooltip::hide(app);
                     webviews::relayout(app);
                     overlay::fit(app);
                 }
-                WindowEvent::Moved(_) => overlay::fit(app),
+                WindowEvent::Moved(_) => {
+                    tooltip::hide(app);
+                    overlay::fit(app);
+                }
+                WindowEvent::Focused(false) => tooltip::hide(app),
                 WindowEvent::Focused(true) => {
                     notifications::on_focus(app);
                     updates::on_focus(app);

@@ -15,6 +15,13 @@ pub fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 40 && id.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 
+/// A query string: short, and only `a-z A-Z 0-9 = & _ -` (no encoding tricks).
+pub fn valid_query(q: &str) -> bool {
+    q.len() <= 100
+        && q.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"=&_-".contains(&b))
+}
+
 pub fn valid_path(path: &str) -> bool {
     path.len() <= 120
         && path.starts_with("/desktop/tools/")
@@ -31,14 +38,21 @@ fn mis_webview<R: Runtime>(app: &AppHandle<R>) -> Option<Webview<R>> {
 }
 
 /// The JavaScript that starts a request inside the MIS page (all values JSON-escaped).
-pub fn request_script(id: &str, method: &str, path: &str, body: Option<&str>) -> String {
+pub fn request_script(
+    id: &str,
+    method: &str,
+    path: &str,
+    body: Option<&str>,
+    query: Option<&str>,
+) -> String {
     let j = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| "\"\"".into());
     format!(
-        "window.__ngaToolsApi && window.__ngaToolsApi({}, {}, {}, {})",
+        "window.__ngaToolsApi && window.__ngaToolsApi({}, {}, {}, {}, {})",
         j(id),
         j(method),
         j(path),
-        body.map(j).unwrap_or_else(|| "null".into())
+        body.map(j).unwrap_or_else(|| "null".into()),
+        query.map(j).unwrap_or_else(|| "null".into())
     )
 }
 
@@ -49,8 +63,13 @@ pub fn tools_api<R: Runtime>(
     method: String,
     path: String,
     body: Option<String>,
+    query: Option<String>,
 ) -> Result<(), String> {
-    if !valid_id(&id) || !valid_path(&path) || !(method == "GET" || method == "POST") {
+    if !valid_id(&id)
+        || !valid_path(&path)
+        || !(method == "GET" || method == "POST")
+        || query.as_deref().is_some_and(|q| !valid_query(q))
+    {
         return Err("bad request".into());
     }
     if body.as_ref().is_some_and(|b| b.len() > MAX_BODY) {
@@ -60,8 +79,14 @@ pub fn tools_api<R: Runtime>(
         return Err("Sign in to NGA MIS first".into());
     }
     let wv = mis_webview(&app).ok_or("NGA MIS isn't open yet")?;
-    wv.eval(request_script(&id, &method, &path, body.as_deref()))
-        .map_err(|e| e.to_string())
+    wv.eval(request_script(
+        &id,
+        &method,
+        &path,
+        body.as_deref(),
+        query.as_deref(),
+    ))
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -133,12 +158,23 @@ mod tests {
             "POST",
             "/desktop/tools/ai/chat",
             Some("{\"m\":\"</script>'\\\"\"}"),
+            None,
         );
         assert!(s.starts_with("window.__ngaToolsApi && window.__ngaToolsApi(\"a1\", \"POST\", \"/desktop/tools/ai/chat\", \""));
         assert!(
             !s.contains("'\"\"}\")"),
             "quotes inside the body are escaped"
         );
-        assert_eq!(request_script("a", "GET", "/desktop/tools/x", None), "window.__ngaToolsApi && window.__ngaToolsApi(\"a\", \"GET\", \"/desktop/tools/x\", null)");
+        assert_eq!(request_script("a", "GET", "/desktop/tools/x", None, Some("days=7")), "window.__ngaToolsApi && window.__ngaToolsApi(\"a\", \"GET\", \"/desktop/tools/x\", null, \"days=7\")");
+    }
+
+    #[test]
+    fn queries_are_plain() {
+        assert!(valid_query("days=7"));
+        assert!(valid_query("a=1&b=two_3"));
+        assert!(!valid_query("x=%2e%2e"));
+        assert!(!valid_query("x=1#y"));
+        assert!(!valid_query("x=1/../y"));
+        assert!(!valid_query(&"a".repeat(101)));
     }
 }

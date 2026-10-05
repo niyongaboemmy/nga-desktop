@@ -1,9 +1,16 @@
 // Every tool, once. The panel, the ⌘K palette, windows and permissions read this list.
 // Adding a tool: make its folder, add one entry here, add its i18n keys, add a test.
-import { CalendarRange, Calculator, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
+import { CalendarClock, CalendarRange, Calculator, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
 import type { Identity, ToolGroup, ToolManifest } from "./types";
 
 export const TOOLS: ToolManifest[] = [
+  {
+    id: "my-day", group: "everyday", icon: CalendarClock,
+    title: "tool.myday", description: "tool.myday.desc",
+    keywords: ["calendar", "agenda", "timetable", "schedule", "today", "lessons", "emploi du temps", "ingengabihe", "uyu munsi"],
+    audiences: "all", network: "partial", popOut: true, present: true, personal: true, color: "#0ea5e9", size: "m",
+    load: () => import("./myday/MyDay"),
+  },
   {
     id: "ai", group: "ai", icon: Sparkles,
     title: "tool.ai", description: "tool.ai.desc",
