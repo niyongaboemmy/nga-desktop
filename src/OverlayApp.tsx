@@ -6,18 +6,25 @@ import { readSettings, type RecentPage } from "./lib/settings";
 import { restoreTheme } from "./lib/theme";
 import type { PaletteItem, PaletteTool } from "./lib/palette";
 import { TOOLS } from "./tools/registry";
-import { readLangPref, resolveLang, translator } from "./tools/i18n";
+import { useLang } from "./tools/i18n";
+import { useIdentity } from "./tools/shared/identity";
+import { ToolsModal } from "./tools/ToolsModal";
 
 /**
  * The floating overlay window (overlay.rs): a dimmed layer over the whole NGA
- * window with the ⌘K palette on top, so it floats over the app instead of
- * pushing it. Esc, a click outside the card, or leaving the window closes it.
+ * window with the ⌘K palette or the NGA Tools modal on top, so they float over
+ * the apps instead of pushing them aside. Esc or a click on the backdrop closes it.
+ * The palette also closes when NGA loses focus; a tool modal doesn't.
  */
 export function OverlayApp() {
   const [info, setInfo] = useState<ShellInfo | null>(null);
   const [view, setView] = useState<string>("closed");
   const [recent, setRecent] = useState<RecentPage[]>([]);
   const [session, setSession] = useState(0);
+  const [toolId, setToolId] = useState<string | null>(null);
+  const [toolsMounted, setToolsMounted] = useState(false);
+  const identity = useIdentity();
+  const { lang, t } = useLang();
 
   useEffect(() => {
     void native.shellInfo().then(setInfo);
@@ -25,9 +32,14 @@ export function OverlayApp() {
       setView(v);
       if (v !== "closed") {
         restoreTheme(); // follow the main window's current theme
-        setSession((n) => n + 1); // fresh, empty palette each time
-        void readSettings().then((s) => setRecent(s.recent));
+        if (v === "palette" || v === "shortcuts") {
+          setSession((n) => n + 1); // fresh, empty palette each time
+          void readSettings().then((s) => setRecent(s.recent));
+        }
       }
+      if (v === "tools") setToolId(null);
+      if (v.startsWith("tool:")) setToolId(v.slice(5));
+      if (v === "tools" || v.startsWith("tool:")) setToolsMounted(true);
     });
     // The main window saves the theme in the same storage.
     const onStorage = () => restoreTheme();
@@ -39,7 +51,6 @@ export function OverlayApp() {
   }, []);
 
   const close = () => void native.overlayHide();
-  const t = translator(resolveLang(readLangPref()));
   const tools: PaletteTool[] = TOOLS.map((tm) => ({
     id: tm.id,
     label: t(tm.title),
@@ -49,15 +60,29 @@ export function OverlayApp() {
   const pick = (it: PaletteItem) => {
     if (it.kind === "app") void native.openApp(it.key).then(close);
     else if (it.kind === "go" || it.kind === "recent") void native.navigate(it.key, it.path).then(close);
-    else if (it.kind === "tool") void native.overlayAction(`tool:${it.tool}`);
+    else if (it.kind === "tool") void native.overlayShow(`tool:${it.tool}`);
     else void native.overlayAction(it.action);
   };
 
-  if (!info || view === "closed") return <div className="overlay-root" />;
+  const toolsOpen = view === "tools" || view.startsWith("tool:");
+  const open = view !== "closed";
   return (
-    <div className="overlay-root open" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      {view === "palette" && <Palette key={session} apps={info.apps} recent={recent} tools={tools} onPick={pick} onClose={close} />}
+    <div className={`overlay-root${open ? " open" : ""}${toolsOpen ? " modal-open" : ""}`} onMouseDown={(e) => open && e.target === e.currentTarget && close()}>
+      {info && view === "palette" && <Palette key={session} apps={info.apps} recent={recent} tools={tools} onPick={pick} onClose={close} />}
       {view === "shortcuts" && <Shortcuts key={session} onClose={close} />}
+      {toolsMounted && (
+        <div className="modal-layer" hidden={!toolsOpen} onMouseDown={(e) => e.target === e.currentTarget && close()}>
+          <ToolsModal
+            identity={identity}
+            lang={lang}
+            t={t}
+            toolId={toolId}
+            open={toolsOpen}
+            onTool={(id) => void native.overlayShow(id ? `tool:${id}` : "tools")}
+            onClose={close}
+          />
+        </div>
+      )}
     </div>
   );
 }

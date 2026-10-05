@@ -7,8 +7,10 @@
 //! - `windows`: a tool in its own small window (pop-out, can stay on top) or
 //!   full screen on a projector (present).
 //! - `files`: save a tool's output (QR code, note) to Downloads.
+//! - `api`: NGA MIS API calls for the tools, made by the MIS page itself (no token here).
 //! - `shortcut`: the optional system-wide "quick tools" key.
 
+pub mod api;
 pub mod files;
 pub mod identity;
 pub mod shortcut;

@@ -24,6 +24,8 @@
     "allow-timer-action",
     "allow-tools-window-open",
     "allow-tools-displays",
-    "allow-tools-save-file"
+    "allow-tools-save-file",
+    "allow-tools-api",
+    "allow-tools-api-cancel"
   ]
 }

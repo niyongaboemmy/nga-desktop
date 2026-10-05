@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { addDays, addWorkingDays, difference, parse, rwandaHolidays, today, weekday } from "./dates";
 import type { ToolProps } from "../types";
+import { Stepper } from "../shared/Stepper";
 
 type Tab = "between" | "add" | "holidays";
 
@@ -52,7 +53,7 @@ export default function DateCalc({ ctx }: ToolProps) {
         <>
           <label className="field"><span>{t("dates.start")}</span><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></label>
           <div className="dates-row">
-            <label className="field"><span>{t("dates.count")}</span><input type="number" value={n} min={-3650} max={3650} onChange={(e) => setN(Math.max(-3650, Math.min(3650, Math.trunc(Number(e.target.value) || 0))))} /></label>
+            <div className="field"><span>{t("dates.count")}</span><Stepper label={t("dates.count")} value={n} min={-3650} max={3650} onChange={setN} /></div>
             <label className="switch-row compact">
               <input type="checkbox" className="switch" checked={working} onChange={(e) => setWorking(e.target.checked)} />
               <span>{t("dates.workingOnly")}</span>

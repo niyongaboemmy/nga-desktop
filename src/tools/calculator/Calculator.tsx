@@ -127,7 +127,7 @@ export default function Calculator({ ctx }: ToolProps) {
           onChange={(e) => { setExpr(e.target.value); setError(null); }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || (e.key === "=" && !e.shiftKey)) { e.preventDefault(); commit(); }
-            else if (e.key === "Escape") { setExpr(""); setShown(null); setError(null); }
+            else if (e.key === "Escape" && (expr || shown || error)) { e.preventDefault(); setExpr(""); setShown(null); setError(null); }
             else if (!expr && shown && /^[+\-*/^%!]$/.test(e.key)) { e.preventDefault(); insert(e.key); }
           }}
           placeholder={shown ? "" : t("calc.placeholder")}

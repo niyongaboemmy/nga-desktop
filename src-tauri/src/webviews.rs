@@ -881,6 +881,10 @@ fn bridge_script(key: &str) -> String {
         .replace("__NGA_PLATFORM__", &format!("\"{platform}\""))
         .replace("__NGA_APP__", &format!("\"{key}\""))
         .replace(
+            "__NGA_API__",
+            &format!("\"{}\"", crate::registry::mis_api_base()),
+        )
+        .replace(
             "__NGA_VERSION__",
             &format!("\"{}\"", env!("CARGO_PKG_VERSION")),
         )

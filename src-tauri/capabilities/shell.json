@@ -58,6 +58,9 @@
     "allow-tools-window-open",
     "allow-tools-displays",
     "allow-tools-save-file",
-    "allow-tools-shortcut-set"
+    "allow-tools-shortcut-set",
+    "allow-tools-api",
+    "allow-tools-api-cancel",
+    "core:window:allow-set-focus"
   ]
 }

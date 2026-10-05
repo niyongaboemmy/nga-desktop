@@ -120,6 +120,9 @@ pub fn run() {
             tools::windows::tools_displays,
             tools::files::tools_save_file,
             tools::shortcut::tools_shortcut_set,
+            tools::api::tools_api,
+            tools::api::tools_api_cancel,
+            tools::api::web_tools_api_event,
         ])
         .setup(|app| {
             grant_bridge(app)?;
@@ -205,6 +208,8 @@ fn grant_bridge<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         .permission("allow-web-fullscreen")
         // Who is signed in, for the tools (tools/identity.rs refuses every page but MIS's).
         .permission("allow-web-identity")
+        // Answers to the tools' MIS API requests (tools/api.rs refuses every page but MIS's).
+        .permission("allow-web-tools-api-event")
         // The /apps page's "Update now" (the commands refuse every page but MIS's).
         .permission("allow-web-update-check")
         .permission("allow-web-update-install");

@@ -13,7 +13,6 @@ import { readSettings, saveSetting, type RecentPage } from "./lib/settings";
 import type { UpdateState } from "./lib/updater";
 import { applyTheme, resolveTheme, systemPrefersDark, type Theme, type ThemePref } from "./lib/theme";
 import { addRecent } from "./lib/palette";
-import { ToolsPanel } from "./tools/ToolsPanel";
 import { useIdentity } from "./tools/shared/identity";
 import { onTool } from "./tools/shared/native";
 import { chime } from "./tools/shared/sound";
@@ -31,17 +30,17 @@ type Toast =
   | { kind: "alert"; title: string; body: string }
   | null;
 
-type PanelKind = false | "notices" | "tools";
+type PanelKind = false | "notices";
 
 export default function App() {
   const [info, setInfo] = useState<ShellInfo | null>(null);
   const [active, setActive] = useState<AppKey | null>(null);
   const [page, setPage] = useState<Page>("app");
   const [panel, setPanel] = useState<PanelKind>(false);
-  const [toolId, setToolId] = useState<string | null>(null);
   const [timersRunning, setTimersRunning] = useState(0);
-  const identity = useIdentity();
-  const { lang, t } = useLang();
+  // Who is signed in, kept warm for the tools (the modal itself lives in the overlay window).
+  useIdentity();
+  const { t } = useLang();
   const [focus, setFocus] = useState(false);
   const [views, dispatch] = useReducer(reduce, {});
   const [notices, setNotices] = useState<NoticeSummary | null>(null);
@@ -236,13 +235,8 @@ export default function App() {
         else if (id === "print") void native.print();
         else if (id === "signout") { setFocus(false); setPage("settings"); }
         else if (id === "notices") { setFocus(false); setPanel((p) => (p === "notices" ? false : "notices")); }
-        else if (id === "tools") { setFocus(false); setPage("app"); setPanel((p) => (p === "tools" ? false : "tools")); }
-        else if (id.startsWith("tool:") && findTool(id.slice(5))) {
-          setFocus(false);
-          setPage("app");
-          setToolId(id.slice(5));
-          setPanel("tools");
-        }
+        else if (id === "tools") void native.overlayShow("tools");
+        else if (id.startsWith("tool:") && findTool(id.slice(5))) void native.overlayShow(id as `tool:${string}`);
         else if (id === "settings") { setFocus(false); setPage("settings"); }
         else if (id === "theme") {
           userPicked.current = true;
@@ -381,10 +375,10 @@ export default function App() {
           }}
           online={online}
           panelOpen={panel === "notices"}
-          toolsOpen={panel === "tools"}
+          toolsOpen={false}
           toolsLabel={t("panel.title")}
           timersRunning={timersRunning}
-          onTools={() => setPanel((p) => (p === "tools" ? false : "tools"))}
+          onTools={() => void native.overlayShow("tools")}
           onOpen={open}
           onPalette={() => void native.overlayShow("palette")}
           onShortcuts={() => void native.overlayShow("shortcuts")}
@@ -410,16 +404,13 @@ export default function App() {
           </div>
         </div>
         {panel === "notices" && !focus && <NoticePanel apps={info.apps} onClose={() => setPanel(false)} />}
-        {panel === "tools" && !focus && (
-          <ToolsPanel identity={identity} lang={lang} t={t} toolId={toolId} onTool={setToolId} onClose={() => setPanel(false)} />
-        )}
       </div>
       {toast && (toast.kind === "alert" || (!focus && (toast.kind === "download" || panel !== "notices"))) && (
         <div className="toast" role="status">
           {toast.kind === "info" ? (
             <span>{toast.text}</span>
           ) : toast.kind === "alert" ? (
-            <button className="toast-notice" onClick={() => { setToolId("timer"); setPanel("tools"); setPage("app"); setToast(null); }}>
+            <button className="toast-notice" onClick={() => { void native.overlayShow("tool:timer"); setToast(null); }}>
               <AlarmClock size={15} />
               <span><strong>{toast.title}</strong>{toast.body ? ` · ${toast.body}` : ""}</span>
             </button>

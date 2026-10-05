@@ -18,6 +18,16 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuild
 
 pub const OVERLAY: &str = "overlay";
 
+/// What the overlay shows: "palette", "shortcuts", "tools" or "tool:<id>".
+static VIEW: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+
+/// The palette closes when you click elsewhere, like Spotlight. A tool modal
+/// stays: a date picker, a save dialog or a quick look at another app must not
+/// throw away what you were doing (Esc, ✕ or a click on the backdrop close it).
+pub fn closes_on_blur(view: &str) -> bool {
+    view == "palette" || view == "shortcuts"
+}
+
 pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let main = app.get_window(WINDOW).ok_or(tauri::Error::WindowNotFound)?;
     let builder =
@@ -42,7 +52,9 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     overlay.on_window_event(move |event| {
         // Clicking anywhere outside (another app, the NGA window itself) closes it.
         if let tauri::WindowEvent::Focused(false) = event {
-            hide(&handle);
+            if closes_on_blur(&VIEW.lock().unwrap()) {
+                hide(&handle);
+            }
         }
     });
     Ok(())
@@ -79,6 +91,7 @@ pub fn show<R: Runtime>(app: &AppHandle<R>, view: &str) {
         return;
     };
     place(app);
+    *VIEW.lock().unwrap() = view.to_string();
     let _ = app.emit_to(OVERLAY, "nga://overlay", view.to_string());
     let _ = overlay.set_ignore_cursor_events(false);
     let _ = overlay.show();
@@ -124,4 +137,17 @@ pub fn overlay_hide<R: Runtime>(app: AppHandle<R>) {
 pub fn overlay_action<R: Runtime>(app: AppHandle<R>, action: String) {
     hide(&app);
     let _ = app.emit_to(crate::webviews::SHELL, "nga://menu", action);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_palette_closes_on_blur() {
+        assert!(closes_on_blur("palette"));
+        assert!(closes_on_blur("shortcuts"));
+        assert!(!closes_on_blur("tools"));
+        assert!(!closes_on_blur("tool:calculator"));
+    }
 }

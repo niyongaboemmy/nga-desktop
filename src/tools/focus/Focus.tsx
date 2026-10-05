@@ -5,6 +5,7 @@ import { useTimers } from "../shared/timers";
 import { readPersonal, usePersonal } from "../shared/store";
 import { clock, progress, remaining } from "../timer/format";
 import { Ring } from "../timer/Ring";
+import { Stepper } from "../shared/Stepper";
 import type { ToolProps } from "../types";
 
 interface Plan {
@@ -56,7 +57,6 @@ export default function Focus({ ctx }: ToolProps) {
   if (active) return <Running timer={active} now={now} t={t} present={present} />;
   if (present) return <div className="present-empty"><p>{t("focus.presentEmpty")}</p></div>;
 
-  const num = (v: string, min: number, max: number) => Math.min(max, Math.max(min, Math.round(Number(v) || min)));
   return (
     <div className="focus">
       <div className="focus-today">
@@ -74,9 +74,9 @@ export default function Focus({ ctx }: ToolProps) {
         })}
       </div>
       <div className="focus-grid">
-        <label className="field"><span>{t("focus.work")}</span><input type="number" min={1} max={180} value={plan.workMin} onChange={(e) => setPlan({ ...plan, workMin: num(e.target.value, 1, 180) })} /></label>
-        <label className="field"><span>{t("focus.break")}</span><input type="number" min={1} max={60} value={plan.breakMin} onChange={(e) => setPlan({ ...plan, breakMin: num(e.target.value, 1, 60) })} /></label>
-        <label className="field"><span>{t("focus.rounds")}</span><input type="number" min={1} max={12} value={plan.rounds} onChange={(e) => setPlan({ ...plan, rounds: num(e.target.value, 1, 12) })} /></label>
+        <div className="field"><span>{t("focus.work")}</span><Stepper label={t("focus.work")} value={plan.workMin} min={1} max={180} step={5} onChange={(v) => setPlan({ ...plan, workMin: v })} /></div>
+        <div className="field"><span>{t("focus.break")}</span><Stepper label={t("focus.break")} value={plan.breakMin} min={1} max={60} onChange={(v) => setPlan({ ...plan, breakMin: v })} /></div>
+        <div className="field"><span>{t("focus.rounds")}</span><Stepper label={t("focus.rounds")} value={plan.rounds} min={1} max={12} onChange={(v) => setPlan({ ...plan, rounds: v })} /></div>
       </div>
       <label className="field"><span>{t("focus.subject")}</span><input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("focus.subjectHint")} maxLength={40} /></label>
       <button className="btn primary focus-start" onClick={() => void start()}><Play size={15} /> {t("focus.start")}</button>

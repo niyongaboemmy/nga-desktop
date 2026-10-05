@@ -22,13 +22,17 @@
 |---|---|---|
 | 0 Foundations | ✅ Built (branch `feat/tools-hub-phase-1`) | Registry, panel (resizable, search, favourites), ⌘K + menu (⌘/Ctrl+⇧T), pop-out + present windows, `tools` capability, i18n EN/FR/RW, licence check in CI, optional global shortcut |
 | 1 Everyday offline tools | ✅ Built, tested | Calculator, Timers, Focus, Notes, Unit converter, Date calculator, QR code |
-| 2–8 | Not started | — |
+| 3 (part) Ask AI for staff | ✅ Built (desktop 0.4.0 + MIS `/desktop/tools/ai/*`) | Streaming chat on existing providers with audience routing (`services/aiProviders/chat.ts`); staff/teachers/admins only (D1); daily caps 40 (admin 60); emails/phones scrubbed. **Not yet:** tutor pipeline, leak check, conversation logging/review (needed before students, 3B) |
+| UI v2 | ✅ Built (0.4.0) | Tools open as a centred modal in the overlay window (replaces the side panel); neutral dark theme; primary-button hover fix; steppers |
+| 2, 4–8 | Not started | — |
 
 **Deviations from the plan, and why:**
 - **Identity:** instead of Phase 2's tools token, Phase 1 uses `web_identity`. The MIS page reports its own cached profile (id, user type, first name, date of birth turned into an age band), never the token. It is refused from any other page. This is enough for per-person data and persona; the token is still needed in Phase 2 for API calls.
 - **Storage:** per-person JSON files (`tools-u<id>.json`, tauri-plugin-store) instead of SQLite. Notes at this scale don't need SQL, and it avoids adding sqlx to the binary. Revisit if a tool needs queries.
 - **Currency conversion:** left out of the converter for now. It needs a rates source over the network, which comes with Phase 2's API access.
 - **Alert text** (timer banners) is English only for now. It comes from Rust; the UI around it is translated.
+
+**How tools reach NGA MIS (0.4.0):** via the MIS page, not a desktop token. `tools_api` (Rust) → `__ngaToolsApi` in the MIS webview (bridge.js) → `fetch(api + /desktop/tools/…)` with MIS's own session → `web_tools_api_event` → `nga://tools-api`. Only `/desktop/tools/` paths are allowed, checked in Rust and again in the page. NDJSON answers stream back in ~40 ms batches. The token never reaches the shell, and no CORS change is needed. Phase 2's tools token stays optional.
 
 **How it was tested:**
 - 128 unit tests (vitest), including 66 calculator cases and the dates/holidays, units, QR, notes and i18n completeness tests.
