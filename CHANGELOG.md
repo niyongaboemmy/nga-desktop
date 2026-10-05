@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.2.5 — 2026-10-05
+
 - A redesigned Update button in the title bar: a modern pill with a pulsing "new" dot; while updating it fills up with the progress.
 
 ## 0.2.4 — 2026-10-05
