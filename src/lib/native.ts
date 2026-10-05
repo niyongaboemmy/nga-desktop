@@ -79,7 +79,8 @@ export const native = {
   focusSession: () => invoke<AppKey | null>("focus_session"),
   signinCancel: () => invoke<void>("signin_cancel"),
   signinReopen: () => invoke<void>("signin_reopen"),
-  overlayShow: (view: "palette" | "shortcuts") => invoke<void>("overlay_show", { view }),
+  /** "palette", "shortcuts", "tools" (the launcher) or "tool:<id>". */
+  overlayShow: (view: "palette" | "shortcuts" | "tools" | `tool:${string}`) => invoke<void>("overlay_show", { view }),
   overlayHide: () => invoke<void>("overlay_hide"),
   /** From the overlay: let the main shell do this (theme, focus, notices, settings, reload, print, signout). */
   overlayAction: (action: string) => invoke<void>("overlay_action", { action }),

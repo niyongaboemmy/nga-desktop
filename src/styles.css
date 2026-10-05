@@ -18,6 +18,8 @@
   --hover: rgb(15 23 42 / 0.06);
   --press: rgb(15 23 42 / 0.1);
   --accent: #2f56d9;
+  /* Filled controls (primary buttons, selected chips): text on them is --accent-text. */
+  --accent-fill: #2f56d9;
   --accent-soft: rgb(47 86 217 / 0.12);
   --accent-text: #ffffff;
   --danger: #e11d48;
@@ -29,23 +31,25 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0a0f1d;
-  --bar: #0e1527;
-  --surface: #121b31;
-  --surface-2: #0f172b;
-  --text: #e6ebf5;
-  --muted: #8d99b3;
-  --line: #1e2944;
+  /* Neutral near-black, like NGA MIS and Task Mentor in dark mode (no navy cast). */
+  --bg: #09090b;
+  --bar: #0e0e11;
+  --surface: #141417;
+  --surface-2: #1b1b1f;
+  --text: #ececf1;
+  --muted: #9b9ba7;
+  --line: #27272d;
   --hover: rgb(255 255 255 / 0.06);
   --press: rgb(255 255 255 / 0.1);
-  --accent: #7d98ff;
-  --accent-soft: rgb(125 152 255 / 0.16);
-  --accent-text: #0a0f1d;
-  --danger: #fb7185;
+  --accent: #7ea2ff;
+  --accent-fill: #3b6cff;
+  --accent-soft: rgb(91 133 255 / 0.16);
+  --accent-text: #ffffff;
+  --danger: #f87171;
   --ok: #4ade80;
   --warn: #fbbf24;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px rgb(0 0 0 / 0.35);
-  --tab-pill: #1b2642;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px rgb(0 0 0 / 0.45);
+  --tab-pill: #232328;
   color-scheme: dark;
 }
 
@@ -156,7 +160,7 @@ html.overlay-window, html.overlay-window body, html.overlay-window #root { backg
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; }
 .chip { height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--line); color: var(--muted); font-size: 12px; transition: all 0.15s; }
 .chip:hover { color: var(--text); }
-.chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.chip.on { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-text); }
 .perm-card { margin: 0 12px 10px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius); background: var(--accent-soft); font-size: 12.5px; }
 .perm-card span { flex: 1; }
 .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 40px 0; }
@@ -195,7 +199,11 @@ html.overlay-window, html.overlay-window body, html.overlay-window #root { backg
 .btn:hover:not(:disabled) { background: var(--surface-2); border-color: color-mix(in srgb, var(--text) 18%, var(--line)); }
 .btn:active:not(:disabled) { transform: scale(0.97); }
 .btn.sm { height: 28px; padding: 0 10px; font-size: 12.5px; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.btn.primary { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-text); }
+/* `.btn:hover` (above) is more specific than `.btn.primary`: without this, hovering a
+   primary button turned it grey with dark text, almost invisible in the dark theme. */
+.btn.primary:hover:not(:disabled) { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--accent-text); filter: brightness(1.1); }
+.btn.danger:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); filter: brightness(1.08); }
 .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 button.link { color: var(--accent); text-decoration: underline; padding: 0; }
 .pill-warn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 14px; background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); font-weight: 600; }
@@ -267,7 +275,7 @@ button.link { color: var(--accent); text-decoration: underline; padding: 0; }
 /* The title bar's Update pill. `.tools .update-pill` (not `.update-pill`) so it
    wins over `.tools button` (a fixed 30 px icon square). */
 .tools .update-pill {
-  --fill: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 62%, #a855f7));
+  --fill: linear-gradient(135deg, var(--accent-fill), color-mix(in srgb, var(--accent-fill) 62%, #a855f7));
   position: relative; overflow: hidden; width: auto; height: 26px; margin: 0 4px;
   display: inline-flex; align-items: center; gap: 6px; padding: 0 12px 0 10px;
   border-radius: 999px; background: var(--fill); color: var(--accent-text);

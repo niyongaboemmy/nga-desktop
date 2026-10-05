@@ -44,5 +44,9 @@ export interface ToolManifest {
   present: boolean;
   /** Keeps personal data: needs someone signed in to NGA MIS. */
   personal: boolean;
+  /** Icon tile colour. */
+  color: string;
+  /** Modal width: s ≈ 440 px, m ≈ 580 px, l ≈ 880 px (tall). */
+  size: "s" | "m" | "l";
   load: () => Promise<{ default: ComponentType<ToolProps> }>;
 }

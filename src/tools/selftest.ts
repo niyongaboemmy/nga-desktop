@@ -3,6 +3,7 @@
 // Only in builds made with VITE_NGA_SELFTEST=1 (release builds never set it, so it isn't in them).
 // Results go to Downloads/nga-tools-selftest.txt (and -window.txt from a tool window).
 import { getAllWindows, Window } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { load } from "@tauri-apps/plugin-store";
 import { onTool, textToBase64, toolsNative } from "./shared/native";
 
@@ -83,7 +84,7 @@ export async function runShellSelftest() {
     check("pop-out window opened", !!w);
     check("pop-out stays on top", !!w && (await w.isAlwaysOnTop().catch(() => false)));
     await sleep(2500); // the window writes its own report
-    await w?.close();
+    await w?.close().catch(() => undefined);
   });
   await step("present window", async () => {
     await toolsNative.openWindow("timer", "Timers", true);
@@ -91,7 +92,7 @@ export async function runShellSelftest() {
     const w = await Window.getByLabel("present-timer");
     check("present window opened", !!w);
     check("present window is full screen", !!w && (await w.isFullscreen().catch(() => false)));
-    await w?.close();
+    await w?.close().catch(() => undefined);
     await sleep(800);
   });
   await step("bad tool id refused", async () => {
@@ -120,6 +121,27 @@ export async function runShellSelftest() {
     } catch (e) {
       check("quick shortcut registers", false, String(e));
     }
+  });
+  await step("tools modal", async () => {
+    await invoke("overlay_show", { view: "tool:calculator" });
+    await sleep(800);
+    const overlay = await Window.getByLabel("overlay");
+    check("tools open as a modal in the overlay", !!overlay && (await overlay.isVisible()));
+    await (await Window.getByLabel("main"))?.setFocus();
+    await sleep(600);
+    check("the tool modal stays open when focus moves away", !!overlay && (await overlay.isVisible()));
+    await invoke("overlay_hide");
+    await sleep(400);
+    check("the modal closes", !!overlay && !(await overlay.isVisible()));
+  });
+  await step("MIS API proxy", async () => {
+    let refused = "";
+    try {
+      await invoke("tools_api", { id: "selftest1", method: "GET", path: "/users/me", body: null });
+    } catch (e) {
+      refused = String(e);
+    }
+    check("only /desktop/tools paths may be called", refused.includes("bad request"), refused);
   });
   const windows = (await getAllWindows()).map((w) => w.label);
   check("no tool windows left open", !windows.some((l) => l.startsWith("tool-") || l.startsWith("present-")), windows.join(","));

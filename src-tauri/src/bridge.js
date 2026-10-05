@@ -413,5 +413,58 @@
     };
     reportIdentity();
     setInterval(reportIdentity, 5000);
+
+    // ── NGA Tools → MIS API, with this page's own session (tools/api.rs) ──
+    // Only /desktop/tools/… paths. Streams NDJSON answers back line by line
+    // (batched), so Ask AI shows its answer as it is written.
+    var toolCalls = {};
+    var TOOL_PATH = /^\/desktop\/tools\/[a-z0-9\/_-]+$/;
+    Object.defineProperty(window, "__ngaToolsApiCancel", {
+      value: function (id) { if (toolCalls[id]) toolCalls[id].abort(); },
+    });
+    Object.defineProperty(window, "__ngaToolsApi", {
+      value: function (id, method, path, body) {
+        var send = function (kind, data) {
+          return invoke("web_tools_api_event", { id: id, kind: kind, data: data == null ? null : String(data) }).catch(function () {});
+        };
+        if (!TOOL_PATH.test(path) || (method !== "GET" && method !== "POST")) { send("error", "refused"); return; }
+        var ctrl = new AbortController();
+        toolCalls[id] = ctrl;
+        var token = "";
+        try { token = localStorage.getItem("token") || ""; } catch (e) { /* storage blocked */ }
+        var headers = { Accept: "application/json, application/x-ndjson" };
+        if (token) headers.Authorization = "Bearer " + token;
+        if (body != null) headers["Content-Type"] = "application/json";
+        fetch(__NGA_API__ + path, { method: method, headers: headers, body: body == null ? undefined : body, credentials: "include", signal: ctrl.signal })
+          .then(function (res) {
+            var type = res.headers.get("content-type") || "";
+            if (res.ok && type.indexOf("ndjson") >= 0 && res.body && res.body.getReader) {
+              var reader = res.body.getReader();
+              var decoder = new TextDecoder();
+              var buffered = "";
+              var pump = function () {
+                return reader.read().then(function (r) {
+                  if (r.done) {
+                    if (buffered.trim()) return send("lines", buffered).then(function () { return send("end", null); });
+                    return send("end", null);
+                  }
+                  buffered += decoder.decode(r.value, { stream: true });
+                  var cut = buffered.lastIndexOf("\n");
+                  if (cut >= 0) {
+                    var ready = buffered.slice(0, cut);
+                    buffered = buffered.slice(cut + 1);
+                    if (ready.trim()) send("lines", ready);
+                  }
+                  return pump();
+                });
+              };
+              return pump();
+            }
+            return res.text().then(function (t) { return send("response", JSON.stringify({ status: res.status, body: t })); });
+          })
+          .catch(function (e) { send("error", e && e.name === "AbortError" ? "aborted" : "network"); })
+          .then(function () { delete toolCalls[id]; });
+      },
+    });
   }
 })();

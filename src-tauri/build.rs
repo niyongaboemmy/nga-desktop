@@ -43,6 +43,8 @@ fn main() {
             "tools_displays",
             "tools_save_file",
             "tools_shortcut_set",
+            "tools_api",
+            "tools_api_cancel",
             // Granted to the NGA web pages at runtime (lib.rs grant_bridge), not to the shell.
             "web_notify",
             "web_badge",
@@ -52,6 +54,7 @@ fn main() {
             "web_update_check",
             "web_update_install",
             "web_identity",
+            "web_tools_api_event",
         ]),
     ))
     .expect("failed to run tauri-build");
