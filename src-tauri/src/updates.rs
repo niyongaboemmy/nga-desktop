@@ -21,7 +21,34 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 use crate::registry::{self, Env};
 
 const FIRST_CHECK: Duration = Duration::from_secs(45);
-const EVERY: Duration = Duration::from_secs(6 * 60 * 60);
+/// Hourly, and when the person comes back to NGA after a while (on_focus):
+/// every 6 h meant a new version could stay unnoticed for most of a day.
+const EVERY: Duration = Duration::from_secs(60 * 60);
+const ON_FOCUS_AFTER: Duration = Duration::from_secs(30 * 60);
+
+static LAST_CHECK: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+
+/// The window got focus: check if the last check was a while ago.
+pub fn on_focus<R: Runtime>(app: &AppHandle<R>) {
+    if crate::updater_pubkey().is_none() {
+        return;
+    }
+    let due = LAST_CHECK
+        .lock()
+        .unwrap()
+        .is_none_or(|t| t.elapsed() >= ON_FOCUS_AFTER);
+    if !due {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        match check(&app).await {
+            Ok(Some(info)) => announce(&app, &info),
+            Ok(None) => {}
+            Err(e) => log::warn!("update check failed: {e}"),
+        }
+    });
+}
 
 /// The update found by the last check, kept until it is installed.
 #[derive(Default)]
@@ -80,6 +107,7 @@ pub async fn check<R: Runtime>(app: &AppHandle<R>) -> Result<Option<UpdateInfo>,
     if crate::updater_pubkey().is_none() {
         return Ok(None);
     }
+    *LAST_CHECK.lock().unwrap() = Some(std::time::Instant::now());
     let updater = app
         .updater_builder()
         .endpoints(vec![endpoint()])

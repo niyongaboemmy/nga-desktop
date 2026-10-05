@@ -131,7 +131,10 @@ pub fn run() {
                     overlay::fit(app);
                 }
                 WindowEvent::Moved(_) => overlay::fit(app),
-                WindowEvent::Focused(true) => notifications::on_focus(app),
+                WindowEvent::Focused(true) => {
+                    notifications::on_focus(app);
+                    updates::on_focus(app);
+                }
                 // Closing the window keeps NGA running (tray / Dock) so the apps
                 // stay signed in and notifications keep arriving. Quit from the
                 // tray or the app menu.
