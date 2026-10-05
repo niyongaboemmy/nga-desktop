@@ -232,7 +232,10 @@ pub fn apps_for(env: Env) -> Vec<AppDef> {
             start_path: "/home",
             color: "#2f56d9",
             sso: None,
-            signed_out_paths: &["/login"],
+            // MIS shows its sign-in form at both "/" and "/login", and its expired-session
+            // handler sends people to "/". With only "/login", a sign-out that landed on "/"
+            // went unnoticed: the other apps stayed open and the next sign-in never synced.
+            signed_out_paths: &["/", "/login"],
             neutral_paths: &[
                 "/about",
                 "/contact",

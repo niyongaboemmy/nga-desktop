@@ -144,7 +144,7 @@ fn source_app<R: Runtime>(app: &AppHandle<R>, webview: &Webview<R>) -> Option<St
     let key = webview.label().strip_prefix("app-")?;
     let shell = app.state::<Shell>();
     let def = crate::registry::find(&shell.apps, key)?;
-    let url = webview.url().ok()?;
+    let url = crate::webviews::page_url(webview)?;
     def.owns(&url).then(|| key.to_string())
 }
 

@@ -115,7 +115,9 @@ pub fn open_active_in_browser<R: Runtime>(app: AppHandle<R>) -> CmdResult {
     let Some(wv) = webviews::active_webview(&app) else {
         return Ok(());
     };
-    let url = wv.url().map_err(err)?;
+    let Some(url) = webviews::page_url(&wv) else {
+        return Ok(());
+    };
     app.opener()
         .open_url(url.as_str(), None::<&str>)
         .map_err(err)

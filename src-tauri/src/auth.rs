@@ -244,7 +244,9 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
             watch.hidden_since.remove(def.key);
             continue;
         };
-        let Ok(url) = wv.url() else { continue };
+        let Some(url) = webviews::page_url(&wv) else {
+            continue;
+        };
         let page = classify(def, &url);
         {
             let mut list = SIGNED_IN_APPS.lock().unwrap();
@@ -300,7 +302,7 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
     // Meeting / quiz in progress anywhere? (the notification manager holds banners)
     let session = apps.iter().find_map(|def| {
         let wv = app.get_webview(&webviews::label(def.key))?;
-        let url = wv.url().ok()?;
+        let url = webviews::page_url(&wv)?;
         def.is_focus_page(&url).then(|| def.key.to_string())
     });
     let notifier = app.state::<crate::notifications::Notifier>();
@@ -328,7 +330,9 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
                     let Some(wv) = app.get_webview(&webviews::label(def.key)) else {
                         continue;
                     };
-                    let Ok(url) = wv.url() else { continue };
+                    let Some(url) = webviews::page_url(&wv) else {
+                        continue;
+                    };
                     if classify(def, &url) == Page::SignedIn {
                         continue;
                     }
@@ -531,6 +535,40 @@ mod tests {
         assert!(reveal(false, Page::SignedOut, false, s(4), s(6)));
         // Anything else: never longer than 20 s.
         assert!(reveal(false, Page::Neutral, true, s(1), s(20)));
+    }
+
+    #[test]
+    fn mis_signed_out_at_its_root_too() {
+        let apps = apps_for(Env::Production);
+        let mis = apps.iter().find(|a| a.key == "mis").unwrap();
+        // The sign-in form lives at "/" as well as "/login".
+        for u in [
+            "https://mis.amashuri.com/",
+            "https://mis.amashuri.com",
+            "https://mis.amashuri.com/login",
+        ] {
+            assert_eq!(
+                classify(mis, &Url::parse(u).unwrap()),
+                Page::SignedOut,
+                "{u}"
+            );
+        }
+        assert_eq!(
+            classify(mis, &Url::parse("https://mis.amashuri.com/home").unwrap()),
+            Page::SignedIn
+        );
+        // MIS's SSO consent at /login?client_id=… still says nothing.
+        assert_eq!(
+            classify(
+                mis,
+                &Url::parse("https://mis.amashuri.com/login?client_id=tupo").unwrap()
+            ),
+            Page::Neutral
+        );
+        // Signing out (to "/") and back in is seen as two changes, so the apps sync both ways.
+        let (s, change) = mis_change(Some(true), Page::SignedOut);
+        assert_eq!(change, Some(MisChange::SignedOut));
+        assert_eq!(mis_change(s, Page::SignedIn).1, Some(MisChange::SignedIn));
     }
 
     #[test]

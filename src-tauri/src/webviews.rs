@@ -216,9 +216,8 @@ fn mark_sso_done<R: Runtime>(app: &AppHandle<R>, key: &str) {
     let shell = app.state::<Shell>();
     let mis = registry::identity_provider(&shell.apps);
     if let Some(wv) = app.get_webview(&label(mis.key)) {
-        if wv
-            .url()
-            .is_ok_and(|u| crate::auth::classify(mis, &u) == crate::auth::Page::SignedOut)
+        if page_url(&wv)
+            .is_some_and(|u| crate::auth::classify(mis, &u) == crate::auth::Page::SignedOut)
         {
             let _ = wv.navigate(mis.start_url());
         }
@@ -551,6 +550,9 @@ fn create_app_webview<R: Runtime>(
 ) -> tauri::Result<Webview<R>> {
     let window = app.get_window(WINDOW).ok_or(tauri::Error::WindowNotFound)?;
     let size = window_size(&window).ok_or(tauri::Error::WindowNotFound)?;
+    // A new view (also after a sign-out closed the old one) hasn't shown a page yet.
+    let new_label = label(def.key);
+    COMMITTED.lock().unwrap().retain(|l| *l != new_label);
     let rect = {
         let shell = app.state::<Shell>();
         let inner = shell.inner.lock().unwrap();
@@ -598,10 +600,34 @@ fn create_app_webview<R: Runtime>(
     Ok(webview)
 }
 
+/// App webviews that have shown (committed) at least one page.
+static COMMITTED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// The page an app webview shows, or `None` before it has shown one.
+///
+/// Use this instead of `Webview::url()`. Until WebKit commits a first page
+/// (still loading, or the first load failed: offline, server down) its URL is
+/// nil, and wry's macOS `url()` unwraps it: a panic on the main thread that
+/// closed the whole app. The sign-in watcher asks every 0.4 s, so one failed
+/// first load (no internet at school) was enough.
+pub fn page_url<R: Runtime>(wv: &Webview<R>) -> Option<Url> {
+    if !COMMITTED.lock().unwrap().iter().any(|l| l == wv.label()) {
+        return None;
+    }
+    wv.url().ok()
+}
+
 fn on_page_load<R: Runtime>(app: &AppHandle<R>, wv: &Webview<R>, event: PageLoadEvent, url: &Url) {
     let Some(key) = key_of(wv.label()).map(str::to_string) else {
         return;
     };
+    // Started = WebKit committed the page: from now on it has a URL.
+    if matches!(event, PageLoadEvent::Started) {
+        let mut committed = COMMITTED.lock().unwrap();
+        if !committed.iter().any(|l| l == wv.label()) {
+            committed.push(wv.label().to_string());
+        }
+    }
     let shell = app.state::<Shell>();
     match event {
         PageLoadEvent::Started => {

@@ -333,7 +333,10 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
                 }
             }
             "browser" => {
-                if let Some(Ok(url)) = app.get_webview(&webviews::label(key)).map(|wv| wv.url()) {
+                if let Some(url) = app
+                    .get_webview(&webviews::label(key))
+                    .and_then(|wv| webviews::page_url(&wv))
+                {
                     use tauri_plugin_opener::OpenerExt;
                     let _ = app.opener().open_url(url.as_str(), None::<&str>);
                 }
@@ -360,7 +363,8 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         "next-app" => cycle(app, 1),
         "prev-app" => cycle(app, -1),
         "copy-link" => {
-            if let Some(Ok(url)) = webviews::active_webview(app).map(|wv| wv.url()) {
+            if let Some(url) = webviews::active_webview(app).and_then(|wv| webviews::page_url(&wv))
+            {
                 use tauri_plugin_clipboard_manager::ClipboardExt;
                 if app.clipboard().write_text(url.to_string()).is_ok() {
                     let _ = app.emit_to(SHELL, "nga://toast", "Link copied".to_string());

@@ -108,6 +108,21 @@ http
     const misSignedIn =
       !misLoggedOutAt && Date.now() - misFirstRequest >= Number(process.env.FAKE_SIGNED_OUT_FOR || 0) * 1000;
     if (url.pathname === "/__mis_state") return json(res, { signedIn: misSignedIn });
+    // FAKE_ROOT_SIGNOUT_TEST=1: like the real MIS, signing out lands on "/" (its
+    // sign-in form lives there too), 20 s after the first /home; 15 s later the
+    // person signs in again. The other apps must close, then sync by themselves.
+    if (url.pathname === "/__logout") {
+      misLoggedOutAt = Date.now();
+      log("MIS  signed out (logout → /)");
+      res.writeHead(204, { "Access-Control-Allow-Origin": "*" });
+      return res.end();
+    }
+    if (url.pathname === "/" && !misSignedIn) {
+      log("MIS  sign-in form shown at /");
+      return html(res, page("NGA MIS sign-in at / (fake)", `<p>Signed out (at /). Signing in…</p><script>
+setInterval(()=>fetch('/__mis_state').then(r=>r.json()).then(j=>{ if(j.signedIn) location.replace('/home'); }),1000);
+</script>`));
+    }
     if (url.pathname === "/login" && !misSignedIn) {
       log("MIS  sign-in form shown", url.searchParams.get("client_id") ? `(SSO hop for ${url.searchParams.get("client_id")})` : "");
       return html(res, page("NGA MIS sign-in (fake)", `<p>Signed out. Signing in…</p><script>
@@ -160,7 +175,7 @@ setInterval(()=>fetch('/__mis_state').then(r=>r.json()).then(j=>{ if(j.signedIn 
         res,
         page(
           "NGA MIS (fake)",
-          `<p>Signed in. Polling <code>/notifications</code> every 5 s with XHR.</p>
+          `<p>Signed in. Polling <code>/notifications</code> every 5 s with XHR.</p>${process.env.FAKE_ROOT_SIGNOUT_TEST ? `<script>if(!sessionStorage.getItem('rootSignout')){setTimeout(()=>{sessionStorage.setItem('rootSignout','1');fetch('/__logout').then(()=>location.replace('/'));},20000);}</script>` : ""}
 <button onclick="document.documentElement.className=document.documentElement.className==='dark'?'light':'dark'">Toggle MIS theme</button>
 <script>
 ${process.env.FAKE_SIGNIN ? "if(!sessionStorage.getItem('signinTried')){sessionStorage.setItem('signinTried','1');setTimeout(()=>{out('starting browser sign-in');location.href='/desktop/signin?via=google';},6000);}" : ""}
@@ -171,6 +186,7 @@ setInterval(()=>{const x=new XMLHttpRequest();x.open('GET','/notifications?limit
     }
     return redirect(res, "/home");
   })
+  .on("error", (e) => log("SKIPPED (port busy):", e.code === "EADDRINUSE" ? "port in use" : e.message))
   .listen(5173, () => log("MIS        http://localhost:5173"));
 
 // ── Task Mentor :5174 (base /taskmentor) ────────────────────────────────────
@@ -209,6 +225,7 @@ poll(); setInterval(()=>{ if(document.visibilityState==='visible') poll(); },100
     }
     return redirect(res, "/taskmentor/dashboard");
   })
+  .on("error", (e) => log("SKIPPED (port busy):", e.code === "EADDRINUSE" ? "port in use" : e.message))
   .listen(5174, () => log("Task Mentor http://localhost:5174/taskmentor"));
 
 // ── Tendo :3000 ──────────────────────────────────────────────────────────────
@@ -242,6 +259,7 @@ http
       ),
     );
   })
+  .on("error", (e) => log("SKIPPED (port busy):", e.code === "EADDRINUSE" ? "port in use" : e.message))
   .listen(3000, () => log("Tendo      http://localhost:3000"));
 
 // PROBE: Tupo usually sits hidden behind another app. Can it still ring?
@@ -327,4 +345,5 @@ setInterval(()=>{
       ),
     );
   })
+  .on("error", (e) => log("SKIPPED (port busy):", e.code === "EADDRINUSE" ? "port in use" : e.message))
   .listen(5194, () => log("Tupo       http://localhost:5194"));
