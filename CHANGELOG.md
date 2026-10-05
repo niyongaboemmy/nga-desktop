@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.2.2 — 2026-10-05
+
 - Sign-in sync: signing out of NGA MIS is noticed again (MIS shows its sign-in form at "/" as well as "/login", and "/" wasn't recognised), so the other apps close by themselves, and the next sign-in signs Task Mentor, Tendo and Tupo in automatically, without opening them.
 - macOS: NGA no longer quits when an app's first page can't load (no internet, server down).
 
