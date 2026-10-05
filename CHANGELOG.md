@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.5.0 — 2026-10-05
+
 - **Tooltips** on every title-bar button and app tab: a modern bubble with what the button does, a hint (unread count, timers running, the page an app is on) and its keyboard shortcut. They appear after a short pause, then instantly while you move along the bar. They float above the apps and never take focus or clicks.
 - **My Day** (new tool): today's lessons, office hours, quizzes, meetings and events from NGA MIS and Task Mentor.
   - **Now** and **Next** cards with live countdowns, and a timeline in Kigali time.
