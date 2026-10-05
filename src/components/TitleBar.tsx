@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowDownCircle, ArrowLeft, ArrowRight, Bell, Ellipsis, Keyboard, Minimize2, Moon, RotateCw, Search, Settings as Gear, Sun, Video, WifiOff } from "lucide-react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { ArrowLeft, ArrowRight, Bell, Ellipsis, Keyboard, LoaderCircle, Minimize2, Moon, RotateCw, Search, Settings as Gear, Sun, Video, WifiOff } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { native, type AppKey, type DesktopApp, type NoticeSummary } from "../lib/native";
 import type { Views } from "../lib/appState";
@@ -128,8 +128,12 @@ export function TitleBar(p: Props) {
             onClick={p.onUpdate}
             disabled={p.updatePct !== null}
             title={`Update to NGA ${p.updateVersion} now (NGA restarts)`}
+            aria-label={p.updatePct === null ? `Update to NGA ${p.updateVersion}` : `Updating, ${p.updatePct}%`}
+            style={p.updatePct === null ? undefined : ({ "--pct": `${p.updatePct}%` } as CSSProperties)}
           >
-            <ArrowDownCircle size={14} /> {p.updatePct === null ? "Update" : `Updating ${p.updatePct}%`}
+            {p.updatePct !== null && <span className="update-progress" />}
+            {p.updatePct === null ? <span className="update-dot" /> : <LoaderCircle size={13} className="spin" />}
+            <span>{p.updatePct === null ? "Update" : `${p.updatePct}%`}</span>
           </button>
         )}
         <button className={`bell${p.panelOpen ? " on" : ""}`} onClick={p.onPanel} title="Notifications">
