@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.4.0 — 2026-10-05
+
 - **NGA Tools open as a floating modal**, centred over the window (🔧, ⌘/Ctrl+⇧T or ⌘K). It has a launcher with search, keyboard navigation (↑↓ Enter Esc) and colour-coded tools. A tool opens in place and keeps its state when you close and reopen it.
 - **Ask AI** (new): an assistant for teachers and staff, built on the AI services NGA MIS already uses. Answers stream in, with Markdown, tables and maths. It suggests prompts, lets you stop or regenerate, shows which service answered and how many messages are left today, and keeps your conversation. Emails and phone numbers are removed before anything is sent. Students get the AI Tutor later (after the staff pilot).
 - **Dark theme**: neutral near-black colours that match NGA MIS and Task Mentor (no more navy cast).
