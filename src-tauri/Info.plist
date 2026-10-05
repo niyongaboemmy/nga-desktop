@@ -5,7 +5,7 @@
   <key>NSCameraUsageDescription</key>
   <string>Task Mentor uses the camera for proctored quizzes, and Tupo uses it for video meetings.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Tupo uses the microphone for meetings and voice messages.</string>
+  <string>Tupo uses the microphone for meetings and voice messages, and the Noise meter tool measures how loud the room is (nothing is recorded).</string>
   <!-- Tupo Meet live captions use WebKit speech recognition. Without this
        description macOS terminates the app the moment captions start. -->
   <key>NSLocalNetworkUsageDescription</key>

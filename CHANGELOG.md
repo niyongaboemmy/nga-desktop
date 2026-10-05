@@ -4,6 +4,15 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **Classroom kit** (for teachers and staff), with your NGA MIS class lists or your own lists:
+  - **Name picker**: everyone gets a turn before anyone is picked twice, absent students are skipped, a short reveal.
+  - **Group maker**: by group size or number of groups, keeps chosen pairs apart, copy as text.
+  - **Noise meter**: how loud the room is, with an optional chime. The microphone level only: nothing is recorded or sent.
+  - **Work-mode signs**: silent work, group work, hands up… and your own.
+  - **Classroom screen**: timer, sign and noise meter together on the projector.
+- **Whiteboard** (everyone): pen, highlighter, shapes, arrows, text, undo/redo, grid or dark background, save as PNG.
+- **Grade calculator** (everyone): weighted averages, your school's grade bands, and what's needed on the rest to reach a target.
+
 ## 0.5.0 — 2026-10-05
 
 - **Tooltips** on every title-bar button and app tab: a modern bubble with what the button does, a hint (unread count, timers running, the page an app is on) and its keyboard shortcut. They appear after a short pause, then instantly while you move along the bar. They float above the apps and never take focus or clicks.

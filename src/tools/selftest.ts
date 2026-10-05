@@ -147,6 +147,10 @@ export async function runShellSelftest() {
     await sleep(300);
     check("tooltip hides", !!tip && !(await tip.isVisible()));
   });
+  await step("microphone (noise meter)", async () => {
+    check("the shell page is a secure context", window.isSecureContext, location.origin);
+    check("getUserMedia is available to the tools", !!navigator.mediaDevices?.getUserMedia);
+  });
   await step("MIS API proxy", async () => {
     let refused = "";
     try {
