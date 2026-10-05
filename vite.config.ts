@@ -12,6 +12,8 @@ export default defineConfig(() => ({
   //
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
+  // mathjs (calculator, converter) is one big lazy chunk, loaded only when a tool opens.
+  build: { chunkSizeWarningLimit: 800 },
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,

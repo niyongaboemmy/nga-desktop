@@ -28,6 +28,7 @@ const GROUPS: Array<{ title: string; items: Array<[string, string]> }> = [
     title: "Window",
     items: [
       [`${mod}${shift}N`, "Notifications"],
+      [`${mod}${shift}T`, "Tools (calculator, timers, notes…)"],
       [`${mod}${shift}F`, "Focus mode"],
       [`${mod}${shift}L`, "Switch light / dark"],
       [`${mod}/`, "This list"],

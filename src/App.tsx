@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
-import { ArrowDownCircle, Bell, Download, X } from "lucide-react";
+import { AlarmClock, ArrowDownCircle, Bell, Download, X } from "lucide-react";
 import { TitleBar, FocusBar, type Page } from "./components/TitleBar";
 import { Splash } from "./components/Splash";
 import { Settings } from "./components/Settings";
@@ -13,6 +13,12 @@ import { readSettings, saveSetting, type RecentPage } from "./lib/settings";
 import type { UpdateState } from "./lib/updater";
 import { applyTheme, resolveTheme, systemPrefersDark, type Theme, type ThemePref } from "./lib/theme";
 import { addRecent } from "./lib/palette";
+import { ToolsPanel } from "./tools/ToolsPanel";
+import { useIdentity } from "./tools/shared/identity";
+import { onTool } from "./tools/shared/native";
+import { chime } from "./tools/shared/sound";
+import { useLang } from "./tools/i18n";
+import { findTool } from "./tools/registry";
 
 /** Below this width the tabs show icons only, so the app keeps its room. */
 export const COMPACT_BELOW = 1100;
@@ -22,13 +28,20 @@ type Toast =
   | { kind: "notice"; notice: Notice }
   | { kind: "info"; text: string }
   | { kind: "update"; version: string }
+  | { kind: "alert"; title: string; body: string }
   | null;
+
+type PanelKind = false | "notices" | "tools";
 
 export default function App() {
   const [info, setInfo] = useState<ShellInfo | null>(null);
   const [active, setActive] = useState<AppKey | null>(null);
   const [page, setPage] = useState<Page>("app");
-  const [panel, setPanel] = useState(false);
+  const [panel, setPanel] = useState<PanelKind>(false);
+  const [toolId, setToolId] = useState<string | null>(null);
+  const [timersRunning, setTimersRunning] = useState(0);
+  const identity = useIdentity();
+  const { lang, t } = useLang();
   const [focus, setFocus] = useState(false);
   const [views, dispatch] = useReducer(reduce, {});
   const [notices, setNotices] = useState<NoticeSummary | null>(null);
@@ -78,6 +91,13 @@ export default function App() {
     if (key !== "mis" && misSignedInRef.current === false) return;
     dispatch({ type: "opened", key, at: Date.now() });
     void native.openApp(key);
+  }, []);
+
+  // Native self-test of the tools, only in builds made with VITE_NGA_SELFTEST=1
+  // (release builds never set it, so Vite removes this code from them).
+  useEffect(() => {
+    if (import.meta.env.VITE_NGA_SELFTEST === "1")
+      void import("./tools/selftest").then((m) => m.runShellSelftest());
   }, []);
 
   // Start-up: registry and preferences, then the preferred app.
@@ -169,6 +189,12 @@ export default function App() {
           setPanel(false);
         }
       }),
+      // A timer rang (tools/timers.rs): chime, and a toast when NGA is in front.
+      onTool("nga://tool-alert", ({ title, body }) => {
+        chime();
+        setToast({ kind: "alert", title, body });
+      }),
+      onTool("nga://timers", (list) => setTimersRunning(list.filter((x) => x.runningSince !== null).length)),
       // Switched inside an app: everything follows the account's theme.
       on("nga://app-theme", (t) => {
         setMisTheme(t);
@@ -209,7 +235,14 @@ export default function App() {
         else if (id === "reload") void native.reload();
         else if (id === "print") void native.print();
         else if (id === "signout") { setFocus(false); setPage("settings"); }
-        else if (id === "notices") { setFocus(false); setPanel((p) => !p); }
+        else if (id === "notices") { setFocus(false); setPanel((p) => (p === "notices" ? false : "notices")); }
+        else if (id === "tools") { setFocus(false); setPage("app"); setPanel((p) => (p === "tools" ? false : "tools")); }
+        else if (id.startsWith("tool:") && findTool(id.slice(5))) {
+          setFocus(false);
+          setPage("app");
+          setToolId(id.slice(5));
+          setPanel("tools");
+        }
         else if (id === "settings") { setFocus(false); setPage("settings"); }
         else if (id === "theme") {
           userPicked.current = true;
@@ -279,8 +312,11 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), toast.kind === "notice" ? 6000 : toast.kind === "update" ? 15000 : 7000);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(
+      () => setToast(null),
+      toast.kind === "notice" ? 6000 : toast.kind === "update" || toast.kind === "alert" ? 15000 : 7000,
+    );
+    return () => window.clearTimeout(timer);
   }, [toast]);
 
 
@@ -344,11 +380,15 @@ export default function App() {
             });
           }}
           online={online}
-          panelOpen={panel}
+          panelOpen={panel === "notices"}
+          toolsOpen={panel === "tools"}
+          toolsLabel={t("panel.title")}
+          timersRunning={timersRunning}
+          onTools={() => setPanel((p) => (p === "tools" ? false : "tools"))}
           onOpen={open}
           onPalette={() => void native.overlayShow("palette")}
           onShortcuts={() => void native.overlayShow("shortcuts")}
-          onPanel={() => setPanel((p) => !p)}
+          onPanel={() => setPanel((p) => (p === "notices" ? false : "notices"))}
           onSettings={() => setPage(page === "settings" ? "app" : "settings")}
         />
       )}
@@ -369,12 +409,20 @@ export default function App() {
             {content}
           </div>
         </div>
-        {panel && !focus && <NoticePanel apps={info.apps} onClose={() => setPanel(false)} />}
+        {panel === "notices" && !focus && <NoticePanel apps={info.apps} onClose={() => setPanel(false)} />}
+        {panel === "tools" && !focus && (
+          <ToolsPanel identity={identity} lang={lang} t={t} toolId={toolId} onTool={setToolId} onClose={() => setPanel(false)} />
+        )}
       </div>
-      {toast && !focus && (toast.kind === "download" || !panel) && (
+      {toast && (toast.kind === "alert" || (!focus && (toast.kind === "download" || panel !== "notices"))) && (
         <div className="toast" role="status">
           {toast.kind === "info" ? (
             <span>{toast.text}</span>
+          ) : toast.kind === "alert" ? (
+            <button className="toast-notice" onClick={() => { setToolId("timer"); setPanel("tools"); setPage("app"); setToast(null); }}>
+              <AlarmClock size={15} />
+              <span><strong>{toast.title}</strong>{toast.body ? ` · ${toast.body}` : ""}</span>
+            </button>
           ) : toast.kind === "update" ? (
             <>
               <ArrowDownCircle size={15} />

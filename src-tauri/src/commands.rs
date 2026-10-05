@@ -158,6 +158,8 @@ pub async fn reset_profile<R: Runtime>(app: AppHandle<R>) -> CmdResult {
     }
     webviews::close_all_apps(&app);
     webviews::forget_sso(&app);
+    crate::tools::identity::clear(&app);
+    crate::tools::windows::close_all(&app);
     app.state::<crate::notifications::Notifier>().clear();
     crate::notifications::publish(&app);
     let _ = app.emit_to(SHELL, "nga://signed-out", ());

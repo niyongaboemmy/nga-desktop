@@ -9,6 +9,7 @@ mod os_notify;
 mod overlay;
 mod registry;
 mod theme;
+mod tools;
 mod updates;
 mod webviews;
 
@@ -43,6 +44,8 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_denylist(&[overlay::OVERLAY])
+                // A Present window must never reopen full screen by surprise.
+                .with_filter(|label| !label.starts_with(tools::windows::PRESENT_PREFIX))
                 .build(),
         )
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -50,6 +53,11 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init());
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tools::shortcut::plugin());
+    }
 
     #[cfg(desktop)]
     if let Some(key) = updater_pubkey() {
@@ -61,6 +69,8 @@ pub fn run() {
         .manage(notifications::Notifier::default())
         .manage(theme::SharedTheme::default())
         .manage(updates::Pending::default())
+        .manage(tools::identity::Current::default())
+        .manage(tools::timers::Timers::default())
         .invoke_handler(tauri::generate_handler![
             commands::shell_info,
             updates::update_check,
@@ -101,6 +111,15 @@ pub fn run() {
             browser_signin::signin_cancel,
             webviews::web_fullscreen,
             browser_signin::signin_reopen,
+            tools::identity::web_identity,
+            tools::identity::tools_identity,
+            tools::timers::timers_list,
+            tools::timers::timer_create,
+            tools::timers::timer_action,
+            tools::windows::tools_window_open,
+            tools::windows::tools_displays,
+            tools::files::tools_save_file,
+            tools::shortcut::tools_shortcut_set,
         ])
         .setup(|app| {
             grant_bridge(app)?;
@@ -118,6 +137,8 @@ pub fn run() {
             });
             auth::spawn(app.handle().clone());
             updates::spawn(app.handle().clone());
+            tools::timers::spawn(app.handle().clone());
+            tools::shortcut::init(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -182,6 +203,8 @@ fn grant_bridge<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         .permission("allow-web-print")
         .permission("allow-web-theme")
         .permission("allow-web-fullscreen")
+        // Who is signed in, for the tools (tools/identity.rs refuses every page but MIS's).
+        .permission("allow-web-identity")
         // The /apps page's "Update now" (the commands refuse every page but MIS's).
         .permission("allow-web-update-check")
         .permission("allow-web-update-install");

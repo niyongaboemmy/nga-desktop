@@ -50,6 +50,14 @@
     "allow-signin-cancel",
     "allow-signin-reopen",
     "allow-update-check",
-    "allow-update-install"
+    "allow-update-install",
+    "allow-tools-identity",
+    "allow-timers-list",
+    "allow-timer-create",
+    "allow-timer-action",
+    "allow-tools-window-open",
+    "allow-tools-displays",
+    "allow-tools-save-file",
+    "allow-tools-shortcut-set"
   ]
 }

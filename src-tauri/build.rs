@@ -35,6 +35,14 @@ fn main() {
             "signin_reopen",
             "update_check",
             "update_install",
+            "tools_identity",
+            "timers_list",
+            "timer_create",
+            "timer_action",
+            "tools_window_open",
+            "tools_displays",
+            "tools_save_file",
+            "tools_shortcut_set",
             // Granted to the NGA web pages at runtime (lib.rs grant_bridge), not to the shell.
             "web_notify",
             "web_badge",
@@ -43,6 +51,7 @@ fn main() {
             "web_fullscreen",
             "web_update_check",
             "web_update_install",
+            "web_identity",
         ]),
     ))
     .expect("failed to run tauri-build");

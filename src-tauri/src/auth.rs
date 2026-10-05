@@ -84,6 +84,8 @@ pub async fn sign_out_everywhere<R: Runtime>(app: AppHandle<R>, wipe: bool) {
     SIGNED_IN_APPS.lock().unwrap().clear();
     set_mis_state(Some(false));
     let _ = app.emit_to(webviews::SHELL, "nga://auth", false);
+    crate::tools::identity::clear(&app);
+    crate::tools::windows::close_all(&app);
     if wipe {
         if let Some(shell) = app.get_webview(webviews::SHELL) {
             let _ = shell.clear_all_browsing_data();
@@ -352,6 +354,8 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
                 SIGNED_IN_APPS.lock().unwrap().clear();
                 watch.seen.retain(|k, _| *k == mis_key);
                 let _ = app.emit_to(webviews::SHELL, "nga://auth", false);
+                crate::tools::identity::clear(app);
+                crate::tools::windows::close_all(app);
                 return;
             }
             None => {}
