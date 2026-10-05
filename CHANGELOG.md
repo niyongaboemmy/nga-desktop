@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.3.0 — 2026-10-05
+
 - **NGA Tools** (title bar 🔧, ⌘/Ctrl+⇧T, or ⌘K): a side panel of everyday tools that works offline, in English, French and Kinyarwanda:
   - **Calculator**: scientific, DEG/RAD, fractions, units ("5 km to m"), memory, history.
   - **Timers**: countdowns and stopwatches with laps. They ring on time even with the panel closed or NGA minimised, and survive a restart.
