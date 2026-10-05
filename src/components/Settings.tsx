@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { BellOff, BellRing, Download, ExternalLink, LogOut, Monitor, Moon, RefreshCw, Sun, Trash2 } from "lucide-react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { BellOff, BellRing, Download, ExternalLink, LoaderCircle, LogOut, Monitor, Moon, RefreshCw, Sun, Trash2 } from "lucide-react";
 import { native, on, type AppKey, type OsPermission, type ShellInfo } from "../lib/native";
 import { readSettings, saveSetting, type Settings as Prefs } from "../lib/settings";
 import { checkNow, installNow, type UpdateState } from "../lib/updater";
@@ -204,14 +204,17 @@ export function Settings({
                 <strong>NGA {update.info.version}</strong> is ready <span className="muted">(you have {update.info.current})</span>
               </span>
               <button
-                className="btn primary"
+                className={`btn primary update-btn${updatePct !== null ? " updating" : ""}`}
                 disabled={updatePct !== null || !!busyIn}
+                style={updatePct === null ? undefined : ({ "--pct": `${updatePct}%` } as CSSProperties)}
                 onClick={() => {
                   setInstallError(null);
                   installNow().catch((e) => setInstallError(String(e)));
                 }}
               >
-                <Download size={16} /> {updatePct === null ? "Restart & update" : `Downloading ${updatePct}%`}
+                {updatePct !== null && <span className="update-progress" />}
+                {updatePct === null ? <Download size={16} /> : <LoaderCircle size={16} className="spin" />}
+                <span>{updatePct === null ? "Restart & update" : `Downloading ${updatePct}%`}</span>
               </button>
             </div>
             {busyIn && <p className="muted">Finish the {busyIn} first: updating restarts NGA.</p>}

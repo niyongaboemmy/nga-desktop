@@ -7,6 +7,7 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 ## 0.2.5 — 2026-10-05
 
 - A redesigned Update button in the title bar: a modern pill with a pulsing "new" dot; while updating it fills up with the progress.
+- Settings → Updates: the "Restart & update" button stays readable while downloading (it was dimmed to near-invisible on the dark theme) and fills with the progress.
 
 ## 0.2.4 — 2026-10-05
 
