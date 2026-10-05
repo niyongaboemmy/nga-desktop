@@ -47,6 +47,8 @@ interface Call {
   method: "GET" | "POST";
   path: string;
   body?: unknown;
+  /** Query parameters (letters, digits, - and _ only). */
+  query?: Record<string, string | number>;
   /** NDJSON lines as they arrive (streaming endpoints). */
   onLine?: (line: unknown) => void;
   signal?: AbortSignal;
@@ -54,7 +56,10 @@ interface Call {
 }
 
 /** One MIS request. Resolves with the JSON body (non-streaming) or null (stream finished). */
-export function misCall<T = unknown>({ method, path, body, onLine, signal, timeoutMs = 120_000 }: Call): Promise<T | null> {
+export const toQuery = (q?: Record<string, string | number>) =>
+  q ? Object.entries(q).map(([k, v]) => `${k}=${String(v)}`).join("&") : null;
+
+export function misCall<T = unknown>({ method, path, body, query, onLine, signal, timeoutMs = 120_000 }: Call): Promise<T | null> {
   const id = newId();
   return new Promise<T | null>((resolve, reject) => {
     let off: UnlistenFn | null = null;
@@ -103,7 +108,7 @@ export function misCall<T = unknown>({ method, path, body, onLine, signal, timeo
     }).then((unlisten) => {
       off = unlisten;
       if (done) unlisten();
-      return invoke("tools_api", { id, method, path, body: body === undefined ? null : JSON.stringify(body) });
+      return invoke("tools_api", { id, method, path, body: body === undefined ? null : JSON.stringify(body), query: toQuery(query) });
     }).catch((err) => finish(() => reject(new MisApiError(String(err)))));
   });
 }

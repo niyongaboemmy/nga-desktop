@@ -5,6 +5,7 @@ import { native, type AppKey, type DesktopApp, type NoticeSummary } from "../lib
 import type { Views } from "../lib/appState";
 import type { Theme, ThemePref } from "../lib/theme";
 import { isMac, mod } from "../lib/platform";
+import { Tip } from "./Tip";
 
 export type Page = "app" | "settings";
 
@@ -32,6 +33,7 @@ interface Props {
   /** The Tools panel is open. */
   toolsOpen: boolean;
   toolsLabel: string;
+  toolsHint: string;
   /** Timers running (a small dot on the Tools button). */
   timersRunning: number;
   onTools: () => void;
@@ -75,9 +77,10 @@ export function TitleBar(p: Props) {
           const current = p.page === "app" && a.key === p.active;
           const badge = badgeFor(a.key, p.notices);
           const ready = p.views[a.key]?.status === "ready";
+          const page = p.views[a.key]?.title;
           return (
+            <Tip key={a.key} label={a.name} hint={page && page !== a.name ? page : a.description} keys={`${mod}${i + 1}`}>
             <button
-              key={a.key}
               data-key={a.key}
               className={`tab${current ? " current" : ""}${ready ? " ready" : ""}`}
               style={{ ["--app" as string]: a.color }}
@@ -86,7 +89,6 @@ export function TitleBar(p: Props) {
                 e.preventDefault();
                 void native.popupMenu("tab", e.clientX, e.clientY, a.key);
               }}
-              title={`${a.name}${p.views[a.key]?.title && p.views[a.key]?.title !== a.name ? ` — ${p.views[a.key]?.title}` : `: ${a.description}`}  (${mod}${i + 1})`}
               aria-current={current ? "page" : undefined}
             >
               <span className="tab-icon">
@@ -95,17 +97,20 @@ export function TitleBar(p: Props) {
               </span>
               {!p.compact && <span className="tab-name">{a.name}</span>}
             </button>
+            </Tip>
           );
         })}
       </nav>
 
       <div className="drag" data-tauri-drag-region />
 
-      <button className="search-pill" onClick={p.onPalette} title={`Search NGA (${mod}K)`}>
-        <Search size={14} />
-        {!p.compact && <span>Search or jump to…</span>}
-        <kbd>{mod}K</kbd>
-      </button>
+      <Tip label="Search NGA" hint="Apps, pages, tools and actions" keys={`${mod}K`}>
+        <button className="search-pill" onClick={p.onPalette}>
+          <Search size={14} />
+          {!p.compact && <span>Search or jump to…</span>}
+          <kbd>{mod}K</kbd>
+        </button>
+      </Tip>
 
       <div className="drag small" data-tauri-drag-region />
 
@@ -122,18 +127,20 @@ export function TitleBar(p: Props) {
       )}
 
       <div className="tools">
-        <button disabled={!onApp} onClick={() => native.back()} title={`Back (${mod}[)`}><ArrowLeft size={16} /></button>
-        <button disabled={!onApp} onClick={() => native.forward()} title={`Forward (${mod}])`}><ArrowRight size={16} /></button>
-        <button disabled={!onApp} onClick={() => native.reload()} title={`Reload (${mod}R)`} className={view?.busy ? "spin" : ""}>
-          <RotateCw size={15} />
-        </button>
+        <Tip label="Back" keys={`${mod}[`}><button disabled={!onApp} onClick={() => native.back()}><ArrowLeft size={16} /></button></Tip>
+        <Tip label="Forward" keys={`${mod}]`}><button disabled={!onApp} onClick={() => native.forward()}><ArrowRight size={16} /></button></Tip>
+        <Tip label="Reload" hint="Reload this app's page" keys={`${mod}R`}>
+          <button disabled={!onApp} onClick={() => native.reload()} className={view?.busy ? "spin" : ""}>
+            <RotateCw size={15} />
+          </button>
+        </Tip>
         <span className="sep" />
         {p.updateVersion && (
+          <Tip label={`Update to NGA ${p.updateVersion}`} hint="Downloads, installs and restarts NGA">
           <button
             className="update-pill"
             onClick={p.onUpdate}
             disabled={p.updatePct !== null}
-            title={`Update to NGA ${p.updateVersion} now (NGA restarts)`}
             aria-label={p.updatePct === null ? `Update to NGA ${p.updateVersion}` : `Updating, ${p.updatePct}%`}
             style={p.updatePct === null ? undefined : ({ "--pct": `${p.updatePct}%` } as CSSProperties)}
           >
@@ -141,30 +148,40 @@ export function TitleBar(p: Props) {
             {p.updatePct === null ? <span className="update-dot" /> : <LoaderCircle size={13} className="spin" />}
             <span>{p.updatePct === null ? "Update" : `${p.updatePct}%`}</span>
           </button>
+          </Tip>
         )}
-        <button className={`tools-btn${p.toolsOpen ? " on" : ""}`} onClick={p.onTools} title={`${p.toolsLabel} (${mod}⇧T)`} aria-pressed={p.toolsOpen}>
-          <Wrench size={15} />
-          {p.timersRunning > 0 && <span className="badge timer-dot" aria-label={`${p.timersRunning}`} />}
-        </button>
-        <button className={`bell${p.panelOpen ? " on" : ""}`} onClick={p.onPanel} title="Notifications">
-          <Bell size={16} />
-          {(p.notices?.total ?? 0) > 0 && <span key={p.notices?.total} className="badge pop">{p.notices!.total > 99 ? "99+" : p.notices!.total}</span>}
-        </button>
-        <button
-          onClick={(e) => { const { x, y } = at(e); void native.popupMenu("theme", x, y, p.themePref); }}
-          title="Appearance"
-        >
-          {p.theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
-        </button>
-        <button onClick={p.onShortcuts} title={`Keyboard shortcuts (${mod}/)`}>
-          <Keyboard size={16} />
-        </button>
-        <button onClick={(e) => { const { x, y } = at(e); void native.popupMenu("more", x, y); }} title="More">
-          <Ellipsis size={16} />
-        </button>
-        <button className={p.page === "settings" ? "on" : ""} onClick={p.onSettings} title={`Settings (${mod},)`}>
-          <Gear size={16} />
-        </button>
+        <Tip label={p.toolsLabel} hint={p.timersRunning > 0 ? `${p.timersRunning} timer${p.timersRunning > 1 ? "s" : ""} running` : p.toolsHint} keys={`${mod}⇧T`}>
+          <button className={`tools-btn${p.toolsOpen ? " on" : ""}`} onClick={p.onTools} aria-pressed={p.toolsOpen}>
+            <Wrench size={15} />
+            {p.timersRunning > 0 && <span className="badge timer-dot" />}
+          </button>
+        </Tip>
+        <Tip label="Notifications" hint={(p.notices?.total ?? 0) > 0 ? `${p.notices!.total} unread` : "From every NGA app"} keys={`${mod}⇧N`}>
+          <button className={`bell${p.panelOpen ? " on" : ""}`} onClick={p.onPanel}>
+            <Bell size={16} />
+            {(p.notices?.total ?? 0) > 0 && <span key={p.notices?.total} className="badge pop">{p.notices!.total > 99 ? "99+" : p.notices!.total}</span>}
+          </button>
+        </Tip>
+        <Tip label="Appearance" hint="Light, dark, or like your NGA account" keys={`${mod}⇧L`}>
+          <button onClick={(e) => { const { x, y } = at(e); void native.popupMenu("theme", x, y, p.themePref); }}>
+            {p.theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
+        </Tip>
+        <Tip label="Keyboard shortcuts" keys={`${mod}/`}>
+          <button onClick={p.onShortcuts}>
+            <Keyboard size={16} />
+          </button>
+        </Tip>
+        <Tip label="More" hint="Print, open in browser, downloads, focus mode">
+          <button onClick={(e) => { const { x, y } = at(e); void native.popupMenu("more", x, y); }}>
+            <Ellipsis size={16} />
+          </button>
+        </Tip>
+        <Tip label="Settings" keys={`${mod},`}>
+          <button className={p.page === "settings" ? "on" : ""} onClick={p.onSettings}>
+            <Gear size={16} />
+          </button>
+        </Tip>
       </div>
 
       {!isMac && <WindowControls />}

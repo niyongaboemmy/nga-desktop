@@ -61,6 +61,8 @@
     "allow-tools-shortcut-set",
     "allow-tools-api",
     "allow-tools-api-cancel",
-    "core:window:allow-set-focus"
+    "core:window:allow-set-focus",
+    "allow-tooltip-show",
+    "allow-tooltip-hide"
   ]
 }

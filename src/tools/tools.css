@@ -325,3 +325,42 @@ input.bad { border-color: var(--danger) !important; }
 .link-btn { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 12px; font-weight: 550; }
 .link-btn:hover { text-decoration: underline; }
 .ai-empty .ai-orb { margin-bottom: 6px; }
+
+/* ── My Day ────────────────────────────────────────────────────────────── */
+.myday { display: flex; flex-direction: column; gap: 10px; }
+.nownext { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.nn-card { --c: var(--accent); position: relative; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--c) 9%, var(--surface-2)); border: 1px solid color-mix(in srgb, var(--c) 25%, var(--line)); overflow: hidden; }
+.nn-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c); }
+.nn-card strong { font-size: 15px; }
+.nn-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c); }
+.nn-card.now .nn-label::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--c); animation: ping-dot 1.6s infinite; vertical-align: 1px; }
+@keyframes ping-dot { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 60%, transparent); } 100% { box-shadow: 0 0 0 7px transparent; } }
+.nn-bar { height: 4px; margin-top: 6px; border-radius: 2px; background: var(--hover); overflow: hidden; }
+.nn-bar span { display: block; height: 100%; background: var(--c); transition: width 0.4s var(--ease); }
+.myday-bar { display: flex; align-items: center; gap: 6px; }
+.myday-bar .chips { flex: 1; margin: 0; }
+.chip-count { margin-left: 5px; padding: 0 5px; border-radius: 8px; background: var(--hover); font-size: 10.5px; font-weight: 700; }
+.chip.on .chip-count { background: rgb(255 255 255 / 0.25); }
+.myday-stale, .myday-notice { margin: 0; display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 9px; font-size: 12px; background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--text); }
+.myday-notice { background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tl-item { --c: var(--accent); display: grid; grid-template-columns: 52px 4px 1fr; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); animation: drop 0.25s var(--ease) both; }
+.tl-item:last-child { border-bottom: 0; }
+.tl-item.past { opacity: 0.5; }
+.tl-item.live { background: color-mix(in srgb, var(--c) 7%, transparent); border-radius: 12px; border-bottom-color: transparent; }
+.tl-time { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; font-size: 13px; line-height: 1.3; }
+.tl-time span { color: var(--muted); font-size: 11.5px; }
+.tl-bar { border-radius: 2px; background: var(--c); }
+.tl-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.tl-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tl-title strong { font-weight: 600; }
+.tl-kind { font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); }
+.tl-flag { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: var(--danger); color: #fff; font-size: 11px; font-weight: 800; }
+.tl-meta { display: flex; flex-wrap: wrap; gap: 10px; }
+.tl-meta span { display: inline-flex; align-items: center; gap: 3px; }
+.tl-actions { display: flex; gap: 6px; margin-top: 2px; }
+.tl-actions button { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 7px; font-size: 11.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); opacity: 0; transition: opacity 0.15s; }
+.tl-item:hover .tl-actions button, .tl-actions button:focus-visible { opacity: 1; }
+.myday-empty { padding: 36px 0; }
+.myday.big .nn-card strong { font-size: 28px; }
+.myday.big .tl-item { font-size: 18px; }

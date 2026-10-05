@@ -5,6 +5,7 @@ import { OverlayApp } from "./OverlayApp";
 import "./styles.css";
 import { restoreTheme } from "./lib/theme";
 import { ToolWindowApp } from "./tools/ToolWindowApp";
+import { TooltipApp } from "./components/Tip";
 import "./tools/tools.css";
 
 restoreTheme();
@@ -15,11 +16,13 @@ restoreTheme();
 const params = new URLSearchParams(window.location.search);
 const overlay = params.has("overlay");
 const tool = params.get("tool");
+const tooltip = params.has("tooltip");
 if (overlay) document.documentElement.classList.add("overlay-window");
 if (tool) document.documentElement.classList.add("tool-window-root");
+if (tooltip) document.documentElement.classList.add("tooltip-window");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {overlay ? <OverlayApp /> : tool ? <ToolWindowApp toolId={tool} present={params.has("present")} /> : <App />}
+    {tooltip ? <TooltipApp /> : overlay ? <OverlayApp /> : tool ? <ToolWindowApp toolId={tool} present={params.has("present")} /> : <App />}
   </React.StrictMode>,
 );

@@ -4,7 +4,8 @@
   "description": "Tool windows (pop-out and present). They load the shell's own page (index.html?tool=<id>) and get only what the tools need: their data, timers, saving to Downloads and their own window controls. Never the NGA app pages.",
   "windows": [
     "tool-*",
-    "present-*"
+    "present-*",
+    "tooltip"
   ],
   "permissions": [
     "core:default",
