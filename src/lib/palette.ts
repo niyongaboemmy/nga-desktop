@@ -8,7 +8,16 @@ export type PaletteItem =
   | { kind: "app"; id: string; label: string; hint: string; key: AppKey }
   | { kind: "go"; id: string; label: string; hint: string; key: AppKey; path: string; words: string }
   | { kind: "recent"; id: string; label: string; hint: string; key: AppKey; path: string }
-  | { kind: "action"; id: string; label: string; hint: string; action: PaletteAction; words: string };
+  | { kind: "action"; id: string; label: string; hint: string; action: PaletteAction; words: string }
+  | { kind: "tool"; id: string; label: string; hint: string; tool: string; words: string };
+
+/** A tool as the palette lists it (labels already translated). */
+export interface PaletteTool {
+  id: string;
+  label: string;
+  hint: string;
+  words: string;
+}
 
 const ACTIONS: Array<{ action: PaletteAction; label: string; words: string }> = [
   { action: "theme", label: "Switch light / dark", words: "theme dark light mode appearance" },
@@ -20,7 +29,7 @@ const ACTIONS: Array<{ action: PaletteAction; label: string; words: string }> = 
   { action: "signout", label: "Sign out of this computer", words: "logout log out switch account" },
 ];
 
-export function buildItems(apps: DesktopApp[], recent: RecentPage[]): PaletteItem[] {
+export function buildItems(apps: DesktopApp[], recent: RecentPage[], tools: PaletteTool[] = []): PaletteItem[] {
   const name = (k: AppKey) => apps.find((a) => a.key === k)?.name ?? k;
   return [
     ...apps.map((a, i) => ({ kind: "app" as const, id: `app:${a.key}`, label: a.name, hint: `${a.description} · ⌘${i + 1}`, key: a.key })),
@@ -43,6 +52,7 @@ export function buildItems(apps: DesktopApp[], recent: RecentPage[]): PaletteIte
         words: `${d.keywords} ${a.name}`,
       })),
     ),
+    ...tools.map((t) => ({ kind: "tool" as const, id: `tool:${t.id}`, label: t.label, hint: t.hint, tool: t.id, words: t.words })),
     ...ACTIONS.map((a) => ({ kind: "action" as const, id: `action:${a.action}`, label: a.label, hint: "Action", action: a.action, words: a.words })),
   ];
 }

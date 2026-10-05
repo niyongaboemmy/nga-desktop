@@ -4,7 +4,9 @@ import { Shortcuts } from "./components/Shortcuts";
 import { native, on, type ShellInfo } from "./lib/native";
 import { readSettings, type RecentPage } from "./lib/settings";
 import { restoreTheme } from "./lib/theme";
-import type { PaletteItem } from "./lib/palette";
+import type { PaletteItem, PaletteTool } from "./lib/palette";
+import { TOOLS } from "./tools/registry";
+import { readLangPref, resolveLang, translator } from "./tools/i18n";
 
 /**
  * The floating overlay window (overlay.rs): a dimmed layer over the whole NGA
@@ -37,16 +39,24 @@ export function OverlayApp() {
   }, []);
 
   const close = () => void native.overlayHide();
+  const t = translator(resolveLang(readLangPref()));
+  const tools: PaletteTool[] = TOOLS.map((tm) => ({
+    id: tm.id,
+    label: t(tm.title),
+    hint: `${t("palette.tool")} · ${t(tm.description)}`,
+    words: tm.keywords.join(" "),
+  }));
   const pick = (it: PaletteItem) => {
     if (it.kind === "app") void native.openApp(it.key).then(close);
     else if (it.kind === "go" || it.kind === "recent") void native.navigate(it.key, it.path).then(close);
+    else if (it.kind === "tool") void native.overlayAction(`tool:${it.tool}`);
     else void native.overlayAction(it.action);
   };
 
   if (!info || view === "closed") return <div className="overlay-root" />;
   return (
     <div className="overlay-root open" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      {view === "palette" && <Palette key={session} apps={info.apps} recent={recent} onPick={pick} onClose={close} />}
+      {view === "palette" && <Palette key={session} apps={info.apps} recent={recent} tools={tools} onPick={pick} onClose={close} />}
       {view === "shortcuts" && <Shortcuts key={session} onClose={close} />}
     </div>
   );

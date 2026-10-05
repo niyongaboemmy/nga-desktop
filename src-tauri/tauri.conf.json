@@ -22,7 +22,8 @@
         "connect-src": "'self' ipc: http://ipc.localhost https://mis.amashuri.com https://taskmentor.amashuri.com https://tendo.amashuri.com https://tupo.amashuri.com"
       },
       "capabilities": [
-        "shell"
+        "shell",
+        "tools"
       ]
     },
     "macOSPrivateApi": true

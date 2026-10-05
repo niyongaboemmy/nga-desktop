@@ -385,5 +385,33 @@
         configurable: false,
       });
     } catch (e) { /* already defined */ }
+
+    // ── Who is signed in, for NGA Tools (tools/identity.rs) ──────────────
+    // From MIS's own cached profile (UserContext "nga.user.offlineCache"):
+    // id, user type, first name, date of birth. Never the token. Rust turns
+    // the date into an age band and refuses this call from any other page.
+    var lastIdentity = "";
+    var reportIdentity = function () {
+      try {
+        var raw = localStorage.getItem("nga.user.offlineCache");
+        if (!raw) return;
+        var c = JSON.parse(raw) || {};
+        var u = c.user || {};
+        var p = c.profile || {};
+        if (!u.user_id) return;
+        var args = {
+          userId: Number(u.user_id),
+          userType: str(p.user_type),
+          firstName: str(p.first_name),
+          dateOfBirth: p.date_of_birth ? str(p.date_of_birth) : null,
+        };
+        var key = JSON.stringify(args);
+        if (key === lastIdentity) return;
+        lastIdentity = key;
+        invoke("web_identity", args).catch(function () { lastIdentity = ""; });
+      } catch (e) { /* no profile yet */ }
+    };
+    reportIdentity();
+    setInterval(reportIdentity, 5000);
   }
 })();

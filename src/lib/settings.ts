@@ -20,6 +20,10 @@ export interface Settings {
   /** The welcome / turn-on-notifications strip was answered. */
   onboarded: boolean;
   recent: RecentPage[];
+  /** NGA Tools: favourite tool ids, the panel's width, the system-wide shortcut (tools/shortcut.rs reads it). */
+  toolsFavourites: string[];
+  toolsPanelWidth: number;
+  toolsShortcut: boolean;
 }
 
 export interface RecentPage {
@@ -39,6 +43,9 @@ const defaults: Settings = {
   theme: "mis",
   onboarded: false,
   recent: [],
+  toolsFavourites: [],
+  toolsPanelWidth: 380,
+  toolsShortcut: false,
 };
 let store: Promise<Store> | null = null;
 const get = () => (store ??= load("settings.json", { defaults: {}, autoSave: 300 }));

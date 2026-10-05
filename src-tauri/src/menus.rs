@@ -105,6 +105,7 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 true,
                 Some("CmdOrCtrl+Shift+N"),
             )?,
+            &MenuItem::with_id(app, "tools", "Tools", true, Some("CmdOrCtrl+Shift+T"))?,
             &MenuItem::with_id(
                 app,
                 "theme",
@@ -371,7 +372,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
                 }
             }
         }
-        "focus" | "notices" | "theme" | "settings" => {
+        "focus" | "notices" | "theme" | "settings" | "tools" => {
             focus_main(app);
             let _ = app.emit_to(SHELL, "nga://menu", id.to_string());
         }

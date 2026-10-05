@@ -4,6 +4,16 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **NGA Tools** (title bar 🔧, ⌘/Ctrl+⇧T, or ⌘K): a side panel of everyday tools that works offline, in English, French and Kinyarwanda:
+  - **Calculator**: scientific, DEG/RAD, fractions, units ("5 km to m"), memory, history.
+  - **Timers**: countdowns and stopwatches with laps. They ring on time even with the panel closed or NGA minimised, and survive a restart.
+  - **Focus timer**: work/break rounds. NGA's notifications wait during work phases; minutes focused today are recorded.
+  - **Notes**: Markdown with #tags and $maths$; export to .md.
+  - **Unit converter**, **Date calculator** (working days, Rwanda public holidays) and **QR codes** (link, text, Wi-Fi, contact; save PNG/SVG).
+  - Any tool can **pop out** into a small window that stays on top, or **present** full screen on a projector.
+  - Each person's notes and history are kept in their own space on the computer (shared lab PCs stay private); personal tools need NGA MIS sign-in.
+  - Settings → Tools: language, and an optional system-wide shortcut (⌘/Ctrl+⇧Space).
+
 ## 0.2.5 — 2026-10-05
 
 - A redesigned Update button in the title bar: a modern pill with a pulsing "new" dot; while updating it fills up with the progress.

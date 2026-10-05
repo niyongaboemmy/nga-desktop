@@ -1,21 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Clock, CornerDownLeft, LayoutGrid, Search, Zap } from "lucide-react";
+import { ArrowRight, Clock, CornerDownLeft, LayoutGrid, Search, Wrench, Zap } from "lucide-react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { DesktopApp } from "../lib/native";
 import type { RecentPage } from "../lib/settings";
-import { buildItems, search, type PaletteItem } from "../lib/palette";
+import { buildItems, search, type PaletteItem, type PaletteTool } from "../lib/palette";
 
 /**
  * ⌘K: jump to any app, page or action. Rendered in the floating overlay window
  * (OverlayApp), so it sits over the app like Spotlight.
  */
 export function Palette({
-  apps, recent, onPick, onClose,
-}: { apps: DesktopApp[]; recent: RecentPage[]; onPick: (item: PaletteItem) => void; onClose: () => void }) {
+  apps, recent, tools, onPick, onClose,
+}: { apps: DesktopApp[]; recent: RecentPage[]; tools: PaletteTool[]; onPick: (item: PaletteItem) => void; onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  const items = useMemo(() => buildItems(apps, recent), [apps, recent]);
+  const items = useMemo(() => buildItems(apps, recent, tools), [apps, recent, tools]);
   const results = useMemo(() => search(items, query), [items, query]);
 
   useEffect(() => {
@@ -35,6 +35,7 @@ export function Palette({
     it.kind === "app" ? <img src={`/apps/${it.key}.png`} alt="" />
     : it.kind === "recent" ? <Clock size={16} />
     : it.kind === "go" ? <ArrowRight size={16} />
+    : it.kind === "tool" ? <Wrench size={16} />
     : <Zap size={16} />;
 
   return (
@@ -46,7 +47,7 @@ export function Palette({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKey}
-          placeholder="Search apps, pages and actions…"
+          placeholder="Search apps, pages, tools and actions…"
           spellCheck={false}
         />
         <kbd>Esc</kbd>

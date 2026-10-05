@@ -4,7 +4,9 @@ import { native, on, type AppKey, type OsPermission, type ShellInfo } from "../l
 import { readSettings, saveSetting, type Settings as Prefs } from "../lib/settings";
 import { checkNow, installNow, type UpdateState } from "../lib/updater";
 import type { ThemePref } from "../lib/theme";
-import { isMac } from "../lib/platform";
+import { isMac, mod } from "../lib/platform";
+import { LANGS, useLang, type LangPref } from "../tools/i18n";
+import { toolsNative } from "../tools/shared/native";
 
 const THEMES: Array<{ id: ThemePref; label: string; icon: React.ReactNode }> = [
   { id: "mis", label: "My NGA account", icon: <img src="/apps/mis.png" alt="" /> },
@@ -46,6 +48,16 @@ export function Settings({
   const [confirm, setConfirm] = useState<"signout" | "reset" | null>(null);
   const [working, setWorking] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
+  const [shortcutError, setShortcutError] = useState<string | null>(null);
+  const tools = useLang();
+  const setShortcut = (on: boolean) => {
+    setShortcutError(null);
+    setPrefs((p) => (p ? { ...p, toolsShortcut: on } : p));
+    toolsNative.setShortcut(on).catch((e) => {
+      setPrefs((p) => (p ? { ...p, toolsShortcut: false } : p));
+      setShortcutError(String(e));
+    });
+  };
 
   useEffect(() => {
     const load = () => void readSettings().then(setPrefs);
@@ -173,6 +185,28 @@ export function Settings({
             ))}
           </select>
         </label>
+      </section>
+
+      <section>
+        <h3>{tools.t("settings.tools")}</h3>
+        <label className="switch-row wide">
+          <span>
+            <strong>{tools.t("settings.language")}</strong>
+          </span>
+          <select value={tools.pref} onChange={(e) => tools.setPref(e.target.value as LangPref)}>
+            <option value="auto">{tools.t("settings.languageAuto")}</option>
+            {LANGS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </label>
+        <label className="switch-row wide">
+          <span>
+            <strong>{tools.t("settings.shortcut")}</strong>
+            <span className="muted">{tools.t("settings.shortcutHint", { key: `${mod}⇧Space` })}</span>
+            {shortcutError && <span className="field-error">{shortcutError}</span>}
+          </span>
+          <input type="checkbox" className="switch" checked={prefs?.toolsShortcut ?? false} onChange={(e) => setShortcut(e.target.checked)} />
+        </label>
+        <p className="muted">{tools.t("settings.dataHint")}</p>
       </section>
 
       <section>

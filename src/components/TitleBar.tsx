@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, ArrowRight, Bell, Ellipsis, Keyboard, LoaderCircle, Minimize2, Moon, RotateCw, Search, Settings as Gear, Sun, Video, WifiOff } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, Ellipsis, Keyboard, LoaderCircle, Minimize2, Moon, RotateCw, Search, Settings as Gear, Sun, Video, WifiOff, Wrench } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { native, type AppKey, type DesktopApp, type NoticeSummary } from "../lib/native";
 import type { Views } from "../lib/appState";
@@ -29,6 +29,12 @@ interface Props {
   focusSession: AppKey | null;
   online: boolean;
   panelOpen: boolean;
+  /** The Tools panel is open. */
+  toolsOpen: boolean;
+  toolsLabel: string;
+  /** Timers running (a small dot on the Tools button). */
+  timersRunning: number;
+  onTools: () => void;
   /** A newer NGA is ready to install (shows the "Update" pill). */
   updateVersion: string | null;
   /** Download progress while updating (0-100), else null. */
@@ -136,6 +142,10 @@ export function TitleBar(p: Props) {
             <span>{p.updatePct === null ? "Update" : `${p.updatePct}%`}</span>
           </button>
         )}
+        <button className={`tools-btn${p.toolsOpen ? " on" : ""}`} onClick={p.onTools} title={`${p.toolsLabel} (${mod}⇧T)`} aria-pressed={p.toolsOpen}>
+          <Wrench size={15} />
+          {p.timersRunning > 0 && <span className="badge timer-dot" aria-label={`${p.timersRunning}`} />}
+        </button>
         <button className={`bell${p.panelOpen ? " on" : ""}`} onClick={p.onPanel} title="Notifications">
           <Bell size={16} />
           {(p.notices?.total ?? 0) > 0 && <span key={p.notices?.total} className="badge pop">{p.notices!.total > 99 ? "99+" : p.notices!.total}</span>}
