@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.2.3 — 2026-10-05
+
 - One-click update: the title bar's Update button now downloads, installs and restarts right away (progress in the button), and NGA MIS's /apps page has "Update to X now". Not while a quiz or meeting is open.
 
 ## 0.2.2 — 2026-10-05
