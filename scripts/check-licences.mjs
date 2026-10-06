@@ -6,7 +6,8 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-const ALLOWED = /^(MIT|ISC|BSD-2-Clause|BSD-3-Clause|0BSD|Apache-2\.0|Unlicense|CC0-1\.0|BlueOak-1\.0\.0|Python-2\.0)$/;
+// Zlib: permissive, OSI-approved (pako, used by pdf-lib).
+const ALLOWED = /^(MIT|ISC|BSD-2-Clause|BSD-3-Clause|0BSD|Apache-2\.0|Unlicense|CC0-1\.0|BlueOak-1\.0\.0|Python-2\.0|Zlib)$/;
 const root = new URL("..", import.meta.url).pathname;
 const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
 const bad = [];

@@ -151,6 +151,27 @@ export async function runShellSelftest() {
     check("the shell page is a secure context", window.isSecureContext, location.origin);
     check("getUserMedia is available to the tools", !!navigator.mediaDevices?.getUserMedia);
   });
+  await step("PDF tools", async () => {
+    const { PDFDocument } = await import("pdf-lib");
+    const { buildPdf, pageRefs, toBase64 } = await import("./office/pdfBuild");
+    const { renderThumbs, pdfMode } = await import("./office/thumbs");
+    const d = await PDFDocument.create();
+    d.addPage([595, 842]);
+    d.addPage([842, 595]);
+    const src = { id: "s", name: "s.pdf", kind: "pdf" as const, bytes: await d.save(), pageCount: 2 };
+    const out = await buildPdf([src], pageRefs(src), { watermark: "SELFTEST", pageNumbers: true });
+    check("pdf-lib builds a PDF", out.length > 500, `${out.length} bytes`);
+    let n = 0;
+    const started = Date.now();
+    let err = "";
+    await Promise.race([
+      renderThumbs(out, 120, () => n++),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timed out after 20 s")), 20_000)),
+    ]).catch((e) => (err = String(e)));
+    check("pdf.js draws thumbnails", n === 2, `${n} thumbnails in ${Date.now() - started} ms; mode=${pdfMode.value} ${pdfMode.detail} ${err}`);
+    const path = await toolsNative.saveFile("nga-tools-selftest.pdf", toBase64(out));
+    check("a PDF can be saved", path.endsWith(".pdf"), path);
+  });
   await step("MIS API proxy", async () => {
     let refused = "";
     try {
