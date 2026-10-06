@@ -1,11 +1,38 @@
 // Page thumbnails with pdf.js (Apache-2.0), in its own worker bundled with the app.
+// The worker is built as a plain .js chunk (Vite ?worker): the app's own scheme
+// doesn't serve .mjs files with a JavaScript type, so a module worker from the
+// .mjs file never starts. If the worker still doesn't answer, pdf.js runs on the
+// page instead (slower for big files, but it always works).
 import * as pdfjs from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import PdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+let ready: Promise<void> | null = null;
+/** How pdf.js runs here (for the self-test): "worker", "main", or why neither. */
+export const pdfMode = { value: "unset", detail: "" };
+
+/** A working pdf.js: its worker if it answers within 4 s, else the main thread. */
+function setup(): Promise<void> {
+  ready ??= (async () => {
+    try {
+      const port = new PdfWorker();
+      const worker = new pdfjs.PDFWorker({ port: port as never });
+      await Promise.race([worker.promise, new Promise((_, reject) => setTimeout(() => reject(new Error("worker silent")), 4000))]);
+      pdfjs.GlobalWorkerOptions.workerPort = port;
+      worker.destroy();
+      pdfMode.value = "worker";
+    } catch (e) {
+      pdfMode.detail = String((e as Error)?.message ?? e);
+      // Main thread: loading the worker code here registers globalThis.pdfjsWorker.
+      await import("pdfjs-dist/build/pdf.worker.min.mjs");
+      pdfMode.value = "main";
+    }
+  })();
+  return ready;
+}
 
 /** Renders each page small and hands back a JPEG data URL (the shell's CSP allows data: images). */
 export async function renderThumbs(bytes: Uint8Array, width: number, onThumb: (index: number, url: string) => void, signal?: { cancelled: boolean }): Promise<void> {
+  await setup();
   // pdf.js takes ownership of the buffer it is given: pass a copy.
   const doc = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
   try {
