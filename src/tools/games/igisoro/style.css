@@ -1,0 +1,38 @@
+/* Igisoro: a warm wooden-feel board drawn with tokens; bottom player = accent, top player = warn. */
+.igi { --igi-a: var(--accent-fill); --igi-b: var(--warn); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 4px 0 8px; }
+.igi-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.igi-status { display: flex; align-items: center; gap: 8px; margin: 0 6px 0 0; font-weight: 600; font-size: 13px; }
+.igi-status i { width: 12px; height: 12px; border-radius: 50%; background: var(--igi-a); }
+.igi-status.p1 i { background: var(--igi-b); }
+.igi-board {
+  position: relative; display: flex; flex-direction: column; gap: 6px; padding: 12px;
+  width: min(600px, 100%); border-radius: 22px;
+  background: color-mix(in srgb, var(--warn) 14%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, var(--line));
+}
+.igi-row { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.igi-row.mid { padding-bottom: 8px; margin-bottom: 2px; border-bottom: 2px dashed color-mix(in srgb, var(--warn) 35%, var(--line)); }
+.igi-pit {
+  position: relative; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface); box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.14);
+  transition: box-shadow 0.15s, background 0.15s;
+}
+.igi-pit:disabled { cursor: default; }
+.igi-pit b { position: absolute; right: 2px; bottom: 0; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.igi-seeds { display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: 2px; width: 62%; }
+.igi-seeds i { width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--text) 55%, var(--warn)); }
+.igi-pit.turn.p0 { box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.14), 0 0 0 2px color-mix(in srgb, var(--igi-a) 30%, transparent); }
+.igi-pit.turn.p1 { box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.14), 0 0 0 2px color-mix(in srgb, var(--igi-b) 35%, transparent); }
+.igi-pit.legal:hover, .igi-pit.cursor { background: var(--accent-soft); }
+.igi-pit.p1.legal:hover, .igi-pit.p1.cursor { background: color-mix(in srgb, var(--igi-b) 18%, var(--surface)); }
+.igi-pit.cursor.p0 { box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.14), 0 0 0 3px var(--igi-a); }
+.igi-pit.cursor.p1 { box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.14), 0 0 0 3px var(--igi-b); }
+.igi-pit.from { box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.14), 0 0 0 2px var(--muted); }
+.igi-pit.took { box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.14), 0 0 0 3px var(--ok); }
+.igi-pit.hot { background: color-mix(in srgb, var(--ok) 22%, var(--surface)); }
+.igi-pit.hot.capture { background: color-mix(in srgb, var(--danger) 18%, var(--surface)); }
+.igi-pit.hot.lift { background: color-mix(in srgb, var(--warn) 30%, var(--surface)); }
+.igi-hand { padding: 2px 8px; border-radius: 10px; background: var(--hover); color: var(--text); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.igi-last { margin: 0; min-height: 28px; display: flex; align-items: center; gap: 8px; }
+.igi-rules { margin: 0; max-width: 600px; padding: 10px 12px; border-radius: 10px; background: var(--hover); color: var(--text); line-height: 1.45; }
+.igi.still .igi-pit { transition: none; }

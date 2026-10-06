@@ -24,12 +24,17 @@
 | 1 Everyday offline tools | ✅ Built, tested | Calculator, Timers, Focus, Notes, Unit converter, Date calculator, QR code |
 | 3 (part) Ask AI for staff | ✅ Built (desktop 0.4.0 + MIS `/desktop/tools/ai/*`) | Streaming chat on existing providers with audience routing (`services/aiProviders/chat.ts`); staff/teachers/admins only (D1); daily caps 40 (admin 60); emails/phones scrubbed. **Not yet:** tutor pipeline, leak check, conversation logging/review (needed before students, 3B) |
 | UI v2 | ✅ Built (0.4.0) | Tools open as a centred modal in the overlay window (replaces the side panel); neutral dark theme; primary-button hover fix; steppers |
-| 2, 4–8 | Not started | — |
+| 2 (part) Calendar | ✅ Built (0.5.0 + MIS `/desktop/tools/agenda`, `/policy`) | My Day agenda (lessons, office hours, quizzes, meetings); policy windows from the live-lessons rule and Task Mentor quiz pairs. Toolbar tooltips (native tooltip window) |
+| 4 Classroom kit | ✅ Built (0.6.0 + MIS `/desktop/tools/classes`) | Name picker, groups, noise meter, work-mode signs, classroom screen, whiteboard, grade calculator |
+| 5 Study kit | ✅ Built (0.7.0) | Graphing calculator, periodic table + molar mass, 76 formula sheets, FSRS flashcards (own decks; MIS deck sync not yet) |
+| 6 Games | ✅ Built (0.8.0 + MIS #74–#76, migrations 105–106) | Brain breaks hub: 15 games + Breathe + Stand & Stretch, gate (exam → lesson → switches → quiet hours → budget → cool-down), play-time sync, MIS admin page `/desktop-tools` with Igisoro super-admin approval. **Not yet:** teacher "Class game time" (6.5), per-student overrides (6.6), typing tutor (6.12), Tatham puzzles (Bridges, Untangle) |
+| 3B, 7 (rest), 8 | Not started | Student AI tutor; PDF/scanner/OCR + translations workspace; hardening |
 
 **Deviations from the plan, and why:**
 - **Identity:** instead of Phase 2's tools token, Phase 1 uses `web_identity`. The MIS page reports its own cached profile (id, user type, first name, date of birth turned into an age band), never the token. It is refused from any other page. This is enough for per-person data and persona; the token is still needed in Phase 2 for API calls.
 - **Storage:** per-person JSON files (`tools-u<id>.json`, tauri-plugin-store) instead of SQLite. Notes at this scale don't need SQL, and it avoids adding sqlx to the binary. Revisit if a tool needs queries.
 - **Currency conversion:** left out of the converter for now. It needs a rates source over the network, which comes with Phase 2's API access.
+- **Games (Phase 6):** play time is counted in the game frame (TypeScript, `games/useGames.ts`), not `games.rs`: it already knows visibility, focus and idleness, and keeps the logic in one place with the gate. Lights Out, Sliding Tiles, Mines and Picture Logic are own code instead of Tatham WASM (no asset pack to ship). MIS stores one JSON settings row (`DesktopToolSetting`) instead of four tables; audience rules beyond persona, class game time and overrides come later.
 - **Alert text** (timer banners) is English only for now. It comes from Rust; the UI around it is translated.
 
 **How tools reach NGA MIS (0.4.0):** via the MIS page, not a desktop token. `tools_api` (Rust) → `__ngaToolsApi` in the MIS webview (bridge.js) → `fetch(api + /desktop/tools/…)` with MIS's own session → `web_tools_api_event` → `nga://tools-api`. Only `/desktop/tools/` paths are allowed, checked in Rust and again in the page. NDJSON answers stream back in ~40 ms batches. The token never reaches the shell, and no CORS change is needed. Phase 2's tools token stays optional.

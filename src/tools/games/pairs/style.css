@@ -1,0 +1,25 @@
+.prs { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-bottom: 8px; }
+.prs-bar { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+.prs-bar .segmented-sm { margin: 0; }
+.prs-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.prs-stat { display: flex; flex-direction: column; align-items: center; min-width: 58px; padding: 3px 10px; border-radius: 9px; background: var(--hover); }
+.prs-stat small { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.prs-stat strong { font-variant-numeric: tabular-nums; }
+.prs-stat.on { box-shadow: inset 0 0 0 2px #ec4899; }
+.prs-status { margin: 0; font-weight: 600; font-size: 13.5px; }
+.prs-grid { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 8px; width: min(calc(var(--cols) * 112px), 100%); }
+.prs-card { position: relative; aspect-ratio: 4 / 3; border-radius: 11px; padding: 0; background: none; }
+.prs-card:focus-visible, .prs-card.cur { outline: 2px solid var(--accent); outline-offset: 2px; }
+.prs-back, .prs-face { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 11px; animation: prs-flip 220ms var(--ease); }
+.prs.still .prs-back, .prs.still .prs-face { animation: none; }
+@keyframes prs-flip { from { transform: scaleX(0.15); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.prs-back {
+  background: repeating-linear-gradient(45deg, color-mix(in srgb, #ec4899 30%, var(--surface)) 0 7px, color-mix(in srgb, #ec4899 18%, var(--surface)) 7px 14px);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #ec4899 35%, var(--line));
+}
+.prs-card:hover:not(.up) .prs-back { filter: brightness(1.08); }
+.prs-face { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); padding: 4px; }
+.prs-card.b .prs-face { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.prs-card.done .prs-face { box-shadow: inset 0 0 0 2px var(--ok); }
+.prs-text { font-weight: 650; font-size: 14px; text-align: center; line-height: 1.2; color: var(--text); overflow-wrap: anywhere; }
+.prs-text.long { font-size: 12px; }

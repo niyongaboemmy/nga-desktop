@@ -1,0 +1,13 @@
+.brz { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 8px 0 12px; }
+.brz-stage { display: grid; place-items: center; width: min(300px, 80vw); aspect-ratio: 1; }
+.brz-ring {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 1; border-radius: 50%;
+  transform: scale(var(--s)); transition: transform 260ms linear;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, #38bdf8 55%, var(--surface)), color-mix(in srgb, #38bdf8 22%, var(--surface)));
+  box-shadow: 0 0 0 10px color-mix(in srgb, #38bdf8 12%, transparent), 0 0 60px color-mix(in srgb, #38bdf8 30%, transparent);
+}
+.brz.still .brz-ring { transition: none; }
+.brz-word { display: flex; flex-direction: column; align-items: center; gap: 2px; transform: scale(calc(1 / var(--s))); text-align: center; color: var(--text); padding: 0 18px; }
+.brz-word strong { font-size: 20px; }
+.brz-word span { font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.brz-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }

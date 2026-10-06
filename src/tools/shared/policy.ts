@@ -14,11 +14,28 @@ export interface LockWindow {
   role?: "teaching" | "attending" | "other";
 }
 
+/** The school's game rules for this person (MIS services/desktop/games.ts gamesBlock). */
+export interface GamesBlock {
+  enabled: boolean;
+  allowed: string[];
+  /** null: no daily limit (staff by default). */
+  dailyBudgetMin: number | null;
+  usedTodayMin: number;
+  sessionCapMin: number;
+  cooldownMin: number;
+  /** ["HH:MM", "HH:MM"] Kigali time; may cross midnight. */
+  quietHours: [string, string] | null;
+  learning: string[];
+  igisoroVariant: string | null;
+}
+
 export interface Policy {
   generatedAt: string;
   validUntil: string;
   windows: LockWindow[];
   exam: { active: boolean; until: string | null; label: string | null };
+  /** Missing from MIS builds before the games programme. */
+  games?: GamesBlock;
 }
 
 export type Verdict = { open: true } | { open: false; reason: "exam" | "lesson" | "stale"; label?: string; until?: string };

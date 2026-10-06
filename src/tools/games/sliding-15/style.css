@@ -1,0 +1,28 @@
+/* Sliding tiles: numbered tiles that glide on the app's surfaces. */
+.sl15 { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 4px 0 8px; }
+.sl15-sizes { width: min(220px, 100%); margin: 0; }
+.sl15-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; min-height: 40px; }
+.sl15-stat { display: flex; flex-direction: column; align-items: center; min-width: 58px; padding: 3px 12px; border-radius: 10px; background: var(--hover); }
+.sl15-stat small { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.sl15-stat strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.sl15-board {
+  position: relative; width: min(340px, 100%); aspect-ratio: 1; padding: 6px; box-sizing: border-box;
+  border-radius: 14px; background: var(--hover); user-select: none;
+}
+.sl15-inner { position: absolute; inset: 6px; }
+.sl15-tile {
+  position: absolute; padding: 4px; box-sizing: border-box; cursor: pointer;
+  transition: left 0.12s var(--ease), top 0.12s var(--ease);
+}
+.sl15-tile span {
+  display: grid; place-items: center; width: 100%; height: 100%; border-radius: 9px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / 0.08);
+  font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; color: var(--text);
+}
+.sl15-tile[data-big] span { font-size: 28px; }
+.sl15-tile:hover span { box-shadow: inset 0 0 0 2px var(--accent-soft); }
+.sl15-tile.home span { color: var(--accent); }
+.sl15-board.done .sl15-tile span { background: var(--accent-fill); color: var(--accent-text); box-shadow: none; }
+.sl15-board.done .sl15-tile { cursor: default; }
+.sl15-status { min-height: 18px; color: var(--ok); font-weight: 600; }
+.sl15.still .sl15-tile { transition: none; }

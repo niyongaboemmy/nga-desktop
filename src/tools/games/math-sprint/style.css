@@ -1,0 +1,29 @@
+/* Math sprint: one big question, one answer box, a calm clock bar. */
+.msprint { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 0 8px; width: 100%; }
+.msprint-top { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+.msprint-stat { display: flex; flex-direction: column; align-items: center; padding: 4px 14px; border-radius: 10px; background: var(--hover); min-width: 64px; }
+.msprint-stat small { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.msprint-stat strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.msprint-bar { width: min(420px, 100%); height: 6px; border-radius: 3px; background: var(--hover); overflow: hidden; }
+.msprint-bar span { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.25s linear; }
+.msprint.still .msprint-bar span { transition: none; }
+.msprint-levels { display: flex; align-items: center; gap: 10px; width: min(420px, 100%); }
+.msprint-levels .segmented-sm { flex: 1; margin: 0; }
+.msprint-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  width: min(420px, 100%); padding: 22px 18px; border-radius: 14px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
+}
+.msprint-card p { margin: 0; text-align: center; }
+.msprint-q { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; min-height: 44px; }
+.msprint-input { gap: 8px; width: 100%; justify-content: center; }
+.msprint-input input {
+  width: 160px; height: 40px; padding: 0 12px; border-radius: 10px; font-size: 20px; text-align: center;
+  background: var(--surface); color: var(--text); border: 1px solid var(--line); font-variant-numeric: tabular-nums;
+}
+.msprint-input input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.msprint-last { min-height: 20px; opacity: 0; transition: opacity 0.2s var(--ease); }
+.msprint-last.on { opacity: 1; }
+.msprint.still .msprint-last { transition: none; }
+.msprint-last .ok { color: var(--ok); font-weight: 600; }
+.msprint-last .miss { color: var(--muted); }

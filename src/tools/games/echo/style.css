@@ -1,0 +1,37 @@
+/* Echo: four big pads, each with its own colour, shape, corner and number. */
+.echo { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 0 8px; }
+.echo-top { display: flex; align-items: center; gap: 12px; min-height: 40px; flex-wrap: wrap; justify-content: center; }
+.echo-score { display: flex; flex-direction: column; align-items: center; padding: 4px 14px; border-radius: 10px; background: var(--hover); }
+.echo-score small { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.echo-score strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.echo-status { color: var(--muted); min-width: 180px; }
+.echo-board {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px;
+  width: min(340px, 100%); aspect-ratio: 1; border-radius: 18px; background: var(--hover);
+  user-select: none;
+}
+.echo-pad {
+  position: relative; display: grid; place-items: center; border-radius: 16px;
+  color: rgb(255 255 255 / 0.9); opacity: 0.55; filter: saturate(0.75);
+  transition: opacity 0.15s var(--ease), filter 0.15s var(--ease), transform 0.15s var(--ease);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.echo-pad:disabled { cursor: default; }
+.echo-board.live .echo-pad { opacity: 0.75; }
+.echo-board.live .echo-pad:hover { opacity: 0.9; }
+.echo-pad.lit { opacity: 1; filter: saturate(1.15) brightness(1.15); transform: scale(1.03); box-shadow: 0 0 0 4px var(--accent-soft); }
+.echo.still .echo-pad, .echo.still .echo-pad.lit { transition: none; transform: none; }
+.echo-pad:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.echo-pad.missed { box-shadow: 0 0 0 3px var(--danger); }
+.echo-pad.wanted { box-shadow: 0 0 0 3px var(--ok); opacity: 0.95; }
+.echo-pad.p0 { background: #16a34a; border-top-left-radius: 60px; }
+.echo-pad.p1 { background: #dc2626; border-top-right-radius: 60px; }
+.echo-pad.p2 { background: #ca8a04; border-bottom-left-radius: 60px; }
+.echo-pad.p3 { background: #2563eb; border-bottom-right-radius: 60px; }
+.echo-num {
+  position: absolute; top: 8px; left: 10px; font-weight: 750; font-size: 15px;
+  color: #fff; text-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+}
+.echo-pad.p1 .echo-num, .echo-pad.p3 .echo-num { left: auto; right: 10px; }
+.echo-pad.p2 .echo-num, .echo-pad.p3 .echo-num { top: auto; bottom: 8px; }
+.echo-actions { display: flex; gap: 8px; min-height: 34px; }

@@ -1,0 +1,24 @@
+/* Word search: a calm letter grid beside the word list. */
+.wsearch { display: flex; flex-direction: column; gap: 8px; padding: 2px 0 6px; }
+.wsearch-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wsearch-bar .segmented-sm { margin: 0; min-width: 120px; }
+.wsearch-packs { display: flex; gap: 6px; flex-wrap: wrap; }
+.wsearch-main { display: flex; gap: 16px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+.wsearch-grid {
+  display: grid; gap: 2px; padding: 6px; width: min(400px, 100%); aspect-ratio: 1;
+  border-radius: 12px; background: var(--hover); user-select: none; touch-action: none; cursor: pointer;
+}
+.wsearch-cell {
+  display: grid; place-items: center; border-radius: 6px; font-weight: 650; font-size: 15px;
+  color: var(--text); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  transition: background 0.12s var(--ease);
+}
+.wsearch.still .wsearch-cell { transition: none; }
+.wsearch-cell.found { background: var(--accent-soft); color: var(--accent); }
+.wsearch-cell.live { background: var(--accent-fill); color: var(--accent-text, #fff); }
+.wsearch-cell.cursor { box-shadow: inset 0 0 0 2px var(--accent); }
+.wsearch-side { display: flex; flex-direction: column; gap: 8px; min-width: 170px; max-width: 240px; }
+.wsearch-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
+.wsearch-list li { font-size: 13.5px; padding: 3px 0; border-bottom: 1px solid var(--line); text-transform: capitalize; }
+.wsearch-list li.done { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--muted); }
+.wsearch .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

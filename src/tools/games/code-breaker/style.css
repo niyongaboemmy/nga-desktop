@@ -1,0 +1,28 @@
+/* Code breaker: a slim card board with shaped, numbered pegs. */
+.cb { display: flex; gap: 22px; justify-content: center; align-items: flex-start; padding: 4px 0 8px; flex-wrap: wrap; }
+.cb-board { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 14px; background: var(--hover); }
+.cb-row { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 9px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.cb-row.live { box-shadow: inset 0 0 0 2px var(--accent); }
+.cb-n { width: 18px; text-align: right; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cb-pegs { display: flex; gap: 6px; align-items: center; }
+.cb-hole { width: 26px; height: 26px; display: grid; place-items: center; }
+.cb-hole::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.cb-peg text { font-size: 10px; font-weight: 800; fill: #fff; paint-order: stroke; stroke: rgb(0 0 0 / 0.45); stroke-width: 2px; }
+.cb-row.live .cb-peg { animation: cb-in 120ms var(--ease); }
+.cb.still .cb-peg { animation: none !important; }
+@keyframes cb-in { from { transform: scale(0.7); } to { transform: none; } }
+.cb-fb { display: grid; grid-template-columns: repeat(3, 10px); gap: 3px; min-width: 36px; }
+.cb-fb i, .cb-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.cb-fb i { background: var(--line); transform: scale(0.45); }
+.cb-fb i.x, .cb-legend i.x { background: var(--text); transform: none; }
+.cb-fb i.o, .cb-legend i.o { background: transparent; box-shadow: inset 0 0 0 2px var(--text); transform: none; }
+.cb-side { display: flex; flex-direction: column; gap: 10px; width: 250px; }
+.cb-side .segmented-sm { margin: 0; }
+.cb-side p { margin: 0; }
+.cb-palette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.cb-pick { display: grid; place-items: center; height: 46px; border-radius: 10px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); transition: background 0.15s; }
+.cb-pick:hover:not(:disabled) { background: var(--hover); }
+.cb-pick:disabled { opacity: 0.45; }
+.cb-actions { display: flex; gap: 8px; }
+.cb-end { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 10px; background: var(--accent-soft); font-size: 13px; }
+.cb-legend { display: flex; align-items: center; gap: 5px; }
