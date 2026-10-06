@@ -4,6 +4,14 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **Brain breaks** (students and staff): 15 short games and 2 calm-down activities, all offline.
+  - **Logic:** Number Place and Picture Logic (a shared daily puzzle for the whole school), Lights Out, Mines, Sliding Tiles, Merge to 2048, Code Breaker.
+  - **Memory, words and maths:** Pairs (elements, English ↔ Kinyarwanda, capitals, shapes; 1–2 players), Echo, Five-Letter Guess (English, French, Kinyarwanda), Word Search (subject words), Math Sprint (S1–S6).
+  - **Together and reflex:** Four in a Row (a friend or the computer), Snake.
+  - **Culture:** Igisoro, switched on once a super admin approves its rules in NGA MIS.
+  - **Breathe** and **Stand & Stretch**: always available, never counted.
+  - **The school stays in control** (NGA MIS → Desktop tools): games pause during your own lessons and exams, rest at night, and students have a daily budget (learning games count half) and short sessions followed by a movement break. Every game saves itself, so a pause never loses anything. Personal bests only: no leaderboards, no streaks.
+
 ## 0.7.0 — 2026-10-06
 
 - **Study kit** (everyone, offline):
