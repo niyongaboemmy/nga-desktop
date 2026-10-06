@@ -1,6 +1,6 @@
 [package]
 name = "nga-desktop"
-version = "0.7.0"
+version = "0.8.0"
 description = "NGA Desktop: one native app for NGA MIS, Task Mentor, Tendo and Tupo"
 authors = ["New Generation Academy"]
 edition = "2021"

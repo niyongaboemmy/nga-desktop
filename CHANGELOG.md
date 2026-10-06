@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.8.0 — 2026-10-06
+
 - **Brain breaks** (students and staff): 15 short games and 2 calm-down activities, all offline.
   - **Logic:** Number Place and Picture Logic (a shared daily puzzle for the whole school), Lights Out, Mines, Sliding Tiles, Merge to 2048, Code Breaker.
   - **Memory, words and maths:** Pairs (elements, English ↔ Kinyarwanda, capitals, shapes; 1–2 players), Echo, Five-Letter Guess (English, French, Kinyarwanda), Word Search (subject words), Math Sprint (S1–S6).
