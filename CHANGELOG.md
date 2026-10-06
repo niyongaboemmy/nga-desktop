@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.7.0 — 2026-10-06
+
 - **Study kit** (everyone, offline):
   - **Graphing calculator**: several functions, sliders for letters like a and b, zeros and intersections marked, drag and zoom, save as PNG.
   - **Periodic table**: all 118 elements (PubChem data) with details, search, and a **molar mass calculator** (brackets and hydrates: Ca(OH)2, CuSO4·5H2O) with mass percentages.
