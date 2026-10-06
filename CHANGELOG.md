@@ -4,6 +4,9 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **Scanner: get the text (OCR).** Read the text of scanned pages in English, French or both, then copy it or save it as a .txt file. The reading engine and languages come with the app: it works offline and nothing leaves the computer.
+- PDF previews no longer risk hanging the first time the app starts: if the background reader doesn't answer, the page does the work itself.
+
 ## 0.10.0 — 2026-10-06
 
 - **PDF tools** (everyone, offline): put pages of PDFs and pictures together, reorder (drag or arrows), turn, remove, add a watermark and page numbers, save the selected pages or split into one file per page. Nothing is uploaded; files go to Downloads.

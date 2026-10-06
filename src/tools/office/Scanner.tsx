@@ -5,6 +5,7 @@ import { baseName, buildPdf, move, toBase64, type PageRef, type Source } from ".
 import { toolsNative } from "../shared/native";
 import type { ToolProps } from "../types";
 import type { Key } from "../i18n";
+import { OcrPanel } from "./OcrPanel";
 import "./office.css";
 
 type Look = "original" | "colour" | "bw";
@@ -286,6 +287,7 @@ export default function Scanner({ ctx }: ToolProps) {
               </li>
             ))}
           </ol>
+          <OcrPanel images={pages.map((p) => new Blob([p.bytes as Uint8Array<ArrayBuffer>], { type: "image/jpeg" }))} name={name} t={t} lang={ctx.lang} />
           <div className="pdf-actions">
             <label className="field scan-name">
               <span>{t("pdf.name")}</span>

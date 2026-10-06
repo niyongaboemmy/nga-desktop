@@ -13,9 +13,13 @@ NGA Desktop bundles these open-source libraries for NGA Tools. Each keeps its ow
 | [pdf-lib](https://pdf-lib.js.org) | MIT | PDF tools, scanner (building PDFs) |
 | [PDF.js](https://mozilla.github.io/pdf.js/) (pdfjs-dist) | Apache-2.0 | PDF tools (page thumbnails) |
 | [pako](https://github.com/nodeca/pako) | MIT AND Zlib | Compression inside pdf-lib |
+| [tesseract.js](https://github.com/naptha/tesseract.js) and tesseract.js-core | Apache-2.0 | Scanner: text from pages (OCR) |
+| Tesseract English and French models ([tessdata_best](https://github.com/tesseract-ocr/tessdata_best), via @tesseract.js-data) | Apache-2.0 (models), MIT (packaging) | OCR languages |
 | [lucide-react](https://lucide.dev) | ISC | Icons |
 | [React](https://react.dev) | MIT | UI |
 | [Tauri](https://tauri.app) and its plugins (store, notification, global-shortcut, …) | MIT OR Apache-2.0 | Desktop shell |
+
+Tesseract OCR and its trained models are distributed under the Apache License 2.0; Copyright Google and the Tesseract contributors.
 
 PDF.js is distributed under the Apache License 2.0; Copyright Mozilla Foundation and contributors.
 
