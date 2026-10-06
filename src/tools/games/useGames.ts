@@ -73,10 +73,19 @@ export function useGames(identity: Identity | null): GamesState {
     if (p) setCached({ policy: p, atFetch });
   }, [identity, setCached]);
 
+  // The policy every minute (a teacher's class game time shows up quickly); play time every 5.
+  const refresh = useCallback(async () => {
+    if (!identity) return;
+    const atFetch = localToday(usageRef.current);
+    const p = await misCall<Policy>({ method: "GET", path: "/desktop/tools/policy", timeoutMs: 20_000 }).catch(() => null);
+    if (p) setCached({ policy: p, atFetch });
+  }, [identity, setCached]);
+
   useEffect(() => {
     if (!identity || !usageReady) return;
     void sync();
-    const id = window.setInterval(() => void sync(), 5 * 60_000);
+    let n = 0;
+    const id = window.setInterval(() => void (++n % 5 === 0 ? sync() : refresh()), 60_000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity?.userId, usageReady]);
@@ -100,6 +109,9 @@ export function useGames(identity: Identity | null): GamesState {
   const count = useCallback(
     (def: Pick<GameDef, "id" | "kind">, sec: number) => {
       const t = Date.now();
+      // Class game time is the teacher's time: it doesn't count towards budgets or sessions.
+      const gt = gameGate({ policy, gameId: def.id, kind: def.kind, persona: identity?.persona ?? null, now: t, usedMin: 0, session: EMPTY_USAGE.session });
+      if (gt.open && gt.classTime) return;
       setUsage((u) => {
         const day = kigaliDay(t);
         const next = addPlay(u, day, kigaliDay(t - 86_400_000), def.id, sec);
@@ -108,7 +120,7 @@ export function useGames(identity: Identity | null): GamesState {
         return { ...next, session: tickSession(u.session, t, sec, g?.sessionCapMin ?? 10, g?.cooldownMin ?? 5) };
       });
     },
-    [setUsage, student, g?.sessionCapMin, g?.cooldownMin],
+    [setUsage, student, g?.sessionCapMin, g?.cooldownMin, policy, identity?.persona],
   );
 
   return { ready: usageReady && cacheReady, policy, usage, usedMin, now, gate, count, sync };

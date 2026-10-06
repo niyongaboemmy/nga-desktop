@@ -11,6 +11,8 @@
 }
 .games-banner svg { flex: none; margin-top: 2px; color: var(--warn); }
 .games-banner.exam svg, .games-banner.lesson svg { color: var(--accent); }
+.games-banner.class-time { background: color-mix(in srgb, var(--ok) 12%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 30%, transparent); }
+.games-banner.class-time svg { color: var(--ok); }
 .games-banner.exam, .games-banner.lesson { background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
 .games-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; }
 .game-card {

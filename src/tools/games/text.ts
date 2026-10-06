@@ -13,6 +13,7 @@ export function lockText(gate: Gate, gameId: string, t: Translate, usedMin: numb
     case "exam": return t("games.lock.exam", { label: gate.label ?? "", time });
     case "lesson": return t("games.lock.lesson", { label: gate.label ?? "", time });
     case "parent": return t("games.lock.parent");
+    case "blocked": return t("games.lock.blocked", { date: gate.until ? new Date(gate.until).toLocaleDateString() : "" });
     case "off": return t("games.lock.off");
     case "disabled": return gameId === "igisoro" ? t("games.lock.igisoro") : t("games.lock.disabled");
     case "quiet": return t("games.lock.quiet", { time });

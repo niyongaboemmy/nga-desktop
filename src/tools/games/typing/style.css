@@ -1,0 +1,32 @@
+.tpg { display: flex; flex-direction: column; gap: 12px; padding-bottom: 8px; }
+.tpg-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tpg-bar .segmented-sm { margin: 0; }
+.tpg-bar select { max-width: 280px; }
+.tpg-stats { display: flex; gap: 8px; }
+.tpg-stats span { display: flex; flex-direction: column; align-items: center; min-width: 84px; padding: 4px 12px; border-radius: 10px; background: var(--hover); }
+.tpg-stats small { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.tpg-stats strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.tpg-text {
+  position: relative; min-height: 110px; padding: 16px 18px; border-radius: 14px; cursor: text;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 19px; line-height: 1.7; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.tpg-text:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+.tpg-text .ok { color: var(--text); }
+.tpg-text .bad { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); border-radius: 3px; }
+.tpg-text .cur { color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }
+.tpg-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; resize: none; cursor: text; }
+.tpg-hint { position: absolute; right: 14px; bottom: 8px; font-family: var(--font); font-size: 11.5px; color: var(--muted); }
+.tpg-done { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 12px; font-weight: 600; text-align: center; }
+.tpg-done svg { color: var(--ok); vertical-align: -3px; }
+.tpg-kb { display: flex; flex-direction: column; align-items: center; gap: 5px; user-select: none; }
+.tpg-row { display: flex; gap: 5px; }
+.tpg-row.r2 { margin-left: 14px; }
+.tpg-row.r3 { margin-left: 34px; }
+.tpg-key {
+  position: relative; display: grid; place-items: center; width: 36px; height: 34px; border-radius: 7px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), 0 1px 0 var(--line); font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+}
+.tpg-key.space { width: 240px; }
+.tpg-key.bump::after { content: ""; position: absolute; bottom: 5px; width: 10px; height: 2px; border-radius: 1px; background: var(--muted); }
+.tpg-key.next { background: var(--accent-fill); color: var(--accent-text); box-shadow: 0 0 0 3px var(--accent-soft); }

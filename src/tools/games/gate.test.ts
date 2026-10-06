@@ -112,3 +112,25 @@ describe("play time", () => {
     expect(schoolHours(Date.parse("2026-10-05T16:00:00Z"))).toBe(false); // 18:00
   });
 });
+
+describe("class game time and exceptions", () => {
+  const cgt = { until: new Date(NOW + 600_000).toISOString(), games: ["mines"], by: "Ms U", className: "S4" };
+  it("opens the chosen games during the class's lesson, budget and cool-down — never during an exam", () => {
+    const lesson = policy({ windows: [win("lesson", "attending")] }, { classGameTime: cgt });
+    expect(gameGate(input({ policy: lesson }))).toEqual({ open: true, classTime: true, until: NOW + 600_000 });
+    expect(gameGate(input({ policy: lesson, gameId: "pairs" }))).toMatchObject({ reason: "lesson" });
+    expect(gameGate(input({ policy: policy({}, { classGameTime: cgt }), usedMin: 99, session: { sec: 0, last: NOW, cooldownUntil: NOW + 60_000 } }))).toMatchObject({ open: true, classTime: true });
+    expect(gameGate(input({ policy: policy({ windows: [win("exam")] }, { classGameTime: cgt }) }))).toMatchObject({ reason: "exam" });
+    expect(gameGate(input({ policy: policy({}, { classGameTime: { ...cgt, until: new Date(NOW - 1).toISOString() } }), usedMin: 99 }))).toMatchObject({ reason: "budget" });
+    expect(gameGate(input({ persona: "teacher", policy: policy({ windows: [win("lesson", "teaching")] }, { classGameTime: cgt }) }))).toMatchObject({ reason: "lesson" });
+  });
+
+  it("a block locks every game (resets stay open) and beats class game time", () => {
+    const until = new Date(NOW + 86_400_000).toISOString();
+    const p = policy({}, { classGameTime: cgt, override: { kind: "block", until, reason: "parent request", extraMin: null } });
+    expect(gameGate(input({ policy: p }))).toEqual({ open: false, reason: "blocked", until: Date.parse(until) });
+    expect(gameGate(input({ policy: p, gameId: "breathe", kind: "reset" }))).toEqual({ open: true });
+    expect(gameGate(input({ policy: policy({}, { override: { kind: "block", until: new Date(NOW - 1).toISOString(), reason: "", extraMin: null } }) }))).toEqual({ open: true });
+    expect(gameGate(input({ policy: policy({}, { override: { kind: "extend", until, reason: "", extraMin: 15 } }) }))).toEqual({ open: true });
+  });
+});

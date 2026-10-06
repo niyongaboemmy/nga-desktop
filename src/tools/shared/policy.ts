@@ -27,6 +27,10 @@ export interface GamesBlock {
   quietHours: [string, string] | null;
   learning: string[];
   igisoroVariant: string | null;
+  /** A teacher opened these games for the student's class until then (MIS 107+). */
+  classGameTime?: { until: string; games: string[]; by: string; className: string } | null;
+  /** The student's exception: block, or extra minutes (already in dailyBudgetMin). */
+  override?: { kind: "block" | "extend"; until: string; reason: string; extraMin: number | null } | null;
 }
 
 export interface Policy {

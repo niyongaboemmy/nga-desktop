@@ -8,7 +8,7 @@ import type { Lang } from "../i18n";
 export const GAME_IDS = [
   "igisoro", "number-place", "picture-logic", "lights-out", "mines", "sliding-15", "merge-2048",
   "pairs", "echo", "five-letter", "word-search", "math-sprint", "code-breaker", "four-in-a-row", "snake",
-  "breathe", "stretch",
+  "breathe", "stretch", "typing",
 ] as const;
 export type GameId = (typeof GAME_IDS)[number];
 
