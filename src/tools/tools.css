@@ -181,6 +181,9 @@ input.bad { border-color: var(--danger) !important; }
 /* ── Notes ─────────────────────────────────────────────────────────────── */
 .notes, .note-editor { display: flex; flex-direction: column; gap: 8px; height: 100%; }
 .notes-bar { display: flex; align-items: center; gap: 6px; }
+/* Visually hidden, still read by screen readers. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
 /* Search box with its icon inside the field (Notes, Formulas, Periodic table, Translations). */
 .tool-search { position: relative; display: flex; align-items: center; min-width: 0; }
 .tool-search > svg { position: absolute; left: 10px; color: var(--muted); pointer-events: none; }
@@ -214,6 +217,7 @@ input.bad { border-color: var(--danger) !important; }
 .holiday-name { font-weight: 550; }
 
 /* ── QR ────────────────────────────────────────────────────────────────── */
+.qr-preview p { color: #475569; }
 .qr-preview { display: grid; place-items: center; min-height: 200px; margin: 10px 0; padding: 12px; border-radius: 14px; background: #fff; border: 1px solid var(--line); }
 .qr-img { width: min(240px, 100%); aspect-ratio: 1; }
 .qr-img svg { width: 100%; height: 100%; display: block; }
@@ -336,7 +340,7 @@ input.bad { border-color: var(--danger) !important; }
 .nn-card { --c: var(--accent); position: relative; display: flex; flex-direction: column; gap: 2px; padding: 12px 14px 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--c) 9%, var(--surface-2)); border: 1px solid color-mix(in srgb, var(--c) 25%, var(--line)); overflow: hidden; }
 .nn-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c); }
 .nn-card strong { font-size: 15px; }
-.nn-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c); }
+.nn-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: color-mix(in srgb, var(--c) 50%, var(--text)); }
 .nn-card.now .nn-label::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--c); animation: ping-dot 1.6s infinite; vertical-align: 1px; }
 @keyframes ping-dot { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 60%, transparent); } 100% { box-shadow: 0 0 0 7px transparent; } }
 .nn-bar { height: 4px; margin-top: 6px; border-radius: 2px; background: var(--hover); overflow: hidden; }
@@ -358,7 +362,7 @@ input.bad { border-color: var(--danger) !important; }
 .tl-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .tl-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tl-title strong { font-weight: 600; }
-.tl-kind { font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); }
+.tl-kind { font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--c) 15%, transparent); color: color-mix(in srgb, var(--c) 50%, var(--text)); }
 .tl-flag { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: var(--danger); color: #fff; font-size: 11px; font-weight: 800; }
 .tl-meta { display: flex; flex-wrap: wrap; gap: 10px; }
 .tl-meta span { display: inline-flex; align-items: center; gap: 3px; }
@@ -475,9 +479,9 @@ input.bad { border-color: var(--danger) !important; }
 .cscreen .noise-start { justify-content: center; }
 .cscreen-map { height: 220px; display: grid; grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
 .cscreen-map > div { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border-radius: 14px; border: 1px dashed var(--line); background: var(--surface-2); color: var(--muted); font-size: 12.5px; font-weight: 600; }
-.cscreen-map .cs-timer { grid-row: span 2; color: #f59e0b; }
-.cscreen-map .cs-sign { color: #22c55e; }
-.cscreen-map .cs-noise { color: #ef4444; }
+.cscreen-map .cs-timer { grid-row: span 2; color: color-mix(in srgb, #f59e0b 50%, var(--text)); }
+.cscreen-map .cs-noise { color: color-mix(in srgb, #ef4444 55%, var(--text)); }
+.cscreen-map .cs-sign { color: color-mix(in srgb, #22c55e 45%, var(--text)); }
 .cs-present { align-self: flex-start; }
 
 /* ── Study kit ─────────────────────────────────────────────────────────── */
@@ -508,12 +512,12 @@ input.bad { border-color: var(--danger) !important; }
 .pt-cell.dim { opacity: 0.18; }
 .pt-f-mark { display: grid; place-items: center; font-size: 8px; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; }
 .pt-detail { --c: var(--accent); grid-row: 1 / span 3; grid-column: 3 / span 10; align-self: start; display: flex; gap: 12px; padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--c) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c) 30%, var(--line)); font-size: 12px; }
-.pt-big { width: 74px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 10px; background: var(--c); color: #fff; padding: 6px 0; }
+.pt-big { width: 74px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 10px; background: color-mix(in srgb, var(--c) 62%, #000); color: #fff; padding: 6px 0; }
 .pt-big strong { font-size: 28px; line-height: 1.1; }
-.pt-big span { font-size: 10.5px; opacity: 0.9; }
+.pt-big span { font-size: 10.5px; }
 .pt-facts { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .pt-facts > strong { font-size: 15px; }
-.pt-cat { color: var(--c); font-weight: 650; font-size: 11px; }
+.pt-cat { color: color-mix(in srgb, var(--c) 55%, var(--text)); font-weight: 650; font-size: 11px; }
 .pt-facts dl { margin: 4px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; }
 .pt-facts dt { color: var(--muted); }
 .pt-facts dd { margin: 0; font-variant-numeric: tabular-nums; }

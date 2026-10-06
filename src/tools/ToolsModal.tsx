@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { ArrowLeft, CornerDownLeft, Lock, Maximize2, PictureInPicture2, Search, Star, X } from "lucide-react";
 import { GROUPS, findTool, lockReason, visibleTools } from "./registry";
-import { ToolHost } from "./ToolHost";
+import { ToolHost, preloadTool } from "./ToolHost";
 import { toolsNative } from "./shared/native";
 import { readSettings, saveSetting } from "../lib/settings";
 import { score } from "../lib/palette";
@@ -114,6 +114,7 @@ function Launcher({ identity, t, open, onTool, onClose }: {
   const [favs, setFavs] = useState<string[]>([]);
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  const flatRef = useRef<ToolManifest[]>([]);
   const tools = visibleTools(identity);
 
   useEffect(() => {
@@ -126,6 +127,11 @@ function Launcher({ identity, t, open, onTool, onClose }: {
     void getCurrentWebview().setFocus().catch(() => undefined).finally(() => input.current?.focus());
   }, [open]);
   useEffect(() => setSel(0), [query]);
+  // The highlighted tool (keyboard or search) starts loading before Enter.
+  useEffect(() => {
+    const tm = flatRef.current[sel];
+    if (tm) void preloadTool(tm);
+  }, [sel, query]);
 
   const q = query.trim();
   const sections: Array<{ key: string; title: string; list: ToolManifest[] }> = q
@@ -143,6 +149,7 @@ function Launcher({ identity, t, open, onTool, onClose }: {
         ...GROUPS.map((g) => ({ key: g, title: t(`group.${g}` as never), list: tools.filter((tm) => tm.group === g) })).filter((s) => s.list.length),
       ];
   const flat = sections.flatMap((s) => s.list);
+  flatRef.current = flat;
 
   const toggleFav = (id: string) =>
     setFavs((f) => {
@@ -189,8 +196,8 @@ function Launcher({ identity, t, open, onTool, onClose }: {
                 const fav = favs.includes(tm.id);
                 return (
                   <li key={`${s.key}-${tm.id}`}>
-                    <div className={`tool-tile${i === sel ? " sel" : ""}${locked ? " locked" : ""}`} onMouseEnter={() => setSel(i)}>
-                      <button className="tool-tile-main" onClick={() => onTool(tm.id)} title={locked ? t(locked) : t(tm.description)}>
+                    <div className={`tool-tile${i === sel ? " sel" : ""}${locked ? " locked" : ""}`} onMouseEnter={() => { setSel(i); void preloadTool(tm); }}>
+                      <button className="tool-tile-main" onFocus={() => void preloadTool(tm)} onClick={() => onTool(tm.id)} title={locked ? t(locked) : t(tm.description)}>
                         <span className="tile" style={{ "--tile": tm.color } as CSSProperties}><tm.icon size={19} /></span>
                         <span className="tool-text">
                           <span className="tool-name">{t(tm.title)}{locked && <Lock size={11} className="muted" />}</span>

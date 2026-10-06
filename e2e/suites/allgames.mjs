@@ -31,7 +31,8 @@ for (const [id, name] of Object.entries(names)) {
   await p.waitForTimeout(500);
   const sw = await p.evaluate(() => { const s = document.querySelector(".modal-body"); return s ? s.scrollWidth - s.clientWidth : 0; });
   await p.screenshot({ path: `${SHOTS}/g-${theme}-${id}.png` });
-  console.log(`${id}: ${errs.length > before ? "ERRORS " + errs.slice(before).join(" | ") : "ok"}${sw > 2 ? " HSCROLL " + sw : ""}`);
+  const bad = errs.length > before || sw > 2;
+  console.log(`${bad ? "FAIL" : "PASS"} ${theme} ${id} opens and plays without errors or sideways scrolling${bad ? ` — ${errs.slice(before).join(" | ")}${sw > 2 ? ` scrollWidth+${sw}` : ""}` : ""}`);
   await p.click('.game-bar .icon-btn[aria-label="All games"]');
   await p.waitForTimeout(200);
 }

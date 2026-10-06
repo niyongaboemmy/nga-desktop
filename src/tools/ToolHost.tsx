@@ -2,6 +2,21 @@ import { Component, lazy, Suspense, useMemo, type ComponentType, type ReactNode 
 import { LoaderCircle, RotateCw, TriangleAlert } from "lucide-react";
 import type { ToolContext, ToolManifest, ToolProps } from "./types";
 
+// Tools whose code has already arrived: rendered directly, without React.lazy's
+// Suspense round (React holds a fallback ~300 ms before revealing content).
+const loaded = new Map<string, ComponentType<ToolProps>>();
+const loading = new Map<string, Promise<void>>();
+
+/** Start loading a tool's code early (hover, focus or keyboard selection in the launcher). */
+export function preloadTool(tool: ToolManifest): Promise<void> {
+  let p = loading.get(tool.id);
+  if (!p) {
+    p = tool.load().then((m) => void loaded.set(tool.id, m.default)).catch(() => void loading.delete(tool.id));
+    loading.set(tool.id, p);
+  }
+  return p;
+}
+
 // One lazy component per tool, created once (so React keeps its state).
 const lazies = new Map<string, ComponentType<ToolProps>>();
 const lazyFor = (tool: ToolManifest) => {
@@ -39,7 +54,7 @@ class Boundary extends Component<{ children: ReactNode; ctx: ToolContext }, { er
 }
 
 export function ToolHost({ tool, ctx }: { tool: ToolManifest; ctx: ToolContext }) {
-  const Tool = useMemo(() => lazyFor(tool), [tool]);
+  const Tool = useMemo(() => loaded.get(tool.id) ?? lazyFor(tool), [tool]);
   return (
     <Boundary ctx={ctx}>
       <Suspense fallback={<div className="tool-loading"><LoaderCircle size={20} className="spin" /></div>}>

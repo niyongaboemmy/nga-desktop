@@ -32,7 +32,7 @@ ok("sliders move the line", pts2.join() !== pts.join(), pts2.join(" "));
 await shot("01-graph");
 
 await open("periodic");
-await p.click('.pt-cell[aria-label="26 Iron"]');
+await p.click('.pt-cell[data-z="26"]');
 ok("element card shows iron", (await p.locator(".pt-facts > strong").textContent()) === "Iron" && (await p.locator(".pt-facts").textContent()).includes("Period 4, group 8"));
 await p.fill(".mm input", "CuSO4·5H2O");
 ok("molar mass of CuSO4·5H2O", (await p.locator(".mm-result strong").textContent()).startsWith("249.69"));

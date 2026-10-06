@@ -26,7 +26,7 @@ export default function Formulas({ ctx }: ToolProps) {
       <div className="formulas-bar">
         <div className="segmented-sm">
           {SUBJECTS.map((s) => <button key={s} className={subject === s && !q ? "on" : ""} onClick={() => { setSubject(s); setQ(""); }}>{t(`formulas.${s}` as never)}</button>)}
-          <button className={subject === "starred" && !q ? "on" : ""} onClick={() => { setSubject("starred"); setQ(""); }}><Star size={12} /></button>
+          <button className={subject === "starred" && !q ? "on" : ""} onClick={() => { setSubject("starred"); setQ(""); }} aria-label={t("panel.favourites")} title={t("panel.favourites")}><Star size={12} /></button>
         </div>
         <select value={level} onChange={(e) => setLevel(e.target.value as typeof level)} aria-label={t("formulas.level")}>
           <option value="all">{t("formulas.allLevels")}</option>

@@ -10,6 +10,9 @@ const ctx = await b.newContext({ viewport: { width: 1320, height: 840 } });
 await ctx.addInitScript(`localStorage.setItem("nga.theme","dark"); localStorage.setItem("mock.persona","student");`);
 await ctx.addInitScript(mock);
 const p = await ctx.newPage();
+// A fixed school morning (10:00 Kigali) so the agenda never spills over midnight.
+await p.clock.install({ time: new Date("2026-10-07T08:00:00Z") });
+await p.clock.resume();
 const errs = []; p.on("pageerror", (e) => errs.push(e.message));
 await p.goto("http://localhost:1420/?overlay=1");
 await p.waitForTimeout(300);
