@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.13.0 — 2026-10-06
+
 - **Easier to read:** colours across all tools now meet the WCAG AA contrast level in both themes (greys, green, amber and the dark-theme blue were adjusted), checked automatically on every tool.
 - **Screen readers:** the periodic table and the translations list announce correctly; every button has a name.
 - **Faster:** a tool opens in well under a tenth of a second when you open it from the launcher (it starts loading as soon as you point at it).
