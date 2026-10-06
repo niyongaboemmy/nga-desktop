@@ -40,7 +40,10 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             .resizable(false)
             .skip_taskbar(true)
             .visible(false)
-            .focused(false);
+            .focused(false)
+            // Tools take file drops and drag-to-reorder themselves (PDF tools);
+            // Tauri's own handler would swallow them (always on Windows).
+            .disable_drag_drop_handler();
     #[cfg(windows)]
     let builder = builder.owner_raw(main.hwnd()?);
     #[cfg(not(windows))]

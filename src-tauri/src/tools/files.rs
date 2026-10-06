@@ -1,10 +1,10 @@
-//! Save what a tool made (a QR code, a note) to the Downloads folder.
+//! Save what a tool made (a QR code, a note, a PDF) to the Downloads folder.
 
 use base64::Engine;
 use tauri::{AppHandle, Manager, Runtime};
 
-const MAX_BYTES: usize = 10 * 1024 * 1024;
-const EXTENSIONS: [&str; 5] = ["png", "svg", "md", "txt", "csv"];
+const MAX_BYTES: usize = 60 * 1024 * 1024;
+const EXTENSIONS: [&str; 7] = ["png", "svg", "md", "txt", "csv", "pdf", "jpg"];
 
 /// A safe file name: letters, digits, spaces, dots, dashes, underscores; a known extension.
 pub fn safe_name(name: &str) -> Option<String> {
@@ -88,6 +88,11 @@ mod tests {
         assert_eq!(safe_name("a/b\\c:d.svg").as_deref(), Some("a-b-c-d.svg"));
         assert_eq!(safe_name(".png").as_deref(), Some("nga.png"));
         assert_eq!(safe_name("virus.exe"), None);
+        assert_eq!(
+            safe_name("Merged notes.PDF").as_deref(),
+            Some("Merged notes.pdf")
+        );
+        assert_eq!(safe_name("scan 1.jpg").as_deref(), Some("scan 1.jpg"));
         assert_eq!(safe_name("noext"), None);
     }
 

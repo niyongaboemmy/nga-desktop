@@ -120,6 +120,7 @@ pub fn tools_window_open<R: Runtime>(
             } else {
                 format!("{title} · NGA")
             })
+            .disable_drag_drop_handler()
             .min_inner_size(260.0, 220.0)
             .inner_size(380.0, 540.0)
             .always_on_top(on_top.unwrap_or(false) && !present);

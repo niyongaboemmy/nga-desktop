@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>NSCameraUsageDescription</key>
-  <string>Task Mentor uses the camera for proctored quizzes, and Tupo uses it for video meetings.</string>
+  <string>Task Mentor uses the camera for proctored quizzes, Tupo for video meetings, and the Scanner tool to photograph pages (photos stay on this computer).</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Tupo uses the microphone for meetings and voice messages, and the Noise meter tool measures how loud the room is (nothing is recorded).</string>
   <!-- Tupo Meet live captions use WebKit speech recognition. Without this

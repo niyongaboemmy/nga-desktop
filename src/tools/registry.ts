@@ -1,6 +1,6 @@
 // Every tool, once. The panel, the ⌘K palette, windows and permissions read this list.
 // Adding a tool: make its folder, add one entry here, add its i18n keys, add a test.
-import { Atom, Gamepad2, PartyPopper, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
+import { Atom, FileStack, ScanLine, Gamepad2, PartyPopper, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
 import type { Identity, ToolGroup, ToolManifest } from "./types";
 
 export const TOOLS: ToolManifest[] = [
@@ -150,6 +150,20 @@ export const TOOLS: ToolManifest[] = [
     keywords: ["flashcards", "revision", "memorise", "spaced repetition", "fiches", "gusubiramo"],
     audiences: "all", network: "offline", popOut: true, present: false, personal: true, color: "#ec4899", size: "m",
     load: () => import("./study/Flashcards"),
+  },
+  {
+    id: "pdf", group: "office", icon: FileStack,
+    title: "tool.pdf", description: "tool.pdf.desc",
+    keywords: ["pdf", "merge", "split", "combine", "rotate", "watermark", "scan", "fusionner", "diviser", "guhuza"],
+    audiences: "all", network: "offline", popOut: true, present: false, personal: false, color: "#dc2626", size: "l",
+    load: () => import("./office/PdfTool"),
+  },
+  {
+    id: "scanner", group: "office", icon: ScanLine,
+    title: "tool.scanner", description: "tool.scanner.desc",
+    keywords: ["scan", "scanner", "camera", "photo", "document", "numériser", "gufotora"],
+    audiences: "all", network: "offline", popOut: true, present: false, personal: false, color: "#0891b2", size: "l",
+    load: () => import("./office/Scanner"),
   },
   {
     id: "games", group: "games", icon: Gamepad2,

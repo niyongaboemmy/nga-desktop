@@ -4,6 +4,10 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **PDF tools** (everyone, offline): put pages of PDFs and pictures together, reorder (drag or arrows), turn, remove, add a watermark and page numbers, save the selected pages or split into one file per page. Nothing is uploaded; files go to Downloads.
+- **Scanner** (everyone, offline): photograph a page with the camera or pick a photo; the page is found automatically (adjust the four corners if needed), straightened, cleaned up in colour or crisp black and white, and saved with the other pages as one PDF.
+- Files can now be dropped onto tools, and pages dragged to reorder, on Windows too.
+
 ## 0.9.0 — 2026-10-06
 
 - **Class game time** (teachers): open chosen games for one of your classes for 5–30 minutes, even during your lesson. Students see them within a minute; exams still lock games, and it doesn't count towards their daily time.
