@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.10.0 — 2026-10-06
+
 - **PDF tools** (everyone, offline): put pages of PDFs and pictures together, reorder (drag or arrows), turn, remove, add a watermark and page numbers, save the selected pages or split into one file per page. Nothing is uploaded; files go to Downloads.
 - **Scanner** (everyone, offline): photograph a page with the camera or pick a photo; the page is found automatically (adjust the four corners if needed), straightened, cleaned up in colour or crisp black and white, and saved with the other pages as one PDF.
 - Files can now be dropped onto tools, and pages dragged to reorder, on Windows too.
