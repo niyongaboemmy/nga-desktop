@@ -1,6 +1,6 @@
 // Every tool, once. The panel, the ⌘K palette, windows and permissions read this list.
 // Adding a tool: make its folder, add one entry here, add its i18n keys, add a test.
-import { CalendarClock, CalendarRange, Calculator, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
+import { CalendarClock, CalendarRange, Calculator, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
 import type { Identity, ToolGroup, ToolManifest } from "./types";
 
 export const TOOLS: ToolManifest[] = [
@@ -66,6 +66,55 @@ export const TOOLS: ToolManifest[] = [
     keywords: ["qr code", "barcode", "wifi", "link", "code qr"],
     audiences: "all", network: "offline", popOut: true, present: true, personal: false, color: "#64748b", size: "m",
     load: () => import("./qr/QrTool"),
+  },
+  {
+    id: "picker", group: "classroom", icon: Shuffle,
+    title: "tool.picker", description: "tool.picker.desc",
+    keywords: ["random", "name", "student", "pick", "choose", "wheel", "hasard", "izina"],
+    audiences: ["teacher", "staff", "admin"], network: "partial", popOut: true, present: true, personal: true, color: "#f97316", size: "m",
+    load: () => import("./classroom/Picker"),
+  },
+  {
+    id: "groups", group: "classroom", icon: Users,
+    title: "tool.groups", description: "tool.groups.desc",
+    keywords: ["groups", "teams", "random groups", "pairs", "équipes", "amatsinda"],
+    audiences: ["teacher", "staff", "admin"], network: "partial", popOut: true, present: true, personal: true, color: "#22c55e", size: "m",
+    load: () => import("./classroom/Groups"),
+  },
+  {
+    id: "noise", group: "classroom", icon: Volume2,
+    title: "tool.noise", description: "tool.noise.desc",
+    keywords: ["noise", "volume", "loud", "quiet", "bruit", "urusaku"],
+    audiences: ["teacher", "staff", "admin"], network: "offline", popOut: true, present: true, personal: false, color: "#ef4444", size: "m",
+    load: () => import("./classroom/Noise"),
+  },
+  {
+    id: "signs", group: "classroom", icon: Hand,
+    title: "tool.signs", description: "tool.signs.desc",
+    keywords: ["traffic light", "work mode", "silence", "instructions", "consigne", "amabwiriza"],
+    audiences: ["teacher", "staff", "admin"], network: "offline", popOut: true, present: true, personal: false, color: "#f59e0b", size: "m",
+    load: () => import("./classroom/Signs"),
+  },
+  {
+    id: "classroom-screen", group: "classroom", icon: MonitorPlay,
+    title: "tool.cscreen", description: "tool.cscreen.desc",
+    keywords: ["projector", "classroom screen", "board", "écran", "projecteur"],
+    audiences: ["teacher", "staff", "admin"], network: "offline", popOut: false, present: true, personal: false, color: "#0ea5e9", size: "l",
+    load: () => import("./classroom/ClassroomScreen"),
+  },
+  {
+    id: "board", group: "classroom", icon: PenLine,
+    title: "tool.board", description: "tool.board.desc",
+    keywords: ["whiteboard", "draw", "sketch", "tableau", "kwandika", "gushushanya"],
+    audiences: "all", network: "offline", popOut: true, present: true, personal: false, color: "#3b82f6", size: "l",
+    load: () => import("./classroom/Board"),
+  },
+  {
+    id: "grades", group: "study", icon: Percent,
+    title: "tool.grades", description: "tool.grades.desc",
+    keywords: ["marks", "average", "weighted", "grade", "notes", "moyenne", "amanota"],
+    audiences: "all", network: "offline", popOut: true, present: false, personal: false, color: "#8b5cf6", size: "m",
+    load: () => import("./classroom/Grades"),
   },
 ];
 
