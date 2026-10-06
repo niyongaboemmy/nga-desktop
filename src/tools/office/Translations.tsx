@@ -164,7 +164,7 @@ export default function Translations({ ctx }: ToolProps) {
           </div>
           <ul role="listbox" aria-label={t("tr.strings")}>
             {list.slice(0, 400).map((r) => (
-              <li key={r.key}>
+              <li key={r.key} role="none">
                 <button role="option" aria-selected={sel === r.key} className={sel === r.key ? "sel" : ""} onClick={() => setSel(r.key)}>
                   <span className="trw-en">{r.en}</span>
                   <span className="trw-cur">{r.entry?.text ?? r.current}</span>
@@ -172,8 +172,8 @@ export default function Translations({ ctx }: ToolProps) {
                 </button>
               </li>
             ))}
-            {list.length > 400 && <li className="muted small trw-more">{t("tr.more", { n: list.length - 400 })}</li>}
-            {list.length === 0 && <li className="muted small trw-more">{t("tr.none")}</li>}
+            {list.length > 400 && <li role="none" className="muted small trw-more">{t("tr.more", { n: list.length - 400 })}</li>}
+            {list.length === 0 && <li role="none" className="muted small trw-more">{t("tr.none")}</li>}
           </ul>
         </div>
         {row ? <Editor key={`${lang}:${row.key}`} row={row} lang={lang} t={t} busy={busy} onSave={save} onRevert={revert} /> : <div className="trw-editor empty"><p className="muted">{t("tr.pick")}</p></div>}

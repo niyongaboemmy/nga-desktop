@@ -141,7 +141,7 @@ export default function Graph({ ctx }: ToolProps) {
         {points.length > 0 && (
           <div className="graph-points">
             <strong><Crosshair size={12} /> {t("graph.points")}</strong>
-            <ul>{points.map((p, i) => <li key={i} style={{ color: p.color }}>{p.label}</li>)}</ul>
+            <ul>{points.map((p, i) => <li key={i} style={{ color: `color-mix(in srgb, ${p.color} 62%, var(--text))` }}>{p.label}</li>)}</ul>
           </div>
         )}
         <div className="row">

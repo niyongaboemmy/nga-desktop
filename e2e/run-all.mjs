@@ -8,7 +8,7 @@ import { readdirSync } from "node:fs";
 const root = new URL("..", import.meta.url).pathname;
 const only = process.argv.slice(2);
 // Suites that take a theme argument run in both themes.
-const THEMED = new Set(["games", "controls", "pdf", "scan", "ocr", "translations"]);
+const THEMED = new Set(["games", "controls", "pdf", "scan", "ocr", "translations", "a11y"]);
 
 const up = () => fetch("http://localhost:1420/").then((r) => r.ok).catch(() => false);
 let vite = null;

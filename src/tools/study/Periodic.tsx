@@ -28,17 +28,19 @@ export default function Periodic({ ctx }: ToolProps) {
         <label className="tool-search"><Search size={14} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("pt.search")} spellCheck={false} /></label>
         <div className="pt-legend">{Object.entries(CATEGORY_COLOR).map(([c, col]) => <span key={c} style={{ ["--c" as string]: col }}>{t(`pt.cat.${c}` as never) || c}</span>)}</div>
       </div>
-      <div className="pt-grid" role="grid" aria-label={t("tool.periodic")}>
+      <div className="pt-grid" role="group" aria-label={t("tool.periodic")}>
         {ELEMENT_LIST.map((e) => (
           <button
             key={e.z}
             className={`pt-cell${sel.z === e.z ? " on" : ""}${match(e) ? "" : " dim"}`}
             style={{ gridRow: e.row, gridColumn: e.col, ["--c" as string]: CATEGORY_COLOR[e.category] ?? "#64748b" }}
             onClick={() => setSel(e)}
-            aria-label={`${e.z} ${e.name}`}
+            data-z={e.z}
           >
             <span className="pt-z">{e.z}</span>
             <strong>{e.symbol}</strong>
+            {/* Screen readers hear "26 Fe Iron"; the visible text stays part of the name. */}
+            <span className="sr-only"> {e.name}</span>
           </button>
         ))}
         <span className="pt-f-mark" style={{ gridRow: 6, gridColumn: 3 }}>57–71</span>
