@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.12.0 — 2026-10-06
+
 - **Translations** (for people with the translations permission in NGA MIS; admins by default, and anyone they choose): review every French and Kinyarwanda text of the tools, correct it, ask AI for a draft, approve and publish. Every computer gets the published texts within 5 minutes — no app update needed — and an earlier release can be restored in one click. A correction is only used while the English text it translates is unchanged.
 - Search boxes in Notes, Formulas and the periodic table now keep their icon inside the field.
 
