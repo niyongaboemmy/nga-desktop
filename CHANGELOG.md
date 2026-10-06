@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.14.0 — 2026-10-06
+
 - **AI Tutor for students:** students now get an AI study coach in Ask AI. It explains topics, gives hints and checks their own answers, but doesn't do homework for them; every reply is checked for given-away answers and unsafe content before it is shown. It pauses during each student's own lessons and exams, students get a daily number of questions (set by the school), and they can report a bad answer. Students are told first that their chats are saved and may be reviewed by school staff. It uses all of the school's AI services in turn, so it keeps working when one is busy.
 - Maths written by the AI as \( … \) or \[ … \] now displays properly (also in Notes).
 
