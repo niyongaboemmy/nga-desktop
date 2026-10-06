@@ -99,7 +99,7 @@ await shot(p, "06-ai-chat");
 const s = await overlayPage("student");
 await s.evaluate(() => window.__mockEmit("nga://overlay", "tool:ai"));
 await s.waitForSelector(".ai-empty");
-check("students see 'coming soon'", (await s.locator(".ai-empty strong").textContent()).includes("coming soon"));
+check("students meet the AI Tutor first", (await s.locator(".ai-empty strong").textContent()).includes("AI Tutor"));
 await s.screenshot({ path: `${OUT}modal-${engineName}-${theme}-07-ai-student.png` });
 
 // Converter + dates in the modal

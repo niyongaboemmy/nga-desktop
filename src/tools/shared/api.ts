@@ -11,7 +11,7 @@ interface ApiEvent {
 }
 
 export class MisApiError extends Error {
-  constructor(message: string, readonly status = 0, readonly code?: string) {
+  constructor(message: string, readonly status = 0, readonly code?: string, readonly data?: Record<string, unknown>) {
     super(message);
   }
 }
@@ -22,7 +22,7 @@ const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slic
 export function errorFrom(status: number, body: string): MisApiError {
   try {
     const j = JSON.parse(body);
-    return new MisApiError(j?.message || `NGA MIS said ${status}`, status, j?.code);
+    return new MisApiError(j?.message || `NGA MIS said ${status}`, status, j?.code, j && typeof j === "object" ? j : undefined);
   } catch {
     return new MisApiError(status === 401 ? "Sign in to NGA MIS again" : `NGA MIS said ${status}`, status);
   }

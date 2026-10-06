@@ -45,4 +45,11 @@ describe("notes", () => {
     const ids = new Set(Array.from({ length: 50 }, () => newNote().id));
     expect(ids.size).toBe(50);
   });
+
+  it("renders LaTeX's own \\( … \\) and \\[ … \\] delimiters (AI answers use them)", () => {
+    const html = render("Solve \\(3x + 5 = 20\\):\n\n\\[x = \\frac{15}{3}\\]");
+    expect(html).toContain("katex");
+    expect(html).toContain("katex-display");
+    expect(html).not.toContain("\\(");
+  });
 });
