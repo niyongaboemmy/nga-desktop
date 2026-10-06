@@ -4,6 +4,12 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **Study kit** (everyone, offline):
+  - **Graphing calculator**: several functions, sliders for letters like a and b, zeros and intersections marked, drag and zoom, save as PNG.
+  - **Periodic table**: all 118 elements (PubChem data) with details, search, and a **molar mass calculator** (brackets and hydrates: Ca(OH)2, CuSO4·5H2O) with mass percentages.
+  - **Formula sheets**: 76 maths, physics, chemistry and biology formulas for S1–S6, beautifully typeset, searchable, with favourites.
+  - **Flashcards**: spaced repetition (FSRS). Each card comes back just before you'd forget it. Make decks, paste many cards at once, study with keyboard shortcuts 1–4.
+
 ## 0.6.0 — 2026-10-06
 
 - **Classroom kit** (for teachers and staff), with your NGA MIS class lists or your own lists:

@@ -1,6 +1,6 @@
 // Every tool, once. The panel, the ⌘K palette, windows and permissions read this list.
 // Adding a tool: make its folder, add one entry here, add its i18n keys, add a test.
-import { CalendarClock, CalendarRange, Calculator, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
+import { Atom, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
 import type { Identity, ToolGroup, ToolManifest } from "./types";
 
 export const TOOLS: ToolManifest[] = [
@@ -115,6 +115,34 @@ export const TOOLS: ToolManifest[] = [
     keywords: ["marks", "average", "weighted", "grade", "notes", "moyenne", "amanota"],
     audiences: "all", network: "offline", popOut: true, present: false, personal: false, color: "#8b5cf6", size: "m",
     load: () => import("./classroom/Grades"),
+  },
+  {
+    id: "graph", group: "study", icon: ChartSpline,
+    title: "tool.graph", description: "tool.graph.desc",
+    keywords: ["graph", "plot", "function", "curve", "grapheur", "courbe", "igishushanyo"],
+    audiences: "all", network: "offline", popOut: true, present: true, personal: false, color: "#3b82f6", size: "l",
+    load: () => import("./study/Graph"),
+  },
+  {
+    id: "periodic", group: "study", icon: Atom,
+    title: "tool.periodic", description: "tool.periodic.desc",
+    keywords: ["periodic table", "elements", "chemistry", "molar mass", "tableau périodique", "ibinyabutabire"],
+    audiences: "all", network: "offline", popOut: true, present: true, personal: false, color: "#14b8a6", size: "l",
+    load: () => import("./study/Periodic"),
+  },
+  {
+    id: "formulas", group: "study", icon: Sigma,
+    title: "tool.formulas", description: "tool.formulas.desc",
+    keywords: ["formula", "physics", "maths", "chemistry", "formules", "formule"],
+    audiences: "all", network: "offline", popOut: true, present: true, personal: false, color: "#f59e0b", size: "m",
+    load: () => import("./study/Formulas"),
+  },
+  {
+    id: "cards", group: "study", icon: BookOpenCheck,
+    title: "tool.cards", description: "tool.cards.desc",
+    keywords: ["flashcards", "revision", "memorise", "spaced repetition", "fiches", "gusubiramo"],
+    audiences: "all", network: "offline", popOut: true, present: false, personal: true, color: "#ec4899", size: "m",
+    load: () => import("./study/Flashcards"),
   },
 ];
 
