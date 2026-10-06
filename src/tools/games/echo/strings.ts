@@ -1,0 +1,43 @@
+import type { GameStrings } from "../types";
+
+export const strings: GameStrings = {
+  en: {
+    help: "Watch the pads light up, then repeat the same order by clicking them or pressing keys 1–4. Each time you get it right the sequence grows by one. A mistake simply ends the round: your score is the longest sequence you repeated.",
+    start: "Start",
+    again: "Play again",
+    replay: "Show again",
+    watch: "Watch…",
+    yourTurn: "Your turn: {n} to go",
+    score: "Longest",
+    best: "Best",
+    over: "Round over. You repeated {n} in a row.",
+    pad: "Pad {n}",
+    green: "green circle", red: "red triangle", yellow: "yellow square", blue: "blue diamond",
+  },
+  fr: {
+    help: "Regardez les touches s'allumer, puis répétez le même ordre en cliquant dessus ou avec les touches 1 à 4. À chaque réussite, la suite s'allonge d'un. Une erreur termine simplement la manche : votre score est la plus longue suite répétée.",
+    start: "Commencer",
+    again: "Rejouer",
+    replay: "Revoir",
+    watch: "Regardez…",
+    yourTurn: "À vous : encore {n}",
+    score: "Plus longue",
+    best: "Record",
+    over: "Manche terminée. Vous avez répété {n} de suite.",
+    pad: "Touche {n}",
+    green: "cercle vert", red: "triangle rouge", yellow: "carré jaune", blue: "losange bleu",
+  },
+  rw: {
+    help: "Reba uko utubuto twaka, hanyuma usubiremo uko bikurikirana ukanda kuri two cyangwa ukoresheje imibare 1–4. Igihe cyose ubikoze neza, urukurikirane rwiyongeraho kimwe. Ikosa rirangiza icyiciro gusa: amanota yawe ni urukurikirane rurerure wasubiyemo.",
+    start: "Tangira",
+    again: "Ongera ukine",
+    replay: "Ongera werekane",
+    watch: "Reba…",
+    yourTurn: "Ni wowe: hasigaye {n}",
+    score: "Rurerure",
+    best: "Agahigo",
+    over: "Icyiciro kirangiye. Wasubiyemo {n} bikurikiranye.",
+    pad: "Akabuto {n}",
+    green: "uruziga rw'icyatsi", red: "mpandeshatu itukura", yellow: "kare y'umuhondo", blue: "rozanje y'ubururu",
+  },
+};

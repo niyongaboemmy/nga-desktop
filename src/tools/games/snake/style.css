@@ -1,0 +1,27 @@
+/* Snake: a calm garden grid; game over is a soft message, no flashing. */
+.snk { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 4px 0 8px; }
+.snk-top { display: flex; align-items: center; gap: 12px; min-height: 40px; flex-wrap: wrap; justify-content: center; }
+.snk-score { display: flex; flex-direction: column; align-items: center; padding: 4px 14px; border-radius: 10px; background: var(--hover); }
+.snk-score small { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.snk-score strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.snk-walls { display: flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; }
+.snk-grid {
+  position: relative; display: grid; gap: 1px; padding: 6px;
+  width: min(460px, 100%); aspect-ratio: 20 / 15; border-radius: 14px;
+  background: var(--hover); box-shadow: inset 0 0 0 2px var(--line);
+}
+.snk-grid:not(.soft) { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--text) 35%, var(--line)); }
+.snk-grid > span { border-radius: 4px; }
+.snk-body { background: color-mix(in srgb, var(--ok) 75%, var(--surface)); }
+.snk-head { background: var(--ok); border-radius: 6px !important; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 60%, var(--text)); }
+.snk-food { background: var(--warn); border-radius: 50% !important; transform: scale(0.8); animation: snk-bob 1.6s ease-in-out infinite; }
+.snk.still .snk-food { animation: none; }
+@keyframes snk-bob { 50% { transform: scale(0.62); } }
+.snk-msg {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 80%;
+  padding: 10px 16px; border-radius: 12px; background: var(--surface); color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 6px 20px rgb(0 0 0 / 0.1); font-size: 13px; text-align: center;
+}
+.snk-msg.end { font-weight: 650; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.snk-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.snk-pad { display: flex; gap: 6px; }

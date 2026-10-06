@@ -1,0 +1,28 @@
+/* Four in a row: blue and gold discs on a soft surface board (not the famous red/yellow on blue). */
+.fr4 { --fr4-p1: var(--accent-fill); --fr4-p2: var(--warn); display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 4px 0 8px; }
+.fr4-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.fr4-top .segmented-sm { margin: 0; }
+.fr4-status { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 20px; font-weight: 550; }
+.fr4-chip { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.fr4-chip.p1 { background: var(--fr4-p1); }
+.fr4-chip.p2 { background: var(--fr4-p2); }
+.fr4-board {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 8px;
+  width: min(430px, 100%); border-radius: 18px; background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / 0.06);
+}
+.fr4-col { overflow: hidden; display: grid; grid-template-rows: repeat(6, 1fr); gap: 4px; padding: 4px; border-radius: 12px; transition: background 0.15s; }
+.fr4-col.sel:not(:disabled), .fr4-col:hover:not(:disabled) { background: var(--accent-soft); }
+.fr4-col:disabled { cursor: default; }
+.fr4-col:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.fr4-cell { aspect-ratio: 1; border-radius: 50%; background: var(--hover); box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.08); }
+.fr4-cell.p1, .fr4-cell.p2 { box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.15); }
+.fr4-cell.p1 { background: var(--fr4-p1); }
+.fr4-cell.p2 { background: var(--fr4-p2); }
+.fr4-cell.last:not(.ghost) { animation: fr4-drop 260ms var(--ease); }
+.fr4-cell.ghost { background: transparent; box-shadow: inset 0 0 0 2px var(--fr4-p1); opacity: 0.7; }
+.fr4-cell.ghost.p2 { box-shadow: inset 0 0 0 2px var(--fr4-p2); }
+.fr4-cell.win { box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 6px var(--ok); }
+.fr4-cell.dim { opacity: 0.45; }
+.fr4.still .fr4-cell { animation: none !important; transition: none; }
+@keyframes fr4-drop { from { transform: translateY(calc(var(--r) * -110%)); } to { transform: none; } }

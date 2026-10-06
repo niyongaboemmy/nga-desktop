@@ -1,0 +1,25 @@
+.stretch { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 6px 0 12px; }
+.stretch-pick { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: min(560px, 100%); }
+.stretch-pick button {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 10px; border-radius: 14px;
+  background: color-mix(in srgb, #84cc16 10%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, #84cc16 25%, var(--line));
+  color: var(--text); font-weight: 600; transition: transform 150ms var(--ease), background 150ms;
+}
+.stretch-pick button svg { color: #65a30d; }
+.stretch-pick button:hover { background: color-mix(in srgb, #84cc16 18%, var(--surface)); transform: translateY(-1px); }
+.stretch-card { display: flex; flex-direction: column; align-items: center; gap: 16px; width: min(520px, 100%); text-align: center; }
+.stretch-ring {
+  position: relative; display: grid; place-items: center; width: 150px; aspect-ratio: 1; border-radius: 50%; color: #65a30d;
+  background: conic-gradient(#84cc16 calc(var(--p) * 360deg), var(--hover) 0);
+}
+.stretch-ring::before { content: ""; position: absolute; inset: 9px; border-radius: 50%; background: var(--surface); }
+.stretch-ring > * { position: relative; }
+.stretch-left { position: absolute; bottom: 26px; font-size: 13px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stretch-text { display: flex; flex-direction: column; gap: 6px; }
+.stretch-text strong { font-size: 19px; line-height: 1.35; }
+.stretch-dots { display: flex; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.stretch-dots li { width: 22px; height: 5px; border-radius: 3px; background: var(--hover); }
+.stretch-dots li.on { background: #84cc16; }
+.stretch-dots li.done { background: color-mix(in srgb, #84cc16 50%, var(--hover)); }
+.stretch-controls { gap: 8px; }
+@media (max-width: 560px) { .stretch-pick { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

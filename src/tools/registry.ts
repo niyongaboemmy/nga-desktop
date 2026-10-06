@@ -1,6 +1,6 @@
 // Every tool, once. The panel, the ⌘K palette, windows and permissions read this list.
 // Adding a tool: make its folder, add one entry here, add its i18n keys, add a test.
-import { Atom, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
+import { Atom, Gamepad2, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
 import type { Identity, ToolGroup, ToolManifest } from "./types";
 
 export const TOOLS: ToolManifest[] = [
@@ -143,6 +143,13 @@ export const TOOLS: ToolManifest[] = [
     keywords: ["flashcards", "revision", "memorise", "spaced repetition", "fiches", "gusubiramo"],
     audiences: "all", network: "offline", popOut: true, present: false, personal: true, color: "#ec4899", size: "m",
     load: () => import("./study/Flashcards"),
+  },
+  {
+    id: "games", group: "games", icon: Gamepad2,
+    title: "tool.games", description: "tool.games.desc",
+    keywords: ["games", "play", "break", "puzzle", "sudoku", "brain", "jeux", "pause", "imikino", "akaruhuko", "igisoro"],
+    audiences: ["student", "teacher", "staff", "admin"], network: "partial", popOut: true, present: false, personal: true, color: "#22c55e", size: "l",
+    load: () => import("./games/Games"),
   },
 ];
 
