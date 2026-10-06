@@ -166,11 +166,32 @@ export async function runShellSelftest() {
     let err = "";
     await Promise.race([
       renderThumbs(out, 120, () => n++),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timed out after 20 s")), 20_000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timed out after 30 s")), 30_000)),
     ]).catch((e) => (err = String(e)));
     check("pdf.js draws thumbnails", n === 2, `${n} thumbnails in ${Date.now() - started} ms; mode=${pdfMode.value} ${pdfMode.detail} ${err}`);
     const path = await toolsNative.saveFile("nga-tools-selftest.pdf", toBase64(out));
     check("a PDF can be saved", path.endsWith(".pdf"), path);
+  });
+  await step("OCR", async () => {
+    const { recognize, stopOcr } = await import("./office/ocr");
+    const c = document.createElement("canvas");
+    c.width = 900;
+    c.height = 220;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#fff";
+    g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = "#111";
+    g.font = "48px Arial, Helvetica, sans-serif";
+    g.fillText("Plants need sunlight and water.", 30, 120);
+    const started = Date.now();
+    let err = "";
+    const res = await Promise.race([
+      recognize([c], "eng", () => undefined),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timed out after 60 s")), 60_000)),
+    ]).catch((e) => ((err = String(e)), []));
+    const text = res[0]?.text ?? "";
+    check("OCR engine runs in the app (wasm, worker, bundled English model)", /sunlight/i.test(text) && /water/i.test(text), `${JSON.stringify(text)} in ${Date.now() - started} ms ${err}`);
+    stopOcr();
   });
   await step("MIS API proxy", async () => {
     let refused = "";

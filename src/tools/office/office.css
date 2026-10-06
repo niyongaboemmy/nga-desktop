@@ -59,3 +59,14 @@
 .scan-pages .pdf-num { bottom: 36px; }
 .scan-name { margin: 0; min-width: 240px; }
 @media (max-width: 640px) { .scan-start { grid-template-columns: 1fr; } }
+
+/* OCR */
+.ocr { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--hover); }
+.ocr-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ocr-bar strong { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.ocr-bar .segmented-sm { margin: 0; }
+.ocr-progress { position: relative; height: 22px; border-radius: 8px; background: var(--surface); overflow: hidden; }
+.ocr-progress span { position: absolute; inset: 0 auto 0 0; background: var(--accent-soft); transition: width 300ms var(--ease); }
+.ocr-progress small { position: relative; display: block; padding: 3px 10px; }
+.ocr-text { min-height: 180px; resize: vertical; font-size: 13.5px; line-height: 1.55; }
+.ocr p { margin: 0; }

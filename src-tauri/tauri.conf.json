@@ -16,7 +16,7 @@
     "security": {
       "csp": {
         "default-src": "'self'",
-        "script-src": "'self'",
+        "script-src": "'self' 'wasm-unsafe-eval'",
         "style-src": "'self' 'unsafe-inline'",
         "img-src": "'self' data: https://mis.amashuri.com https://taskmentor.amashuri.com https://tendo.amashuri.com https://tupo.amashuri.com",
         "connect-src": "'self' ipc: http://ipc.localhost https://mis.amashuri.com https://taskmentor.amashuri.com https://tendo.amashuri.com https://tupo.amashuri.com"

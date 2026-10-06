@@ -30,11 +30,36 @@ function setup(): Promise<void> {
   return ready;
 }
 
+/** Switch pdf.js to the main thread for good (the worker didn't answer). */
+async function useMainThread(reason: string) {
+  pdfMode.value = "main";
+  pdfMode.detail = reason;
+  pdfjs.GlobalWorkerOptions.workerPort = null;
+  await import("pdfjs-dist/build/pdf.worker.min.mjs");
+}
+
+/**
+ * Open a document; if the worker doesn't answer within 8 s (seen once on a cold
+ * first launch in the app), drop it and open the document on the main thread.
+ */
+async function openDoc(bytes: Uint8Array) {
+  // pdf.js takes ownership of the buffer it is given: pass a copy each time.
+  const task = pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false });
+  if (pdfMode.value === "main") return task.promise;
+  try {
+    return await Promise.race([task.promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("worker didn't answer")), 8000))]);
+  } catch (e) {
+    void task.destroy();
+    if ((e as Error)?.message !== "worker didn't answer") throw e;
+    await useMainThread("worker stalled");
+    return pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
+  }
+}
+
 /** Renders each page small and hands back a JPEG data URL (the shell's CSP allows data: images). */
 export async function renderThumbs(bytes: Uint8Array, width: number, onThumb: (index: number, url: string) => void, signal?: { cancelled: boolean }): Promise<void> {
   await setup();
-  // pdf.js takes ownership of the buffer it is given: pass a copy.
-  const doc = await pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
+  const doc = await openDoc(bytes);
   try {
     for (let i = 0; i < doc.numPages; i++) {
       if (signal?.cancelled) return;

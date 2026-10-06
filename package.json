@@ -17,7 +17,8 @@
     "release": "node scripts/bump-version.mjs",
     "fake-apps": "node scripts/fake-apps.mjs",
     "tauri:dev:fake": "NGA_ENV=development tauri dev --config src-tauri/tauri.dev.conf.json",
-    "licences": "node scripts/check-licences.mjs"
+    "licences": "node scripts/check-licences.mjs",
+    "e2e": "node e2e/run-all.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -26,6 +27,8 @@
     "@tauri-apps/plugin-process": "^2.4.0",
     "@tauri-apps/plugin-store": "^2.5.0",
     "@tauri-apps/plugin-updater": "^2.13.1",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "@tesseract.js-data/fra": "^1.0.0",
     "dompurify": "^3.4.16",
     "katex": "^0.19.0",
     "lucide-react": "^1.51.0",
@@ -36,6 +39,7 @@
     "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "tesseract.js": "^6.0.1",
     "ts-fsrs": "^5.4.2"
   },
   "devDependencies": {
@@ -46,6 +50,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
     "jsdom": "^29.1.1",
+    "playwright": "^1.60.0",
     "typescript": "~6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.11"
