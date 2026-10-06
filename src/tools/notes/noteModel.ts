@@ -60,6 +60,9 @@ export function render(body: string): string {
     return `@@MATH${maths.length - 1}@@`;
   };
   const src = body
+    // AI models also write \[ … \] and \( … \) (LaTeX's own delimiters).
+    .replace(/\\\[([\s\S]+?)\\\]/g, (_, t: string) => keep(t, true))
+    .replace(/\\\(([\s\S]+?)\\\)/g, (_, t: string) => keep(t, false))
     .replace(/\$\$([\s\S]+?)\$\$/g, (_, t: string) => keep(t, true))
     .replace(/(^|[^\\$])\$([^$\n]+?)\$/g, (_, pre: string, t: string) => pre + keep(t, false));
   const html = marked.parse(src, { async: false, gfm: true, breaks: true }) as string;

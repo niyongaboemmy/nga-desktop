@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Check, Copy, Info, LoaderCircle, MessageSquarePlus, RotateCcw, ShieldCheck, Sparkles, Square, WifiOff } from "lucide-react";
+import { ArrowUp, Check, Copy, Flag, Info, LoaderCircle, MessageSquarePlus, RotateCcw, ShieldCheck, Sparkles, Square, WifiOff } from "lucide-react";
 import { render } from "../notes/noteModel";
 import { misCall, MisApiError } from "../shared/api";
 import { usePersonal } from "../shared/store";
-import { applyLine, providerName, suggestions, toRequest, trimTurns, turnId, type StreamLine, type Status, type Turn } from "./conversation";
+import { applyLine, newConversationId, providerName, suggestions, toRequest, trimTurns, turnId, type StreamLine, type Status, type Turn } from "./conversation";
 import type { ToolProps } from "../types";
-import type { Translate } from "../i18n";
+import type { Key, Translate } from "../i18n";
 
 export default function AskAi({ ctx }: ToolProps) {
   const { t, identity } = ctx;
   const [turns, setTurns, ready] = usePersonal<Turn[]>(identity, "ai.turns", []);
   const [noticeSeen, setNoticeSeen] = usePersonal<boolean>(identity, "ai.noticeSeen", false);
+  const [tutorNoticeSeen, setTutorNoticeSeen] = usePersonal<boolean>(identity, "ai.tutorNoticeSeen", false);
+  const [conversationId, setConversationId] = usePersonal<string>(identity, "ai.conversationId", "");
   const [status, setStatus] = useState<Status | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -22,6 +24,8 @@ export default function AskAi({ ctx }: ToolProps) {
   const stick = useRef(true);
   const turnsRef = useRef(turns);
   turnsRef.current = turns;
+  const conversationIdRef = useRef(conversationId);
+  conversationIdRef.current = conversationId;
 
   const loadStatus = useCallback(() => {
     setStatusError(null);
@@ -57,10 +61,16 @@ export default function AskAi({ ctx }: ToolProps) {
       const ctrl = new AbortController();
       abort.current = ctrl;
       try {
+        let conv = conversationIdRef.current;
+        if (!conv) {
+          conv = newConversationId();
+          setConversationId(conv);
+          conversationIdRef.current = conv;
+        }
         await misCall({
           method: "POST",
           path: "/desktop/tools/ai/chat",
-          body: { messages: toRequest(history) },
+          body: { messages: toRequest(history), conversationId: conv },
           signal: ctrl.signal,
           onLine: (line) => {
             const l = line as StreamLine;
@@ -72,7 +82,14 @@ export default function AskAi({ ctx }: ToolProps) {
         setTurns((cur) => cur.map((x) => (x.id === answer.id && x.streaming ? { ...x, streaming: false, error: x.content ? undefined : t("ai.errEmpty") } : x)));
       } catch (e) {
         const err = e as MisApiError;
-        const msg = err.code === "ABORTED" ? null : err.message;
+        const until = typeof err.data?.until === "string" ? new Date(err.data.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+        const label = typeof err.data?.label === "string" ? err.data.label : "";
+        const msg =
+          err.code === "ABORTED" ? null
+          : err.code === "LOCKED_LESSON" ? t("tutor.lockedLesson", { label, time: until })
+          : err.code === "LOCKED_EXAM" ? t("tutor.lockedExam", { label, time: until })
+          : err.code === "TUTOR_OFF" ? t("tutor.off")
+          : err.message;
         setTurns((cur) =>
           cur.map((x) => (x.id === answer.id ? { ...x, streaming: false, error: msg ?? (x.content ? undefined : t("ai.stopped")) } : x)),
         );
@@ -83,7 +100,7 @@ export default function AskAi({ ctx }: ToolProps) {
         input.current?.focus();
       }
     },
-    [setTurns, t],
+    [setTurns, setConversationId, t],
   );
 
   const send = (raw?: string) => {
@@ -113,16 +130,24 @@ export default function AskAi({ ctx }: ToolProps) {
     return (
       <Empty
         icon={<Sparkles size={22} />}
-        title={status.reason === "STUDENTS_SOON" ? t("ai.studentsSoon") : t("ai.parentsSoon")}
-        body={status.reason === "STUDENTS_SOON" ? t("ai.studentsSoonBody") : t("ai.parentsSoonBody")}
+        title={status.reason === "TUTOR_OFF" ? t("tutor.offTitle") : status.reason === "STUDENTS_SOON" ? t("ai.studentsSoon") : t("ai.parentsSoon")}
+        body={status.reason === "TUTOR_OFF" ? t("tutor.off") : status.reason === "STUDENTS_SOON" ? t("ai.studentsSoonBody") : t("ai.parentsSoonBody")}
       />
+    );
+  const tutor = status.mode === "tutor";
+  // Students read how the tutor works (saved, reviewed, no personal details) before the first question.
+  if (tutor && !tutorNoticeSeen)
+    return (
+      <Empty icon={<ShieldCheck size={22} />} title={t("tutor.welcomeTitle")} body={t("tutor.welcome")}>
+        <button className="btn primary" autoFocus onClick={() => setTutorNoticeSeen(true)}>{t("tutor.start")}</button>
+      </Empty>
     );
 
   const last = turns[turns.length - 1];
   const out = status.remaining <= 0;
   return (
     <div className="ai">
-      {!noticeSeen && (
+      {!tutor && !noticeSeen && (
         <div className="ai-notice" role="note">
           <ShieldCheck size={16} />
           <span>{t("ai.notice")}</span>
@@ -140,8 +165,8 @@ export default function AskAi({ ctx }: ToolProps) {
         {turns.length === 0 ? (
           <div className="ai-hello">
             <div className="ai-orb"><Sparkles size={22} /></div>
-            <h3>{identity?.firstName ? t("ai.helloName", { name: identity.firstName }) : t("ai.hello")}</h3>
-            <p className="muted">{t("ai.helloBody")}</p>
+            <h3>{identity?.firstName ? t(tutor ? "tutor.helloName" : "ai.helloName", { name: identity.firstName }) : t(tutor ? "tutor.hello" : "ai.hello")}</h3>
+            <p className="muted">{t(tutor ? "tutor.helloBody" : "ai.helloBody")}</p>
             <div className="ai-suggest">
               {suggestions(identity?.persona).map((k) => (
                 <button key={k} onClick={() => send(t(k))} disabled={out}>{t(k)}</button>
@@ -149,7 +174,22 @@ export default function AskAi({ ctx }: ToolProps) {
             </div>
           </div>
         ) : (
-          turns.map((x) => <Bubble key={x.id} turn={x} t={t} canRegenerate={x === last && !busy && x.role === "assistant"} onRegenerate={regenerate} />)
+          turns.map((x) => (
+            <Bubble
+              key={x.id}
+              turn={x}
+              t={t}
+              tutor={tutor}
+              canRegenerate={x === last && !busy && x.role === "assistant"}
+              onRegenerate={regenerate}
+              onReport={(reason) => {
+                if (!x.messageId) return;
+                void misCall({ method: "POST", path: "/desktop/tools/ai/report", body: { messageId: x.messageId, reason }, timeoutMs: 20_000 })
+                  .then(() => setTurns((cur) => cur.map((y) => (y.id === x.id ? { ...y, reported: true } : y))))
+                  .catch(() => undefined);
+              }}
+            />
+          ))
         )}
       </div>
       <form
@@ -166,7 +206,7 @@ export default function AskAi({ ctx }: ToolProps) {
           value={text}
           maxLength={8000}
           disabled={out}
-          placeholder={out ? t("ai.limitReached") : t("ai.placeholder")}
+          placeholder={out ? t("ai.limitReached") : t(tutor ? "tutor.placeholder" : "ai.placeholder")}
           onChange={(e) => {
             setText(e.target.value);
             e.target.style.height = "auto";
@@ -178,7 +218,7 @@ export default function AskAi({ ctx }: ToolProps) {
               send();
             }
           }}
-          aria-label={t("ai.placeholder")}
+          aria-label={t(tutor ? "tutor.placeholder" : "ai.placeholder")}
         />
         {busy ? (
           <button type="button" className="ai-send stop" onClick={() => abort.current?.abort()} title={t("ai.stop")} aria-label={t("ai.stop")}><Square size={14} /></button>
@@ -190,16 +230,17 @@ export default function AskAi({ ctx }: ToolProps) {
         <span>{t("ai.left", { n: status.remaining, max: status.limit })}</span>
         <span className="flex" />
         {turns.length > 0 && !busy && (
-          <button className="link-btn" onClick={() => setTurns([])}><MessageSquarePlus size={13} /> {t("ai.newChat")}</button>
+          <button className="link-btn" onClick={() => { setTurns([]); setConversationId(""); }}><MessageSquarePlus size={13} /> {t("ai.newChat")}</button>
         )}
-        <span className="muted">{t("ai.disclaimer")}</span>
+        <span className="muted">{t(tutor ? "tutor.footer" : "ai.disclaimer")}</span>
       </div>
     </div>
   );
 }
 
-function Bubble({ turn: x, t, canRegenerate, onRegenerate }: { turn: Turn; t: Translate; canRegenerate: boolean; onRegenerate: () => void }) {
+function Bubble({ turn: x, t, tutor, canRegenerate, onRegenerate, onReport }: { turn: Turn; t: Translate; tutor: boolean; canRegenerate: boolean; onRegenerate: () => void; onReport: (reason: string) => void }) {
   const [copied, setCopied] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const html = useMemo(() => (x.role === "assistant" && x.content ? render(x.content) : ""), [x.role, x.content]);
   if (x.role === "user") return <div className="ai-msg user"><div className="ai-bubble">{x.content}</div></div>;
   return (
@@ -216,7 +257,20 @@ function Bubble({ turn: x, t, canRegenerate, onRegenerate }: { turn: Turn; t: Tr
               </button>
             )}
             {canRegenerate && <button onClick={onRegenerate} title={t("ai.regenerate")} aria-label={t("ai.regenerate")}><RotateCcw size={13} /></button>}
+            {tutor && x.messageId && !x.reported && !reporting && (
+              <button onClick={() => setReporting(true)} title={t("tutor.report")} aria-label={t("tutor.report")}><Flag size={13} /></button>
+            )}
+            {x.reported && <span className="muted">{t("tutor.reported")}</span>}
             {x.provider && <span className="muted">{t("ai.by", { p: providerName(x.provider) })}</span>}
+          </div>
+        )}
+        {reporting && !x.reported && (
+          <div className="ai-report" role="group" aria-label={t("tutor.report")}>
+            <span className="muted small">{t("tutor.reportWhy")}</span>
+            {(["wrong", "answer", "inappropriate"] as const).map((r) => (
+              <button key={r} className="btn sm" onClick={() => { onReport(r); setReporting(false); }}>{t(`tutor.why.${r}` as Key)}</button>
+            ))}
+            <button className="link-btn small" onClick={() => setReporting(false)}>{t("tutor.cancel")}</button>
           </div>
         )}
       </div>

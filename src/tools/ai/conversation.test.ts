@@ -41,3 +41,16 @@ describe("Ask AI conversation", () => {
     expect(providerName("x")).toBe("x");
   });
 });
+
+describe("AI Tutor (students)", () => {
+  it("keeps the logged message id for reports and suggests student prompts", async () => {
+    const { applyLine, suggestions, newConversationId } = await import("./conversation");
+    const turns = [{ id: "a", role: "assistant" as const, content: "", streaming: true, at: 1 }];
+    const thinking = applyLine(turns, "a", { status: "thinking" });
+    expect(thinking[0].streaming).toBe(true);
+    const done = applyLine(applyLine(thinking, "a", { t: "Hint" }), "a", { done: true, provider: "groq", messageId: 42 });
+    expect(done[0]).toMatchObject({ content: "Hint", streaming: false, messageId: 42, provider: "groq" });
+    expect(suggestions("student")[0]).toBe("ai.s.student1");
+    expect(newConversationId()).toMatch(/^[a-z0-9]{6,40}$/);
+  });
+});
