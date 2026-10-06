@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.6.0 — 2026-10-06
+
 - **Classroom kit** (for teachers and staff), with your NGA MIS class lists or your own lists:
   - **Name picker**: everyone gets a turn before anyone is picked twice, absent students are skipped, a short reveal.
   - **Group maker**: by group size or number of groups, keeps chosen pairs apart, copy as text.
