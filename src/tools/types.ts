@@ -46,6 +46,8 @@ export interface ToolManifest {
   personal: boolean;
   /** Icon tile colour. */
   color: string;
+  /** Shown only to people with this NGA MIS permission (checked at sign-in, see useTranslationSync). */
+  requires?: "translations";
   /** Modal width: s ≈ 440 px, m ≈ 580 px, l ≈ 880 px (tall). */
   size: "s" | "m" | "l";
   load: () => Promise<{ default: ComponentType<ToolProps> }>;

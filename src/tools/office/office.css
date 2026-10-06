@@ -70,3 +70,36 @@
 .ocr-progress small { position: relative; display: block; padding: 3px 10px; }
 .ocr-text { min-height: 180px; resize: vertical; font-size: 13.5px; line-height: 1.55; }
 .ocr p { margin: 0; }
+
+/* Translation workspace */
+.trw { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 520px; }
+.trw-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.trw-top .segmented-sm { margin: 0; }
+.trw-releases { list-style: none; margin: 0; padding: 8px; border-radius: 12px; background: var(--hover); display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow: auto; }
+.trw-releases li { display: flex; align-items: center; gap: 8px; }
+.trw-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 12px; }
+.trw-list { display: flex; flex-direction: column; min-height: 0; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.trw-filters { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); }
+.trw-filters .tool-search { flex: 1; min-width: 0; }
+.trw-filters select { max-width: 130px; }
+.trw-list ul { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; max-height: 520px; }
+.trw-list li button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+.trw-list li button:hover { background: var(--hover); }
+.trw-list li button.sel { background: var(--accent-soft); }
+.trw-en { grid-column: 1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trw-cur { grid-column: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trw-badge { grid-column: 2; grid-row: 1 / span 2; align-self: center; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 650; background: var(--hover); color: var(--muted); white-space: nowrap; }
+.trw-badge.approved { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.trw-badge.draft { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.trw-badge.ai_draft { background: color-mix(in srgb, #8b5cf6 18%, transparent); color: #8b5cf6; }
+.trw-badge.outdated { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.trw-more { padding: 10px; }
+.trw-editor { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); min-height: 0; overflow: auto; }
+.trw-editor.empty { align-items: center; justify-content: center; }
+.trw-key { font-family: ui-monospace, Menlo, monospace; }
+.trw-source { padding: 10px; border-radius: 10px; background: var(--hover); }
+.trw-source p { margin: 4px 0; font-size: 14px; }
+.trw-label { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.trw-editor textarea { resize: vertical; font-size: 14px; line-height: 1.5; }
+.trw-editor p { margin: 0; }
+@media (max-width: 760px) { .trw-body { grid-template-columns: 1fr; } }

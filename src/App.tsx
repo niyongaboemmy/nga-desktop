@@ -17,6 +17,7 @@ import { useIdentity } from "./tools/shared/identity";
 import { onTool } from "./tools/shared/native";
 import { chime } from "./tools/shared/sound";
 import { useLang } from "./tools/i18n";
+import { useTranslationSync } from "./tools/i18n/useTranslationSync";
 import { findTool } from "./tools/registry";
 
 /** Below this width the tabs show icons only, so the app keeps its room. */
@@ -39,8 +40,9 @@ export default function App() {
   const [panel, setPanel] = useState<PanelKind>(false);
   const [timersRunning, setTimersRunning] = useState(0);
   // Who is signed in, kept warm for the tools (the modal itself lives in the overlay window).
-  useIdentity();
-  const { t } = useLang();
+  const identity = useIdentity();
+  const { t, lang } = useLang();
+  useTranslationSync(identity, lang);
   const [focus, setFocus] = useState(false);
   const [views, dispatch] = useReducer(reduce, {});
   const [notices, setNotices] = useState<NoticeSummary | null>(null);

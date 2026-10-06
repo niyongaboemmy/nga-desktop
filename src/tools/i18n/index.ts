@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { en } from "./en";
 import { fr } from "./fr";
 import { rw } from "./rw";
+import { OVERRIDE_EVENT, forgetOverrides, overrideFor } from "./overrides";
 
 export type Lang = "en" | "fr" | "rw";
 export type LangPref = Lang | "auto";
@@ -23,7 +24,8 @@ export const dictionaries: Record<Lang, Dictionary> = { en, fr, rw };
 export function translator(lang: Lang): Translate {
   const d = dictionaries[lang] ?? en;
   return (key, vars) => {
-    let s = d[key] || en[key] || key;
+    // A published correction (translation workspace) wins over the bundled text.
+    let s = (lang !== "en" && overrideFor(lang, key, en[key])) || d[key] || en[key] || key;
     if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
     return s;
   };
@@ -53,10 +55,23 @@ export const resolveLang = (pref: LangPref): Lang => (pref === "auto" ? detectLa
 /** The tools' language, shared by every NGA window (localStorage + storage events). */
 export function useLang(): { lang: Lang; pref: LangPref; setPref: (p: LangPref) => void; t: Translate } {
   const [pref, setPrefState] = useState<LangPref>(readLangPref);
+  // Bumped when published translations change (here or in another window): re-render with them.
+  const [, setVersion] = useState(0);
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => e.key === KEY && setPrefState(readLangPref());
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === KEY) setPrefState(readLangPref());
+      if (e.key === null || e.key.startsWith("nga.tools.i18n.")) {
+        forgetOverrides(e.key);
+        setVersion((v) => v + 1);
+      }
+    };
+    const onLocal = () => setVersion((v) => v + 1);
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener(OVERRIDE_EVENT, onLocal);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(OVERRIDE_EVENT, onLocal);
+    };
   }, []);
   const setPref = (p: LangPref) => {
     try {

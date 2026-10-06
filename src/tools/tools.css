@@ -181,6 +181,10 @@ input.bad { border-color: var(--danger) !important; }
 /* ── Notes ─────────────────────────────────────────────────────────────── */
 .notes, .note-editor { display: flex; flex-direction: column; gap: 8px; height: 100%; }
 .notes-bar { display: flex; align-items: center; gap: 6px; }
+/* Search box with its icon inside the field (Notes, Formulas, Periodic table, Translations). */
+.tool-search { position: relative; display: flex; align-items: center; min-width: 0; }
+.tool-search > svg { position: absolute; left: 10px; color: var(--muted); pointer-events: none; }
+.tool-search > input { width: 100%; padding-left: 32px !important; }
 .notes-bar .tool-search { flex: 1; }
 .note-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .note-item { width: 100%; display: flex; flex-direction: column; gap: 2px; padding: 9px 10px; border-radius: 10px; text-align: left; border: 1px solid transparent; }
