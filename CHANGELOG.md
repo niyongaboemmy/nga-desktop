@@ -4,6 +4,11 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **Class game time** (teachers): open chosen games for one of your classes for 5–30 minutes, even during your lesson. Students see them within a minute; exams still lock games, and it doesn't count towards their daily time.
+- **Typing Tutor** (Brain breaks, learning): eight lessons that add keys row by row with the next key highlighted, then a one-minute speed test in English, French (AZERTY) or Kinyarwanda. Personal best in words per minute.
+- **Student exceptions** set by the school in NGA MIS → Desktop tools: a student's games can be paused until a date, or given extra daily minutes.
+- Games now check the school's rules every minute (was 5).
+
 ## 0.8.0 — 2026-10-06
 
 - **Brain breaks** (students and staff): 15 short games and 2 calm-down activities, all offline.

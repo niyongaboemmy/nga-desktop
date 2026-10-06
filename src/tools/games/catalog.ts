@@ -2,7 +2,7 @@
 // dictionaries (game.<id>, game.<id>.desc); everything else a game says is in its
 // own strings.ts. Adding a game: add its id to GAME_IDS (here and in MIS), a
 // folder with Game.tsx + strings.ts + logic tests, one entry below, two i18n keys.
-import { Blocks, Brain, Bomb, Calculator, CircleDot, Grid3x3, Hash, KeyRound, Lightbulb, Puzzle, Search, Spline, Type, Wind, Activity, Repeat, PersonStanding } from "lucide-react";
+import { Keyboard, Blocks, Brain, Bomb, Calculator, CircleDot, Grid3x3, Hash, KeyRound, Lightbulb, Puzzle, Search, Spline, Type, Wind, Activity, Repeat, PersonStanding } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { GameCategory, GameDef, GameId } from "./types";
 
@@ -18,6 +18,7 @@ export const GAMES: Array<GameDef & { icon: LucideIcon }> = [
   { id: "echo", kind: "fun", category: "memory", icon: Repeat, color: "#06b6d4", minutes: [2, 3], players: "1", load: () => import("./echo/Game") },
   { id: "five-letter", kind: "learning", category: "words", icon: Type, color: "#22c55e", daily: true, minutes: [3, 5], players: "1", load: () => import("./five-letter/Game") },
   { id: "word-search", ownNewGame: true, kind: "learning", category: "words", icon: Search, color: "#0ea5e9", minutes: [3, 5], players: "1", load: () => import("./word-search/Game") },
+  { id: "typing", kind: "learning", category: "words", icon: Keyboard, color: "#6366f1", minutes: [3, 8], players: "1", load: () => import("./typing/Game") },
   { id: "math-sprint", kind: "learning", category: "maths", icon: Calculator, color: "#ef4444", minutes: [1, 3], players: "1", load: () => import("./math-sprint/Game") },
   { id: "four-in-a-row", ownNewGame: true, kind: "fun", category: "together", icon: CircleDot, color: "#f59e0b", minutes: [3, 5], players: "1-2", load: () => import("./four-in-a-row/Game") },
   { id: "snake", ownNewGame: true, kind: "fun", category: "reflex", icon: Spline, color: "#16a34a", minutes: [2, 3], players: "1", load: () => import("./snake/Game") },

@@ -7,8 +7,9 @@ import { kigaliMinutes } from "./seed";
 import type { GameKind } from "./types";
 import type { Persona } from "../types";
 
-export type LockReason = "stale" | "exam" | "lesson" | "parent" | "off" | "disabled" | "quiet" | "budget" | "cooldown";
-export type Gate = { open: true } | { open: false; reason: LockReason; label?: string; until?: number };
+export type LockReason = "stale" | "exam" | "lesson" | "parent" | "blocked" | "off" | "disabled" | "quiet" | "budget" | "cooldown";
+/** `classTime`: open because a teacher opened it for the class — it doesn't count towards budgets. */
+export type Gate = { open: true; classTime?: boolean; until?: number } | { open: false; reason: LockReason; label?: string; until?: number };
 
 /** Play time kept on this computer: seconds per Kigali day per game. */
 export interface Usage {
@@ -72,12 +73,21 @@ export interface GateInput {
   session: Usage["session"];
 }
 
-/** The verdict for one game. Order: reset → stale → exam → lesson → parents → switches → quiet hours → budget → cool-down. */
+/**
+ * The verdict for one game. Order: reset → stale → exam → student block → class game time
+ * → lesson → parents → switches → quiet hours → budget → cool-down.
+ */
 export function gameGate({ policy, gameId, kind, persona, now, usedMin, session }: GateInput): Gate {
   if (kind === "reset") return { open: true };
   const v = evaluate(policy, now, { lessons: lessonRole(persona) });
-  if (!v.open) return { open: false, reason: v.reason, label: v.label, until: v.until ? Date.parse(v.until) : undefined };
+  if (!v.open && v.reason !== "lesson") return { open: false, reason: v.reason, label: v.label, until: v.until ? Date.parse(v.until) : undefined };
   const g: GamesBlock | undefined = policy?.games;
+  const blockUntil = g?.override?.kind === "block" ? Date.parse(g.override.until) : NaN;
+  if (persona === "student" && blockUntil > now) return { open: false, reason: "blocked", until: blockUntil };
+  // A teacher's class game time beats the lesson, the budget, quiet hours and the cool-down (never an exam).
+  const cgt = g?.classGameTime;
+  if (persona === "student" && g?.enabled && cgt && Date.parse(cgt.until) > now && cgt.games.includes(gameId)) return { open: true, classTime: true, until: Date.parse(cgt.until) };
+  if (!v.open) return { open: false, reason: v.reason, label: v.label, until: v.until ? Date.parse(v.until) : undefined };
   if (persona === "parent") return { open: false, reason: "parent" };
   if (!g) return { open: true }; // an MIS without the games programme: lessons and exams still lock
   if (!g.enabled) return { open: false, reason: "off" };

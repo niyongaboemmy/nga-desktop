@@ -27,7 +27,7 @@
 | 2 (part) Calendar | ✅ Built (0.5.0 + MIS `/desktop/tools/agenda`, `/policy`) | My Day agenda (lessons, office hours, quizzes, meetings); policy windows from the live-lessons rule and Task Mentor quiz pairs. Toolbar tooltips (native tooltip window) |
 | 4 Classroom kit | ✅ Built (0.6.0 + MIS `/desktop/tools/classes`) | Name picker, groups, noise meter, work-mode signs, classroom screen, whiteboard, grade calculator |
 | 5 Study kit | ✅ Built (0.7.0) | Graphing calculator, periodic table + molar mass, 76 formula sheets, FSRS flashcards (own decks; MIS deck sync not yet) |
-| 6 Games | ✅ Built (0.8.0 + MIS #74–#76, migrations 105–106) | Brain breaks hub: 15 games + Breathe + Stand & Stretch, gate (exam → lesson → switches → quiet hours → budget → cool-down), play-time sync, MIS admin page `/desktop-tools` with Igisoro super-admin approval. **Not yet:** teacher "Class game time" (6.5), per-student overrides (6.6), typing tutor (6.12), Tatham puzzles (Bridges, Untangle) |
+| 6 Games | ✅ Built (0.8.0 + MIS #74–#76, migrations 105–106) | Brain breaks hub: 15 games + Breathe + Stand & Stretch, gate (exam → lesson → switches → quiet hours → budget → cool-down), play-time sync, MIS admin page `/desktop-tools` with Igisoro super-admin approval. 0.9.0 (+ MIS #77, migration 107): teacher "Class game time" (6.5), per-student exceptions on the MIS page (6.6), Typing Tutor (6.12). **Not yet:** Tatham puzzles (Bridges, Untangle); exceptions set by class teachers (MIS page is DESKTOP_TOOLS_CONFIGURE only) |
 | 3B, 7 (rest), 8 | Not started | Student AI tutor; PDF/scanner/OCR + translations workspace; hardening |
 
 **Deviations from the plan, and why:**

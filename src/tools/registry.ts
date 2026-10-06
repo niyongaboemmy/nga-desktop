@@ -1,6 +1,6 @@
 // Every tool, once. The panel, the ⌘K palette, windows and permissions read this list.
 // Adding a tool: make its folder, add one entry here, add its i18n keys, add a test.
-import { Atom, Gamepad2, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
+import { Atom, Gamepad2, PartyPopper, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
 import type { Identity, ToolGroup, ToolManifest } from "./types";
 
 export const TOOLS: ToolManifest[] = [
@@ -101,6 +101,13 @@ export const TOOLS: ToolManifest[] = [
     keywords: ["projector", "classroom screen", "board", "écran", "projecteur"],
     audiences: ["teacher", "staff", "admin"], network: "offline", popOut: false, present: true, personal: false, color: "#0ea5e9", size: "l",
     load: () => import("./classroom/ClassroomScreen"),
+  },
+  {
+    id: "class-game-time", group: "classroom", icon: PartyPopper,
+    title: "tool.cgt", description: "tool.cgt.desc",
+    keywords: ["games", "reward", "break", "class game time", "jeux", "récompense", "imikino", "igihembo"],
+    audiences: ["teacher", "staff", "admin"], network: "online", popOut: true, present: false, personal: true, color: "#22c55e", size: "m",
+    load: () => import("./classroom/ClassGameTime"),
   },
   {
     id: "board", group: "classroom", icon: PenLine,

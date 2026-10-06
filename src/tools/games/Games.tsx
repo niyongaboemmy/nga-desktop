@@ -2,7 +2,7 @@
 // activities, under the school's rules: games pause in the person's own lessons and
 // exams, rest at night, and students have a daily budget and session cap.
 import { useState, type CSSProperties } from "react";
-import { CalendarDays, GraduationCap, Lock, Trophy, Users } from "lucide-react";
+import { CalendarDays, GraduationCap, Lock, PartyPopper, Trophy, Users } from "lucide-react";
 import { usePersonal } from "../shared/store";
 import { CATEGORIES, GAMES, findGame } from "./catalog";
 import { GameShell } from "./GameShell";
@@ -13,7 +13,7 @@ import type { ToolProps } from "../types";
 import "./hub.css";
 
 /** Locks that apply to every game (shown once, as a banner). */
-const GLOBAL = new Set(["stale", "exam", "lesson", "parent", "off", "quiet", "budget", "cooldown"]);
+const GLOBAL = new Set(["stale", "exam", "lesson", "parent", "blocked", "off", "quiet", "budget", "cooldown"]);
 
 export default function Games({ ctx }: ToolProps) {
   const { t, identity } = ctx;
@@ -30,6 +30,7 @@ export default function Games({ ctx }: ToolProps) {
   const student = identity?.persona === "student";
   const sample = games.gate({ id: GAMES[0].id, kind: "fun" });
   const banner = !sample.open && GLOBAL.has(sample.reason) ? sample : null;
+  const cgt = g?.classGameTime && Date.parse(g.classGameTime.until) > games.now && student ? g.classGameTime : null;
   const budget = g?.dailyBudgetMin ?? null;
   const used = Math.min(Math.round(games.usedMin), budget ?? Infinity);
   const left = student && g ? sessionLeft(games.usage.session, games.now, g.sessionCapMin, g.cooldownMin) : null;
@@ -59,6 +60,7 @@ export default function Games({ ctx }: ToolProps) {
               {def.kind === "learning" && <span className="ok"><GraduationCap size={11} /> {t("games.learning")}</span>}
               {def.kind === "reset" && <span className="ok">{t("games.free")}</span>}
               {best !== undefined && <span><Trophy size={11} /> {best}</span>}
+              {gate.open && gate.classTime && <span className="ok"><PartyPopper size={11} /> {t("games.classTimeBadge")}</span>}
             </span>
           </span>
         </button>
@@ -83,6 +85,12 @@ export default function Games({ ctx }: ToolProps) {
         <div className={`games-banner ${banner.reason}`} role="status">
           <Lock size={15} />
           <span>{banner.reason === "cooldown" ? t("games.sessionDoneHint", { time: hhmm(banner.until) }) : lockText(banner, "", t, games.usedMin)}</span>
+        </div>
+      )}
+      {cgt && (
+        <div className="games-banner class-time" role="status">
+          <PartyPopper size={15} />
+          <span>{t("games.classTime", { by: cgt.by || t("games.yourTeacher"), n: cgt.games.length, time: hhmm(Date.parse(cgt.until)) })}</span>
         </div>
       )}
       {note && <div className="games-banner" role="status"><Lock size={15} /><span>{note}</span></div>}
