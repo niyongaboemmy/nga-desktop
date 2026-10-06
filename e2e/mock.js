@@ -97,6 +97,40 @@
             }
             return null;
           }
+          // Translation workspace (localStorage "mock.tr" = { entries: {lang: {key: entry}}, releases: {lang: [..]} }; "mock.trPerm" = "1").
+          if (args.path.startsWith("/desktop/tools/i18n/")) {
+            const fnv = (t) => { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); };
+            const db = JSON.parse(localStorage.getItem("mock.tr") || '{"entries":{"fr":{},"rw":{}},"releases":{"fr":[],"rw":[]},"next":1}');
+            const persist = () => localStorage.setItem("mock.tr", JSON.stringify(db));
+            const reply = (status, data) => setTimeout(() => ev("response", JSON.stringify({ status, body: JSON.stringify(status === 200 ? { success: true, data } : { success: false, message: data, code: status === 403 ? "NO_PERMISSION" : "BAD" }) })), 30);
+            const perm = localStorage.getItem("mock.trPerm") === "1";
+            const parts = args.path.split("/").slice(4); // ["workspace","fr"] | ["fr"] | ["edit"] …
+            const b = args.body ? JSON.parse(args.body) : {};
+            if (args.method === "GET" && parts[0] === "workspace") {
+              if (!perm) return reply(403, "Ask an admin for the translations permission."), null;
+              return reply(200, { entries: db.entries[parts[1]] || {}, releases: [...(db.releases[parts[1]] || [])].reverse() }), null;
+            }
+            if (args.method === "GET") {
+              const rel = (db.releases[parts[0]] || []).at(-1);
+              return reply(200, rel ? { release: rel.id, strings: rel.strings } : { release: 0, strings: {} }), null;
+            }
+            if (!perm) return reply(403, "Ask an admin for the translations permission."), null;
+            window.__trCalls = (window.__trCalls || []).concat([{ action: parts[0], body: b }]);
+            if (parts[0] === "edit") {
+              const e = { text: b.text, status: b.status, sourceHash: fnv(b.en), updatedBy: "Aline", updatedAt: new Date().toISOString(), approvedBy: b.status === "approved" ? "Aline" : null };
+              db.entries[b.lang][b.key] = e; persist(); return reply(200, { key: b.key, ...e }), null;
+            }
+            if (parts[0] === "revert") { delete db.entries[b.lang][b.key]; persist(); return reply(200, { reverted: true }), null; }
+            if (parts[0] === "publish" || parts[0] === "rollback") {
+              const strings = parts[0] === "publish"
+                ? Object.fromEntries(Object.entries(db.entries[b.lang]).filter(([, e]) => e.status === "approved").map(([k, e]) => [k, { t: e.text, h: e.sourceHash }]))
+                : db.releases[b.lang].find((r) => r.id === b.release).strings;
+              const rel = { id: db.next++, count: Object.keys(strings).length, note: parts[0] === "rollback" ? `Back to release #${b.release}` : null, publishedAt: new Date().toISOString(), publishedBy: "Aline", strings };
+              db.releases[b.lang].push(rel); persist(); return reply(200, { id: rel.id, count: rel.count }), null;
+            }
+            if (parts[0] === "suggest") return reply(200, { text: `[IA] ${b.en}` }), null;
+            return reply(400, "unknown"), null;
+          }
           if (args.path === "/desktop/tools/games/usage") {
             window.__usagePosts = (window.__usagePosts || []).concat([JSON.parse(args.body)]);
             setTimeout(() => ev("response", JSON.stringify({ status: 200, body: JSON.stringify({ success: true, data: { saved: 1 } }) })), 30);

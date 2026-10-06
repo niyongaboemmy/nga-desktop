@@ -1,6 +1,6 @@
 // Every tool, once. The panel, the ⌘K palette, windows and permissions read this list.
 // Adding a tool: make its folder, add one entry here, add its i18n keys, add a test.
-import { Atom, FileStack, ScanLine, Gamepad2, PartyPopper, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
+import { Atom, FileStack, Languages, ScanLine, Gamepad2, PartyPopper, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
 import type { Identity, ToolGroup, ToolManifest } from "./types";
 
 export const TOOLS: ToolManifest[] = [
@@ -166,6 +166,13 @@ export const TOOLS: ToolManifest[] = [
     load: () => import("./office/Scanner"),
   },
   {
+    id: "translations", group: "office", icon: Languages,
+    title: "tool.translations", description: "tool.translations.desc",
+    keywords: ["translate", "translation", "french", "kinyarwanda", "language", "traduction", "ubusobanuro", "guhindura ururimi"],
+    audiences: "all", network: "online", popOut: true, present: false, personal: true, color: "#7c3aed", size: "l", requires: "translations",
+    load: () => import("./office/Translations"),
+  },
+  {
     id: "games", group: "games", icon: Gamepad2,
     title: "tool.games", description: "tool.games.desc",
     keywords: ["games", "play", "break", "puzzle", "sudoku", "brain", "jeux", "pause", "imikino", "akaruhuko", "igisoro"],
@@ -178,9 +185,23 @@ export const GROUPS: ToolGroup[] = ["everyday", "ai", "classroom", "study", "gam
 
 export const findTool = (id: string | null | undefined) => TOOLS.find((t) => t.id === id) ?? null;
 
+/** localStorage flag set when NGA MIS confirms a permission for this person. */
+export const permissionFlag = (perm: string, userId: number) => `nga.tools.can.${perm}.${userId}`;
+
+function hasPermission(perm: string, identity: Identity | null): boolean {
+  if (!identity) return false;
+  try {
+    return localStorage.getItem(permissionFlag(perm, identity.userId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** The tools this person may see (persona rules; personal tools are listed but locked when signed out). */
 export function visibleTools(identity: Identity | null): ToolManifest[] {
-  return TOOLS.filter((t) => t.audiences === "all" || (identity !== null && t.audiences.includes(identity.persona)));
+  return TOOLS.filter(
+    (t) => (t.audiences === "all" || (identity !== null && t.audiences.includes(identity.persona))) && (!t.requires || hasPermission(t.requires, identity)),
+  );
 }
 
 /** Why a tool can't open right now (an i18n key), or null. */
