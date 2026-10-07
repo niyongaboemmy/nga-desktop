@@ -118,7 +118,7 @@ mod protect {
     };
 
     fn call(input: &[u8], seal: bool) -> Result<Vec<u8>, String> {
-        let mut inp = CRYPT_INTEGER_BLOB {
+        let inp = CRYPT_INTEGER_BLOB {
             cbData: input.len() as u32,
             pbData: input.as_ptr() as *mut u8,
         };
@@ -131,7 +131,7 @@ mod protect {
         let ok = unsafe {
             if seal {
                 CryptProtectData(
-                    &mut inp,
+                    &inp,
                     std::ptr::null(),
                     std::ptr::null(),
                     std::ptr::null(),
@@ -141,7 +141,7 @@ mod protect {
                 )
             } else {
                 CryptUnprotectData(
-                    &mut inp,
+                    &inp,
                     std::ptr::null_mut(),
                     std::ptr::null(),
                     std::ptr::null(),
