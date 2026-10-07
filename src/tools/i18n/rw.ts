@@ -883,6 +883,8 @@ export const rw: Dictionary = {
   "shell.settings.startLast": "Porogaramu nakoresheje bwa nyuma",
   "shell.settings.account": "Konti",
   "shell.settings.accountNote": "Winjira rimwe, muri NGA MIS, izindi porogaramu zigakurikira. Gusohoka bigusohora muri porogaramu zose za NGA kandi bigasiba amakuru yawe kuri iyi mudasobwa. Buri gihe ujye usohoka kuri mudasobwa ikoreshwa n'abantu benshi.",
+  "shell.settings.wipe": "Siba amakuru yanjye y'ibikoresho iyo nsohotse",
+  "shell.settings.wipeHint": "Ku mudasobwa zisangiwe: inyandiko zawe, amakarita yo kwiga, ibiganiro na AI n'urutonde rw'amashuri wabitse bisibwa kuri iyi mudasobwa iyo usohotse. Kuri iyi mudasobwa buri gihe bibikwa mu ibanga (bihishe).",
   "shell.settings.signingOut": "Turasohoka…",
   "shell.settings.confirmSignOut": "Yego, sohoka hose",
   "shell.settings.updates": "Ivugurura",

@@ -881,6 +881,8 @@ export const en = {
   "shell.settings.startLast": "The app I used last",
   "shell.settings.account": "Account",
   "shell.settings.accountNote": "You sign in once, in NGA MIS, and the other apps follow. Signing out ends your session in every NGA app and removes your data from this computer. Always do it on a shared computer.",
+  "shell.settings.wipe": "Remove my tool data when I sign out",
+  "shell.settings.wipeHint": "For shared computers: your notes, flashcards, AI chats and saved class lists are deleted from this computer when you sign out. On this computer they are always stored encrypted.",
   "shell.settings.signingOut": "Signing out…",
   "shell.settings.confirmSignOut": "Yes, sign out everywhere",
   "shell.settings.updates": "Updates",

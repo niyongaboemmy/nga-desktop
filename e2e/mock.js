@@ -43,6 +43,8 @@
         case "focus_session": return null;
         case "os_permission": return "granted";
         case "tools_identity": return identity;
+        // A fixed 32-byte key when a test asks for the encrypted store (tools/vault.rs).
+        case "tools_vault_key": return localStorage.getItem("mock.vault") === "1" ? btoa(String.fromCharCode(...new Uint8Array(32).fill(5))) : null;
         case "timers_list": return state.timers;
         case "timer_create": {
           const t = args.timer;

@@ -883,6 +883,8 @@ export const fr: Dictionary = {
   "shell.settings.startLast": "La dernière application utilisée",
   "shell.settings.account": "Compte",
   "shell.settings.accountNote": "Vous vous connectez une fois, dans NGA MIS, et les autres applications suivent. La déconnexion ferme votre session dans toutes les applications NGA et supprime vos données de cet ordinateur. Faites-le toujours sur un ordinateur partagé.",
+  "shell.settings.wipe": "Supprimer mes données des outils à la déconnexion",
+  "shell.settings.wipeHint": "Pour les ordinateurs partagés : vos notes, cartes mémoire, conversations avec l'IA et listes de classes enregistrées sont supprimées de cet ordinateur à la déconnexion. Sur cet ordinateur, elles sont toujours chiffrées.",
   "shell.settings.signingOut": "Déconnexion…",
   "shell.settings.confirmSignOut": "Oui, me déconnecter partout",
   "shell.settings.updates": "Mises à jour",

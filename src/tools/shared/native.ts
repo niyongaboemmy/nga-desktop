@@ -45,6 +45,8 @@ export interface Display {
 
 export const toolsNative = {
   identity: () => invoke<Identity | null>("tools_identity"),
+  /** The signed-in person's tool-data key (base64; tools/vault.rs). */
+  vaultKey: (userId: number) => invoke<string | null>("tools_vault_key", { userId }),
   timers: () => invoke<Timer[]>("timers_list"),
   createTimer: (timer: NewTimer) => invoke<Timer>("timer_create", { timer }),
   timerAction: (id: number, action: "pause" | "resume" | "reset" | "restart" | "delete" | "lap") =>

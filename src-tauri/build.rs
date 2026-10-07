@@ -42,6 +42,7 @@ fn main() {
             "autostart_set",
             "shell_set_lang",
             "tools_identity",
+            "tools_vault_key",
             "timers_list",
             "timer_create",
             "timer_action",
