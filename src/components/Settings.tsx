@@ -49,6 +49,17 @@ export function Settings({
   const [working, setWorking] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
   const [shortcutError, setShortcutError] = useState<string | null>(null);
+  const [autoUpdate, setAutoUpdate] = useState(true);
+  const [autostart, setAutostart] = useState(false);
+  const [autostartError, setAutostartError] = useState<string | null>(null);
+  const toggleAutostart = (on: boolean) => {
+    setAutostartError(null);
+    setAutostart(on);
+    native.autostartSet(on).catch((e) => {
+      setAutostart(!on);
+      setAutostartError(String(e));
+    });
+  };
   const tools = useLang();
   const setShortcut = (on: boolean) => {
     setShortcutError(null);
@@ -63,6 +74,8 @@ export function Settings({
     const load = () => void readSettings().then(setPrefs);
     load();
     void native.osPermission().then(setPerm);
+    void native.updateAutoGet().then((v) => setAutoUpdate(v ?? true), () => {});
+    void native.autostartGet().then((v) => setAutostart(!!v), () => {});
     const sub = on("nga://settings-changed", load);
     return () => void sub.then((off) => off());
   }, []);
@@ -169,6 +182,14 @@ export function Settings({
         </label>
         <label className="switch-row wide">
           <span>
+            <strong>Start NGA when this computer starts</strong>
+            <span className="muted">It opens quietly in the {isMac ? "menu bar" : "tray"}, so notifications and timer alarms work without opening NGA first.</span>
+            {autostartError && <span className="field-error">{autostartError}</span>}
+          </span>
+          <input type="checkbox" className="switch" checked={autostart} onChange={(e) => toggleAutostart(e.target.checked)} />
+        </label>
+        <label className="switch-row wide">
+          <span>
             <strong>Keep NGA running when its window is closed</strong>
             <span className="muted">Notifications keep arriving. Quit from the {isMac ? "menu bar" : "tray"} icon.</span>
           </span>
@@ -229,6 +250,26 @@ export function Settings({
 
       <section>
         <h3>Updates</h3>
+        {info.updater && (
+          <label className="switch-row wide">
+            <span>
+              <strong>Install updates automatically</strong>
+              <span className="muted">
+                New versions download in the background and install when nobody is using this computer, or when you quit NGA. Never
+                during a quiz, a meeting or a running timer.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              className="switch"
+              checked={autoUpdate}
+              onChange={(e) => {
+                setAutoUpdate(e.target.checked);
+                void native.updateAutoSet(e.target.checked);
+              }}
+            />
+          </label>
+        )}
         {!info.updater ? (
           <p className="muted">This build doesn't update itself (development or unsigned build).</p>
         ) : update.kind === "available" ? (

@@ -351,7 +351,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         return;
     }
     match id {
-        "quit" => app.exit(0),
+        "quit" => crate::updates::quit(app),
         "show" => focus_main(app),
         "palette" => {
             focus_main(app);

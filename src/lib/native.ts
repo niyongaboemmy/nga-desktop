@@ -97,11 +97,19 @@ export const native = {
   noticeSummary: () => invoke<NoticeSummary>("notices_summary"),
   openNotice: (id: number) => invoke<void>("notices_open", { id }),
   readAllNotices: () => invoke<void>("notices_read_all"),
+  /** "Remind me later": back as a banner after 10, 60 or 180 minutes. */
+  snoozeNotice: (id: number, minutes: 10 | 60 | 180) => invoke<void>("notices_snooze", { id, minutes }),
   clearNotices: () => invoke<void>("notices_clear"),
   /** Asks the update service now (null: up to date or no updater). */
   updateCheck: () => invoke<UpdateInfo | null>("update_check"),
   /** Downloads, installs and restarts NGA. */
   updateInstall: () => invoke<void>("update_install"),
+  /** Settings → Updates → install automatically when the computer is idle (default on). */
+  updateAutoGet: () => invoke<boolean>("update_auto_get"),
+  updateAutoSet: (on: boolean) => invoke<void>("update_auto_set", { on }),
+  /** Settings → General → start NGA (hidden) when the computer starts. */
+  autostartGet: () => invoke<boolean>("autostart_get"),
+  autostartSet: (on: boolean) => invoke<void>("autostart_set", { on }),
 };
 
 type Events = {

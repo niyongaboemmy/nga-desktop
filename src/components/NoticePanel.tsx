@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BellOff, BellRing, CheckCheck, Trash2, X } from "lucide-react";
+import { AlarmClock, BellOff, BellRing, CheckCheck, Trash2, X } from "lucide-react";
 import { native, on, type DesktopApp, type Notice, type OsPermission } from "../lib/native";
 
 const ago = (at: number, now: number) => {
@@ -15,6 +15,7 @@ export function NoticePanel({ apps, onClose }: { apps: DesktopApp[]; onClose: ()
   const [items, setItems] = useState<Notice[]>([]);
   const [perm, setPerm] = useState<OsPermission>("unknown");
   const [filter, setFilter] = useState<"all" | DesktopApp["key"]>("all");
+  const [snoozing, setSnoozing] = useState<number | null>(null);
   const now = Date.now();
   useEffect(() => {
     const load = () => void native.notices().then(setItems);
@@ -63,7 +64,32 @@ export function NoticePanel({ apps, onClose }: { apps: DesktopApp[]; onClose: ()
       ) : (
         <ul className="notice-list">
           {shown.map((n, i) => (
-            <li key={n.id} style={{ animationDelay: `${Math.min(i, 8) * 25}ms` }}>
+            <li key={n.id} className="notice-row" style={{ animationDelay: `${Math.min(i, 8) * 25}ms` }}>
+              <button
+                className={`notice-snooze${snoozing === n.id ? " on" : ""}`}
+                aria-label="Remind me later"
+                aria-expanded={snoozing === n.id}
+                title="Remind me later"
+                onClick={() => setSnoozing(snoozing === n.id ? null : n.id)}
+              >
+                <AlarmClock size={14} />
+              </button>
+              {snoozing === n.id && (
+                <div className="snooze-menu" role="group" aria-label="Remind me in">
+                  {([10, 60, 180] as const).map((m) => (
+                    <button
+                      key={m}
+                      className="chip"
+                      onClick={() => {
+                        setSnoozing(null);
+                        void native.snoozeNotice(n.id, m);
+                      }}
+                    >
+                      {m < 60 ? `${m} min` : `${m / 60} h`}
+                    </button>
+                  ))}
+                </div>
+              )}
               <button className={`notice${n.read ? "" : " unread"}`} onClick={() => native.openNotice(n.id)}>
                 <img src={`/apps/${n.app}.png`} alt="" />
                 <span className="notice-text">

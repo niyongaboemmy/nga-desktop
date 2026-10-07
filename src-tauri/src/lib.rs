@@ -1,7 +1,9 @@
 mod auth;
+mod autostart;
 mod browser_signin;
 mod commands;
 mod dialogs;
+mod idle;
 mod menus;
 mod navigation;
 mod notifications;
@@ -57,7 +59,9 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tools::shortcut::plugin());
+        builder = builder
+            .plugin(tools::shortcut::plugin())
+            .plugin(autostart::plugin());
     }
 
     #[cfg(desktop)]
@@ -76,6 +80,10 @@ pub fn run() {
             commands::shell_info,
             updates::update_check,
             updates::update_install,
+            updates::update_auto_get,
+            updates::update_auto_set,
+            autostart::autostart_get,
+            autostart::autostart_set,
             updates::web_update_check,
             updates::web_update_install,
             commands::open_app,
@@ -97,6 +105,7 @@ pub fn run() {
             notifications::notices_summary,
             notifications::notices_open,
             notifications::notices_read_all,
+            notifications::notices_snooze,
             notifications::notices_clear,
             notifications::os_permission,
             notifications::os_permission_request,
@@ -144,6 +153,7 @@ pub fn run() {
                     notifications::open_notice(&h, id);
                 });
             });
+            notifications::restore(app.handle());
             auth::spawn(app.handle().clone());
             updates::spawn(app.handle().clone());
             tools::timers::spawn(app.handle().clone());
@@ -271,7 +281,9 @@ fn build_main_window<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         .title("NGA")
         .inner_size(fit.width, fit.height)
         .min_inner_size(fit.min_width, fit.min_height)
-        .maximized(fit.maximized);
+        .maximized(fit.maximized)
+        // Started by the login item: stay in the tray / menu bar until asked.
+        .visible(!autostart::started_hidden());
     // Centring a maximized window moves it by the difference (macOS put it
     // 31 px past the right edge of a 1024-wide screen).
     let builder = if fit.maximized {

@@ -159,6 +159,7 @@ pub fn web_identity<R: Runtime>(
             .and_then(|d| age_band(d, today()))
             .map(str::to_string),
     };
+    crate::autostart::apply_default(&app, &id.persona);
     set(&app, Some(id));
     Ok(())
 }

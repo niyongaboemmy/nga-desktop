@@ -360,6 +360,12 @@ fn with<R: Runtime, T>(app: &AppHandle<R>, f: impl FnOnce(&mut Saved) -> T) -> T
     f(saved)
 }
 
+/// A countdown, stopwatch or focus session is running (a teacher may be using it
+/// on the projector): auto-updates wait, since they restart NGA.
+pub fn any_running<R: Runtime>(app: &AppHandle<R>) -> bool {
+    with(app, |s| s.timers.iter().any(|t| t.running()))
+}
+
 fn persist_and_publish<R: Runtime>(app: &AppHandle<R>) {
     let (value, list) = with(app, |s| {
         (
