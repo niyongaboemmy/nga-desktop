@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.18.0 — 2026-10-07
+
 - **nga:// links** open NGA at the right place from emails, reminders, QR codes or other programs: `nga://open/taskmentor/quizzes/12` (a page in an app), `nga://tool/timer` (a tool), `nga://notifications`. Only the NGA apps and pages inside them are accepted.
 
 ## 0.17.0 — 2026-10-07
