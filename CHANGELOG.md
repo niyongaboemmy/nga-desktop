@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.17.0 — 2026-10-07
+
 - **Your tool data is encrypted on this computer:** notes, flashcards, AI chats and saved class lists are stored encrypted with a key of your own (on Windows it only opens for your Windows account). Existing data is encrypted the first time it is opened.
 - **Shared computers:** Settings → Account → "Remove my tool data when I sign out" deletes your tool data and its key from the computer when you sign out.
 - Fixed: on a fresh install, opening the calendar's notification settings in NGA MIS could make NGA show old notifications as new.
