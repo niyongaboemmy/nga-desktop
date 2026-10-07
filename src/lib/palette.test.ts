@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addRecent, buildItems, score, search } from "./palette";
 import { resolveTheme } from "./theme";
 import type { DesktopApp } from "./native";
+import { translator } from "../tools/i18n";
 
 const app = (key: DesktopApp["key"], name: string, destinations: DesktopApp["destinations"] = []): DesktopApp => ({
   key, name, description: "", origin: `https://${key}.amashuri.com`, base: "", startPath: "/", color: "#000", sso: null, destinations,
@@ -30,6 +31,15 @@ describe("command palette", () => {
     const res = search(items, "");
     expect(res.slice(0, 3).map((i) => i.kind)).toEqual(["app", "app", "app"]);
     expect(res[3]).toMatchObject({ kind: "recent", label: "Calendar" });
+  });
+
+  it("shows destinations and actions in the chosen language, still found by their English names", () => {
+    const items = buildItems(apps, [], [], translator("fr"));
+    expect(items.find((i) => i.id === "go:tendo:/attendance/mark")?.label).toBe("Faire l'appel");
+    expect(items.find((i) => i.id === "action:settings")).toMatchObject({ label: "Paramètres", hint: "Action" });
+    expect(search(items, "take attendance")[0]).toMatchObject({ kind: "go", key: "tendo" });
+    expect(search(items, "settings")[0]).toMatchObject({ kind: "action", action: "settings" });
+    expect(search(buildItems(apps, [], [], translator("rw")), "ubwitabire")[0]).toMatchObject({ kind: "go", key: "tendo" });
   });
 
   it("recent pages: newest first, de-duplicated, sign-in pages skipped", () => {

@@ -292,41 +292,56 @@ pub fn now_ms() -> u64 {
 
 /// The alert text for an event: (title, body).
 pub fn alert_text(e: &Event) -> (String, String) {
+    use crate::i18n::{t, tf};
     let name = |l: &str, fallback: &str| {
         if l.is_empty() {
-            fallback.to_string()
+            t(fallback).to_string()
         } else {
             l.to_string()
         }
     };
     match e {
         Event::Finished { label, late } => (
-            format!("⏰ {}", name(label, "Timer")),
-            if *late {
-                "Finished while NGA was closed".into()
-            } else {
-                "Time's up".into()
-            },
+            format!("⏰ {}", name(label, "timer.timer")),
+            t(if *late { "timer.closed" } else { "timer.up" }).to_string(),
         ),
         Event::BreakStarts {
             label,
             round,
             rounds,
-        } => (
-            format!("☕ Break time — {}", name(label, "Focus")),
-            format!("Round {round} of {rounds} done. Stand up, stretch, rest your eyes."),
-        ),
+        } => {
+            let (r, n) = (round.to_string(), rounds.to_string());
+            (
+                format!(
+                    "☕ {}",
+                    tf("timer.break", &[("name", &name(label, "timer.focus"))])
+                ),
+                tf("timer.breakBody", &[("round", &r), ("rounds", &n)]),
+            )
+        }
         Event::WorkStarts {
             label,
             round,
             rounds,
-        } => (
-            format!("🎯 Back to focus — {}", name(label, "Focus")),
-            format!("Round {round} of {rounds}"),
-        ),
+        } => {
+            let (r, n) = (round.to_string(), rounds.to_string());
+            (
+                format!(
+                    "🎯 {}",
+                    tf("timer.back", &[("name", &name(label, "timer.focus"))])
+                ),
+                tf("timer.round", &[("round", &r), ("rounds", &n)]),
+            )
+        }
         Event::FocusDone { label, focused_ms } => (
-            format!("✅ Focus session done — {}", name(label, "Focus")),
-            format!("{} min of focused work. Well done!", focused_ms / 60_000),
+            format!(
+                "✅ {}",
+                tf("timer.done", &[("name", &name(label, "timer.focus"))])
+            ),
+            tf(
+                "timer.done.body",
+                &[("min", &(focused_ms / 60_000).to_string())],
+            ),
         ),
     }
 }
@@ -358,6 +373,12 @@ fn with<R: Runtime, T>(app: &AppHandle<R>, f: impl FnOnce(&mut Saved) -> T) -> T
             .unwrap_or_default()
     });
     f(saved)
+}
+
+/// A countdown, stopwatch or focus session is running (a teacher may be using it
+/// on the projector): auto-updates wait, since they restart NGA.
+pub fn any_running<R: Runtime>(app: &AppHandle<R>) -> bool {
+    with(app, |s| s.timers.iter().any(|t| t.running()))
 }
 
 fn persist_and_publish<R: Runtime>(app: &AppHandle<R>) {
@@ -439,7 +460,7 @@ fn ring<R: Runtime>(app: &AppHandle<R>, events: &[Event]) {
                 // Outside the inbox's id range: clicking it just brings NGA forward.
                 id: 4_000_000_000 + (now_ms() % 1_000_000),
                 app_key: "tools",
-                app_name: "NGA Tools",
+                app_name: crate::i18n::t("timer.app"),
                 title: &title,
                 body: &body,
                 sound: true,

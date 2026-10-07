@@ -4,6 +4,13 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **Updates install themselves:** a new version downloads in the background and installs when nobody is using the computer (no keyboard or mouse for 10 minutes) or when you quit NGA. Never during a quiz, a meeting, a running timer or a Present window. It can be turned off in Settings → Updates. The school can now see on the /apps page which computers are behind, and why.
+- **Start with the computer:** NGA can start quietly in the tray / menu bar when the computer starts, so notifications and timer alarms work without opening it first. It is on by default for staff and off for students. Settings → General.
+- **Notifications are kept after a restart** (the last 7 days), and any notification can be snoozed for 10 minutes, 1 hour or 3 hours.
+- **The whole app is in English, French and Kinyarwanda:** the title bar, settings, search, notifications, menus, the tray and timer alarms. The language is now in Settings → General.
+- Respects "reduce motion", and screen readers announce new in-app messages.
+- Tools open instantly from the ⌘K search too.
+
 ## 0.15.0 — 2026-10-07
 
 - **AI Tutor:** answers to common questions ("What is photosynthesis?") can come from the school's saved answers — instant, and they don't use one of the day's questions. When the school asks for a parent's permission, students are told how to get it.

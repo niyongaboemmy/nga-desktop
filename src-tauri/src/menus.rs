@@ -2,6 +2,7 @@
 //! shell (a tab's right-click, the toolbar's "more" button). All items end
 //! up in `handle`.
 
+use crate::i18n::t;
 use crate::webviews::{self, Shell, SHELL, WINDOW};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
@@ -18,9 +19,26 @@ pub fn focus_main<R: Runtime>(app: &AppHandle<R>) {
 /// work inside the web apps) plus Apps, Go and Display, whose shortcuts work
 /// while focus is inside an app page.
 pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    app.set_menu(app_menu(app)?)?;
+    app.on_menu_event(|app, event| handle(app, event.id().as_ref()));
+    Ok(())
+}
+
+/// The language changed: rebuild the menu bar and the tray menu in it.
+pub fn rebuild<R: Runtime>(app: &AppHandle<R>) {
+    if let Ok(menu) = app_menu(app) {
+        let _ = app.set_menu(menu);
+    }
+    if let (Some(tray), Ok(menu)) = (app.tray_by_id("nga"), tray_menu(app)) {
+        let _ = tray.set_menu(Some(menu));
+    }
+    crate::notifications::publish(app);
+}
+
+fn app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let menu = Menu::default(app)?;
     let shell = app.state::<Shell>();
-    let apps = Submenu::with_id(app, "apps", "Apps", true)?;
+    let apps = Submenu::with_id(app, "apps", t("menu.apps"), true)?;
     for (i, a) in shell.apps.iter().enumerate() {
         let accel = format!("CmdOrCtrl+{}", i + 1);
         apps.append(&MenuItem::with_id(
@@ -35,14 +53,14 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     apps.append(&MenuItem::with_id(
         app,
         "next-app",
-        "Next App",
+        t("menu.nextApp"),
         true,
         Some("Ctrl+Tab"),
     )?)?;
     apps.append(&MenuItem::with_id(
         app,
         "prev-app",
-        "Previous App",
+        t("menu.prevApp"),
         true,
         Some("Ctrl+Shift+Tab"),
     )?)?;
@@ -50,31 +68,31 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     apps.append(&MenuItem::with_id(
         app,
         "palette",
-        "Search NGA…",
+        t("menu.search"),
         true,
         Some("CmdOrCtrl+K"),
     )?)?;
     let go = Submenu::with_items(
         app,
-        "Go",
+        t("menu.go"),
         true,
         &[
-            &MenuItem::with_id(app, "back", "Back", true, Some("CmdOrCtrl+["))?,
-            &MenuItem::with_id(app, "forward", "Forward", true, Some("CmdOrCtrl+]"))?,
-            &MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?,
+            &MenuItem::with_id(app, "back", t("menu.back"), true, Some("CmdOrCtrl+["))?,
+            &MenuItem::with_id(app, "forward", t("menu.forward"), true, Some("CmdOrCtrl+]"))?,
+            &MenuItem::with_id(app, "reload", t("menu.reload"), true, Some("CmdOrCtrl+R"))?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "print", "Print…", true, Some("CmdOrCtrl+P"))?,
+            &MenuItem::with_id(app, "print", t("menu.print"), true, Some("CmdOrCtrl+P"))?,
             &MenuItem::with_id(
                 app,
                 "browser",
-                "Open in Browser",
+                t("menu.openBrowser"),
                 true,
                 Some("CmdOrCtrl+Shift+O"),
             )?,
             &MenuItem::with_id(
                 app,
                 "copy-link",
-                "Copy Page Link",
+                t("menu.copyLink"),
                 true,
                 Some("CmdOrCtrl+Shift+C"),
             )?,
@@ -82,44 +100,68 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     )?;
     let help = Submenu::with_items(
         app,
-        "Help",
+        t("menu.help"),
         true,
         &[&MenuItem::with_id(
             app,
             "shortcuts",
-            "Keyboard Shortcuts",
+            t("menu.shortcuts"),
             true,
             Some("CmdOrCtrl+Slash"),
         )?],
     )?;
     let display = Submenu::with_items(
         app,
-        "Display",
+        t("menu.display"),
         true,
         &[
-            &MenuItem::with_id(app, "focus", "Focus Mode", true, Some("CmdOrCtrl+Shift+F"))?,
+            &MenuItem::with_id(
+                app,
+                "focus",
+                t("menu.focus"),
+                true,
+                Some("CmdOrCtrl+Shift+F"),
+            )?,
             &MenuItem::with_id(
                 app,
                 "notices",
-                "Notifications",
+                t("menu.notifications"),
                 true,
                 Some("CmdOrCtrl+Shift+N"),
             )?,
-            &MenuItem::with_id(app, "tools", "Tools", true, Some("CmdOrCtrl+Shift+T"))?,
+            &MenuItem::with_id(
+                app,
+                "tools",
+                t("menu.tools"),
+                true,
+                Some("CmdOrCtrl+Shift+T"),
+            )?,
             &MenuItem::with_id(
                 app,
                 "theme",
-                "Switch Light / Dark",
+                t("menu.theme"),
                 true,
                 Some("CmdOrCtrl+Shift+L"),
             )?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "zoom-in", "Zoom In", true, Some("CmdOrCtrl+Equal"))?,
-            &MenuItem::with_id(app, "zoom-out", "Zoom Out", true, Some("CmdOrCtrl+Minus"))?,
+            &MenuItem::with_id(
+                app,
+                "zoom-in",
+                t("menu.zoomIn"),
+                true,
+                Some("CmdOrCtrl+Equal"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                "zoom-out",
+                t("menu.zoomOut"),
+                true,
+                Some("CmdOrCtrl+Minus"),
+            )?,
             &MenuItem::with_id(
                 app,
                 "zoom-reset",
-                "Actual Size",
+                t("menu.actualSize"),
                 true,
                 Some("CmdOrCtrl+Digit0"),
             )?,
@@ -129,13 +171,25 @@ pub fn build_app_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     menu.append(&go)?;
     menu.append(&display)?;
     menu.append(&help)?;
-    app.set_menu(menu)?;
-    app.on_menu_event(|app, event| handle(app, event.id().as_ref()));
-    Ok(())
+    Ok(menu)
 }
 
 pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     use tauri::tray::TrayIconBuilder;
+    let menu = tray_menu(app)?;
+    let mut tray = TrayIconBuilder::with_id("nga")
+        .tooltip("NGA")
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .on_menu_event(|app, event| handle(app, event.id().as_ref()));
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+    Ok(())
+}
+
+fn tray_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let shell = app.state::<Shell>();
     let menu = Menu::new(app)?;
     for a in &shell.apps {
@@ -151,34 +205,25 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     menu.append(&MenuItem::with_id(
         app,
         "notices",
-        "Notifications",
+        t("menu.notifications"),
         true,
         None::<&str>,
     )?)?;
     menu.append(&MenuItem::with_id(
         app,
         "show",
-        "Show NGA",
+        t("tray.show"),
         true,
         None::<&str>,
     )?)?;
     menu.append(&MenuItem::with_id(
         app,
         "quit",
-        "Quit NGA",
+        t("tray.quit"),
         true,
         None::<&str>,
     )?)?;
-    let mut tray = TrayIconBuilder::with_id("nga")
-        .tooltip("NGA")
-        .menu(&menu)
-        .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| handle(app, event.id().as_ref()));
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
-    }
-    tray.build(app)?;
-    Ok(())
+    Ok(menu)
 }
 
 /// Popup menus the shell asks for. `key` is the app a tab belongs to.
@@ -193,28 +238,28 @@ pub fn popup<R: Runtime>(
             menu.append(&MenuItem::with_id(
                 app,
                 format!("open:{key}"),
-                "Open",
+                t("popup.open"),
                 true,
                 None::<&str>,
             )?)?;
             menu.append(&MenuItem::with_id(
                 app,
                 format!("reload:{key}"),
-                "Reload",
+                t("menu.reload"),
                 true,
                 None::<&str>,
             )?)?;
             menu.append(&MenuItem::with_id(
                 app,
                 format!("home:{key}"),
-                "Go to Start Page",
+                t("popup.home"),
                 true,
                 None::<&str>,
             )?)?;
             menu.append(&MenuItem::with_id(
                 app,
                 format!("browser:{key}"),
-                "Open in Browser",
+                t("menu.openBrowser"),
                 true,
                 None::<&str>,
             )?)?;
@@ -223,7 +268,7 @@ pub fn popup<R: Runtime>(
             menu.append(&CheckMenuItem::with_id(
                 app,
                 format!("mute:{key}"),
-                "Mute Notifications",
+                t("popup.mute"),
                 true,
                 muted,
                 None::<&str>,
@@ -231,10 +276,10 @@ pub fn popup<R: Runtime>(
         }
         ("theme", current) => {
             for (id, label) in [
-                ("mis", "Follow My NGA Account"),
-                ("light", "Light"),
-                ("dark", "Dark"),
-                ("system", "Match This Computer"),
+                ("mis", t("popup.themeMis")),
+                ("light", t("popup.light")),
+                ("dark", t("popup.dark")),
+                ("system", t("popup.system")),
             ] {
                 let item = CheckMenuItem::with_id(
                     app,
@@ -255,21 +300,21 @@ pub fn popup<R: Runtime>(
             menu.append(&MenuItem::with_id(
                 app,
                 "print",
-                "Print…",
+                t("menu.print"),
                 active,
                 Some("CmdOrCtrl+P"),
             )?)?;
             menu.append(&MenuItem::with_id(
                 app,
                 "browser",
-                "Open in Browser",
+                t("menu.openBrowser"),
                 active,
                 Some("CmdOrCtrl+Shift+O"),
             )?)?;
             menu.append(&MenuItem::with_id(
                 app,
                 "downloads",
-                "Show Downloads",
+                t("popup.downloads"),
                 true,
                 None::<&str>,
             )?)?;
@@ -277,21 +322,21 @@ pub fn popup<R: Runtime>(
             menu.append(&MenuItem::with_id(
                 app,
                 "zoom-in",
-                "Zoom In",
+                t("menu.zoomIn"),
                 active,
                 Some("CmdOrCtrl+Equal"),
             )?)?;
             menu.append(&MenuItem::with_id(
                 app,
                 "zoom-out",
-                "Zoom Out",
+                t("menu.zoomOut"),
                 active,
                 Some("CmdOrCtrl+Minus"),
             )?)?;
             menu.append(&MenuItem::with_id(
                 app,
                 "zoom-reset",
-                "Actual Size",
+                t("menu.actualSize"),
                 active,
                 Some("CmdOrCtrl+Digit0"),
             )?)?;
@@ -299,14 +344,14 @@ pub fn popup<R: Runtime>(
             menu.append(&MenuItem::with_id(
                 app,
                 "focus",
-                "Focus Mode",
+                t("menu.focus"),
                 active,
                 Some("CmdOrCtrl+Shift+F"),
             )?)?;
             menu.append(&MenuItem::with_id(
                 app,
                 "settings",
-                "Settings",
+                t("popup.settings"),
                 true,
                 Some("CmdOrCtrl+Comma"),
             )?)?;
@@ -351,7 +396,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         return;
     }
     match id {
-        "quit" => app.exit(0),
+        "quit" => crate::updates::quit(app),
         "show" => focus_main(app),
         "palette" => {
             focus_main(app);
@@ -368,7 +413,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
             {
                 use tauri_plugin_clipboard_manager::ClipboardExt;
                 if app.clipboard().write_text(url.to_string()).is_ok() {
-                    let _ = app.emit_to(SHELL, "nga://toast", "Link copied".to_string());
+                    let _ = app.emit_to(SHELL, "nga://toast", t("toast.linkCopied").to_string());
                 }
             }
         }

@@ -5,6 +5,8 @@ import { native, type AppKey, type DesktopApp, type NoticeSummary } from "../lib
 import type { Views } from "../lib/appState";
 import type { Theme, ThemePref } from "../lib/theme";
 import { isMac, mod } from "../lib/platform";
+import { appDescription } from "../lib/palette";
+import { useLang } from "../tools/i18n";
 import { Tip } from "./Tip";
 
 export type Page = "app" | "settings";
@@ -50,6 +52,7 @@ interface Props {
 }
 
 export function TitleBar(p: Props) {
+  const { t } = useLang();
   const tabs = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState<{ x: number; w: number } | null>(null);
   const onApp = p.page === "app" && !!p.active;
@@ -71,7 +74,7 @@ export function TitleBar(p: Props) {
     <header className={`titlebar${isMac ? " mac" : " win"}`} data-tauri-drag-region>
       {isMac ? <div className="lights" data-tauri-drag-region /> : <img className="brand" src="/apps/mis.png" alt="NGA" />}
 
-      <nav className="tabs" ref={tabs} aria-label="NGA apps">
+      <nav className="tabs" ref={tabs} aria-label={t("shell.tabs.label")}>
         {pill && <span className="tab-pill" style={{ transform: `translateX(${pill.x}px)`, width: pill.w }} />}
         {p.apps.map((a, i) => {
           const current = p.page === "app" && a.key === p.active;
@@ -79,7 +82,7 @@ export function TitleBar(p: Props) {
           const ready = p.views[a.key]?.status === "ready";
           const page = p.views[a.key]?.title;
           return (
-            <Tip key={a.key} label={a.name} hint={page && page !== a.name ? page : a.description} keys={`${mod}${i + 1}`}>
+            <Tip key={a.key} label={a.name} hint={page && page !== a.name ? page : appDescription(a, t)} keys={`${mod}${i + 1}`}>
             <button
               data-key={a.key}
               className={`tab${current ? " current" : ""}${ready ? " ready" : ""}`}
@@ -104,10 +107,10 @@ export function TitleBar(p: Props) {
 
       <div className="drag" data-tauri-drag-region />
 
-      <Tip label="Search NGA" hint="Apps, pages, tools and actions" keys={`${mod}K`}>
+      <Tip label={t("shell.search.label")} hint={t("shell.search.hint")} keys={`${mod}K`}>
         <button className="search-pill" onClick={p.onPalette}>
           <Search size={14} />
-          {!p.compact && <span>Search or jump to…</span>}
+          {!p.compact && <span>{t("shell.search.placeholder")}</span>}
           <kbd>{mod}K</kbd>
         </button>
       </Tip>
@@ -115,69 +118,69 @@ export function TitleBar(p: Props) {
       <div className="drag small" data-tauri-drag-region />
 
       {!p.online && (
-        <span className="offline-pill" title="No internet connection. Apps reconnect on their own.">
-          <WifiOff size={13} /> Offline
+        <span className="offline-pill" title={t("shell.offline.title")}>
+          <WifiOff size={13} /> {t("shell.offline")}
         </span>
       )}
 
       {session && (
-        <span className="session-pill" title="Banners from the other apps wait until you finish">
-          <Video size={13} /> {session.key === "tupo" ? "In a meeting" : "Quiz in progress"}
+        <span className="session-pill" title={t("shell.session.title")}>
+          <Video size={13} /> {session.key === "tupo" ? t("shell.session.meeting") : t("shell.session.quiz")}
         </span>
       )}
 
       <div className="tools">
-        <Tip label="Back" keys={`${mod}[`}><button disabled={!onApp} onClick={() => native.back()}><ArrowLeft size={16} /></button></Tip>
-        <Tip label="Forward" keys={`${mod}]`}><button disabled={!onApp} onClick={() => native.forward()}><ArrowRight size={16} /></button></Tip>
-        <Tip label="Reload" hint="Reload this app's page" keys={`${mod}R`}>
+        <Tip label={t("shell.nav.back")} keys={`${mod}[`}><button disabled={!onApp} onClick={() => native.back()}><ArrowLeft size={16} /></button></Tip>
+        <Tip label={t("shell.nav.forward")} keys={`${mod}]`}><button disabled={!onApp} onClick={() => native.forward()}><ArrowRight size={16} /></button></Tip>
+        <Tip label={t("shell.nav.reload")} hint={t("shell.nav.reloadHint")} keys={`${mod}R`}>
           <button disabled={!onApp} onClick={() => native.reload()} className={view?.busy ? "spin" : ""}>
             <RotateCw size={15} />
           </button>
         </Tip>
         <span className="sep" />
         {p.updateVersion && (
-          <Tip label={`Update to NGA ${p.updateVersion}`} hint="Downloads, installs and restarts NGA">
+          <Tip label={t("shell.update.to", { version: p.updateVersion })} hint={t("shell.update.hint")}>
           <button
             className="update-pill"
             onClick={p.onUpdate}
             disabled={p.updatePct !== null}
-            aria-label={p.updatePct === null ? `Update to NGA ${p.updateVersion}` : `Updating, ${p.updatePct}%`}
+            aria-label={p.updatePct === null ? t("shell.update.to", { version: p.updateVersion }) : t("shell.update.updating", { pct: p.updatePct })}
             style={p.updatePct === null ? undefined : ({ "--pct": `${p.updatePct}%` } as CSSProperties)}
           >
             {p.updatePct !== null && <span className="update-progress" />}
             {p.updatePct === null ? <span className="update-dot" /> : <LoaderCircle size={13} className="spin" />}
-            <span>{p.updatePct === null ? "Update" : `${p.updatePct}%`}</span>
+            <span>{p.updatePct === null ? t("shell.update.pill") : `${p.updatePct}%`}</span>
           </button>
           </Tip>
         )}
-        <Tip label={p.toolsLabel} hint={p.timersRunning > 0 ? `${p.timersRunning} timer${p.timersRunning > 1 ? "s" : ""} running` : p.toolsHint} keys={`${mod}⇧T`}>
+        <Tip label={p.toolsLabel} hint={p.timersRunning > 0 ? (p.timersRunning > 1 ? t("shell.timers.many", { n: p.timersRunning }) : t("shell.timers.one")) : p.toolsHint} keys={`${mod}⇧T`}>
           <button className={`tools-btn${p.toolsOpen ? " on" : ""}`} onClick={p.onTools} aria-pressed={p.toolsOpen}>
             <Wrench size={15} />
             {p.timersRunning > 0 && <span className="badge timer-dot" />}
           </button>
         </Tip>
-        <Tip label="Notifications" hint={(p.notices?.total ?? 0) > 0 ? `${p.notices!.total} unread` : "From every NGA app"} keys={`${mod}⇧N`}>
+        <Tip label={t("shell.notices.title")} hint={(p.notices?.total ?? 0) > 0 ? t("shell.notices.unread", { n: p.notices!.total }) : t("shell.notices.hint")} keys={`${mod}⇧N`}>
           <button className={`bell${p.panelOpen ? " on" : ""}`} onClick={p.onPanel}>
             <Bell size={16} />
             {(p.notices?.total ?? 0) > 0 && <span key={p.notices?.total} className="badge pop">{p.notices!.total > 99 ? "99+" : p.notices!.total}</span>}
           </button>
         </Tip>
-        <Tip label="Appearance" hint="Light, dark, or like your NGA account" keys={`${mod}⇧L`}>
+        <Tip label={t("shell.appearance")} hint={t("shell.appearance.hint")} keys={`${mod}⇧L`}>
           <button onClick={(e) => { const { x, y } = at(e); void native.popupMenu("theme", x, y, p.themePref); }}>
             {p.theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
           </button>
         </Tip>
-        <Tip label="Keyboard shortcuts" keys={`${mod}/`}>
+        <Tip label={t("shell.shortcuts.title")} keys={`${mod}/`}>
           <button onClick={p.onShortcuts}>
             <Keyboard size={16} />
           </button>
         </Tip>
-        <Tip label="More" hint="Print, open in browser, downloads, focus mode">
+        <Tip label={t("shell.more")} hint={t("shell.more.hint")}>
           <button onClick={(e) => { const { x, y } = at(e); void native.popupMenu("more", x, y); }}>
             <Ellipsis size={16} />
           </button>
         </Tip>
-        <Tip label="Settings" keys={`${mod},`}>
+        <Tip label={t("shell.settings.title")} keys={`${mod},`}>
           <button className={p.page === "settings" ? "on" : ""} onClick={p.onSettings}>
             <Gear size={16} />
           </button>
@@ -192,13 +195,14 @@ export function TitleBar(p: Props) {
 
 /** Slim bar in focus mode: just enough to know where you are and get out. */
 export function FocusBar({ app, onExit }: { app: DesktopApp | null; onExit: () => void }) {
+  const { t } = useLang();
   return (
     <header className={`titlebar focus${isMac ? " mac" : " win"}`} data-tauri-drag-region>
       {isMac && <div className="lights" data-tauri-drag-region />}
       <span className="focus-name" data-tauri-drag-region>{app?.name}</span>
       <div className="drag" data-tauri-drag-region />
-      <button className="exit-focus" onClick={onExit} title={`Exit focus mode (${mod}⇧F)`}>
-        <Minimize2 size={13} /> Exit focus
+      <button className="exit-focus" onClick={onExit} title={t("shell.focus.exitTitle", { key: `${mod}⇧F` })}>
+        <Minimize2 size={13} /> {t("shell.focus.exit")}
       </button>
       {!isMac && <WindowControls />}
     </header>
@@ -207,15 +211,16 @@ export function FocusBar({ app, onExit }: { app: DesktopApp | null; onExit: () =
 
 function WindowControls() {
   const w = getCurrentWindow();
+  const { t } = useLang();
   return (
     <div className="winctl">
-      <button onClick={() => w.minimize()} aria-label="Minimise">
+      <button onClick={() => w.minimize()} aria-label={t("shell.win.minimise")}>
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor" /></svg>
       </button>
-      <button onClick={() => w.toggleMaximize()} aria-label="Maximise">
+      <button onClick={() => w.toggleMaximize()} aria-label={t("shell.win.maximise")}>
         <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" /></svg>
       </button>
-      <button className="close" onClick={() => w.close()} aria-label="Close">
+      <button className="close" onClick={() => w.close()} aria-label={t("shell.win.close")}>
         <svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" /></svg>
       </button>
     </div>

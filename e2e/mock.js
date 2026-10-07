@@ -26,11 +26,20 @@
     convertFileSrc: (s) => s,
     async invoke(cmd, args = {}) {
       window.__calls = (window.__calls || []).concat([cmd]);
+      window.__invokes = (window.__invokes || []).concat([{ cmd, args }]);
       const now = Date.now();
       switch (cmd) {
-        case "shell_info": return { version: "0.3.0", env: "development", os: "macos", webview: "", apps, updater: false };
+        case "shell_info": return { version: "0.3.0", env: "development", os: "macos", webview: "", apps, updater: localStorage.getItem("mock.updater") === "1" };
         case "notices_summary": return { unread: {}, badges: {}, total: 0 };
-        case "notices_list": return [];
+        case "notices_list": return JSON.parse(localStorage.getItem("mock.notices") || "[]");
+        case "notices_snooze": {
+          const list = JSON.parse(localStorage.getItem("mock.notices") || "[]").map((n) => (n.id === args.id ? { ...n, read: true } : n));
+          localStorage.setItem("mock.notices", JSON.stringify(list)); setTimeout(() => emit("nga://notices", {}), 0); return null;
+        }
+        case "update_auto_get": return localStorage.getItem("mock.autoUpdate") !== "0";
+        case "update_auto_set": localStorage.setItem("mock.autoUpdate", args.on ? "1" : "0"); return null;
+        case "autostart_get": return localStorage.getItem("mock.autostart") === "1";
+        case "autostart_set": localStorage.setItem("mock.autostart", args.on ? "1" : "0"); return null;
         case "focus_session": return null;
         case "os_permission": return "granted";
         case "tools_identity": return identity;
