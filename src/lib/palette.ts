@@ -1,6 +1,7 @@
 // The command palette's items and search. Pure, so it is unit-tested.
 import type { AppKey, DesktopApp } from "./native";
 import type { RecentPage } from "./settings";
+import { translator, type Key, type Translate } from "../tools/i18n";
 
 export type PaletteAction = "theme" | "focus" | "notices" | "settings" | "reload" | "print" | "signout";
 
@@ -19,25 +20,82 @@ export interface PaletteTool {
   words: string;
 }
 
-const ACTIONS: Array<{ action: PaletteAction; label: string; words: string }> = [
-  { action: "theme", label: "Switch light / dark", words: "theme dark light mode appearance" },
-  { action: "focus", label: "Focus mode", words: "fullscreen hide distraction zen" },
-  { action: "notices", label: "Show notifications", words: "bell alerts inbox" },
-  { action: "settings", label: "Settings", words: "preferences options" },
-  { action: "reload", label: "Reload this app", words: "refresh" },
-  { action: "print", label: "Print this page", words: "pdf paper" },
-  { action: "signout", label: "Sign out of this computer", words: "logout log out switch account" },
+const ACTIONS: Array<{ action: PaletteAction; label: Key; words: string }> = [
+  { action: "theme", label: "shell.action.theme", words: "theme dark light mode appearance" },
+  { action: "focus", label: "shell.action.focus", words: "fullscreen hide distraction zen" },
+  { action: "notices", label: "shell.action.notices", words: "bell alerts inbox" },
+  { action: "settings", label: "shell.settings.title", words: "preferences options" },
+  { action: "reload", label: "shell.action.reload", words: "refresh" },
+  { action: "print", label: "shell.action.print", words: "pdf paper" },
+  { action: "signout", label: "shell.action.signout", words: "logout log out switch account" },
 ];
 
-export function buildItems(apps: DesktopApp[], recent: RecentPage[], tools: PaletteTool[] = []): PaletteItem[] {
+// The registry (registry.rs) sends English labels; the shell shows them in the chosen language.
+const DESTINATIONS: Record<string, Key> = {
+  Home: "shell.dest.home",
+  "Timetable & calendar": "shell.dest.calendar",
+  "Lesson notes": "shell.dest.lessonNotes",
+  Reminders: "shell.dest.reminders",
+  "My learning": "shell.dest.myLearning",
+  "E-learning courses": "shell.dest.elearning",
+  "Scheme of work": "shell.dest.schemeOfWork",
+  Documents: "shell.dest.documents",
+  "Office hours": "shell.dest.officeHours",
+  Reporting: "shell.dest.reporting",
+  Profile: "shell.dest.profile",
+  Dashboard: "shell.dest.dashboard",
+  Courses: "shell.dest.courses",
+  Quizzes: "shell.dest.quizzes",
+  "My quizzes": "shell.dest.myQuizzes",
+  Assignments: "shell.dest.assignments",
+  Submissions: "shell.dest.submissions",
+  Grades: "shell.dest.grades",
+  "Question bank": "shell.dest.questionBank",
+  Ranking: "shell.dest.ranking",
+  "Live proctoring": "shell.dest.proctoring",
+  Today: "shell.dest.today",
+  "Take attendance": "shell.dest.takeAttendance",
+  "This week": "shell.dest.thisWeek",
+  "Attendance records": "shell.dest.attendanceRecords",
+  "Attendance report": "shell.dest.attendanceReport",
+  Excuses: "shell.dest.excuses",
+  "Log discipline": "shell.dest.logDiscipline",
+  "Discipline records": "shell.dest.disciplineRecords",
+  Reports: "shell.dest.reports",
+  Chat: "shell.dest.chat",
+  Feed: "shell.dest.feed",
+  Mail: "shell.dest.mail",
+  Meetings: "shell.dest.meetings",
+  "New meeting": "shell.dest.newMeeting",
+  Files: "shell.dest.files",
+  Reels: "shell.dest.reels",
+};
+
+const APP_DESCRIPTIONS: Record<AppKey, Key> = {
+  mis: "shell.app.mis.desc",
+  taskmentor: "shell.app.taskmentor.desc",
+  tendo: "shell.app.tendo.desc",
+  tupo: "shell.app.tupo.desc",
+};
+
+/** An app's one-line description in the chosen language (the registry's English otherwise). */
+export const appDescription = (app: DesktopApp, t: Translate): string =>
+  APP_DESCRIPTIONS[app.key] ? t(APP_DESCRIPTIONS[app.key]) : app.description;
+
+/** A destination label in the chosen language (unknown labels stay as sent). */
+export const destinationLabel = (label: string, t: Translate): string => (DESTINATIONS[label] ? t(DESTINATIONS[label]) : label);
+
+const english = translator("en");
+
+export function buildItems(apps: DesktopApp[], recent: RecentPage[], tools: PaletteTool[] = [], t: Translate = english): PaletteItem[] {
   const name = (k: AppKey) => apps.find((a) => a.key === k)?.name ?? k;
   return [
-    ...apps.map((a, i) => ({ kind: "app" as const, id: `app:${a.key}`, label: a.name, hint: `${a.description} · ⌘${i + 1}`, key: a.key })),
+    ...apps.map((a, i) => ({ kind: "app" as const, id: `app:${a.key}`, label: a.name, hint: `${appDescription(a, t)} · ⌘${i + 1}`, key: a.key })),
     ...recent.slice(0, 8).map((r) => ({
       kind: "recent" as const,
       id: `recent:${r.key}:${r.path}`,
       label: r.title || r.path,
-      hint: `${name(r.key)} · recent`,
+      hint: `${name(r.key)} · ${t("shell.palette.recent")}`,
       key: r.key,
       path: r.path,
     })),
@@ -45,15 +103,16 @@ export function buildItems(apps: DesktopApp[], recent: RecentPage[], tools: Pale
       a.destinations.map((d) => ({
         kind: "go" as const,
         id: `go:${a.key}:${d.path}`,
-        label: d.label,
+        label: destinationLabel(d.label, t),
         hint: a.name,
         key: a.key,
         path: d.path,
-        words: `${d.keywords} ${a.name}`,
+        // The English label stays searchable whatever the language.
+        words: `${d.keywords} ${d.label} ${a.name}`,
       })),
     ),
     ...tools.map((t) => ({ kind: "tool" as const, id: `tool:${t.id}`, label: t.label, hint: t.hint, tool: t.id, words: t.words })),
-    ...ACTIONS.map((a) => ({ kind: "action" as const, id: `action:${a.action}`, label: a.label, hint: "Action", action: a.action, words: a.words })),
+    ...ACTIONS.map((a) => ({ kind: "action" as const, id: `action:${a.action}`, label: t(a.label), hint: t("shell.palette.action"), action: a.action, words: `${a.words} ${english(a.label)}` })),
   ];
 }
 

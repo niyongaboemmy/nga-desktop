@@ -4,6 +4,15 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { DesktopApp } from "../lib/native";
 import type { RecentPage } from "../lib/settings";
 import { buildItems, search, type PaletteItem, type PaletteTool } from "../lib/palette";
+import { useLang } from "../tools/i18n";
+import { findTool } from "../tools/registry";
+import { preloadTool } from "../tools/ToolHost";
+
+/** Start loading a tool's code as soon as it is highlighted, like the launcher does. */
+const preload = (it: PaletteItem | undefined) => {
+  const tm = it?.kind === "tool" ? findTool(it.tool) : undefined;
+  if (tm) void preloadTool(tm);
+};
 
 /**
  * ⌘K: jump to any app, page or action. Rendered in the floating overlay window
@@ -15,7 +24,8 @@ export function Palette({
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
   const input = useRef<HTMLInputElement>(null);
-  const items = useMemo(() => buildItems(apps, recent, tools), [apps, recent, tools]);
+  const { t } = useLang();
+  const items = useMemo(() => buildItems(apps, recent, tools, t), [apps, recent, tools, t]);
   const results = useMemo(() => search(items, query), [items, query]);
 
   useEffect(() => {
@@ -23,6 +33,7 @@ export function Palette({
     void getCurrentWebview().setFocus().catch(() => undefined).finally(() => input.current?.focus());
   }, []);
   useEffect(() => setSel(0), [query]);
+  useEffect(() => preload(results[sel]), [results, sel]);
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") onClose();
@@ -39,7 +50,7 @@ export function Palette({
     : <Zap size={16} />;
 
   return (
-    <div className="palette" role="dialog" aria-label="Search NGA">
+    <div className="palette" role="dialog" aria-label={t("shell.search.label")}>
       <div className="palette-input">
         <Search size={17} />
         <input
@@ -47,16 +58,16 @@ export function Palette({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKey}
-          placeholder="Search apps, pages, tools and actions…"
+          placeholder={t("shell.palette.placeholder")}
           spellCheck={false}
         />
         <kbd>Esc</kbd>
       </div>
       <ul className="palette-list" role="listbox">
-        {results.length === 0 && <li className="palette-empty"><LayoutGrid size={16} /> Nothing matches "{query}"</li>}
+        {results.length === 0 && <li className="palette-empty"><LayoutGrid size={16} /> {t("shell.palette.empty", { q: query })}</li>}
         {results.map((it, i) => (
           <li key={it.id} role="option" aria-selected={i === sel}>
-            <button className={`palette-item${i === sel ? " sel" : ""}`} onMouseEnter={() => setSel(i)} onClick={() => onPick(it)}>
+            <button className={`palette-item${i === sel ? " sel" : ""}`} onMouseEnter={() => { setSel(i); preload(it); }} onClick={() => onPick(it)}>
               <span className="palette-icon">{icon(it)}</span>
               <span className="palette-label">{it.label}</span>
               <span className="palette-hint">{it.hint}</span>

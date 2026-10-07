@@ -47,6 +47,11 @@ pub fn run() {
         )
         .plugin(
             tauri_plugin_window_state::Builder::default()
+                // Never restore "visible": a login-item start stays in the tray (autostart.rs).
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
                 .with_denylist(&[overlay::OVERLAY, tooltip::TOOLTIP])
                 // A Present window must never reopen full screen by surprise.
                 .with_filter(|label| !label.starts_with(tools::windows::PRESENT_PREFIX))
@@ -141,6 +146,20 @@ pub fn run() {
         .setup(|app| {
             grant_bridge(app)?;
             build_main_window(app)?;
+            // Window state no longer restores visibility, so decide here: a
+            // login-item start stays in the tray, any other start shows NGA.
+            if let Some(w) = app.get_window(WINDOW) {
+                let hidden = autostart::started_hidden();
+                let _ = if hidden { w.hide() } else { w.show() };
+                log::info!(
+                    "start: window {}",
+                    if hidden {
+                        "in the tray (login item)"
+                    } else {
+                        "shown"
+                    }
+                );
+            }
             overlay::create(app.handle())?;
             if let Err(e) = tooltip::create(app.handle()) {
                 log::warn!("tooltips unavailable: {e}");

@@ -24,7 +24,7 @@ import { findTool } from "./tools/registry";
 export const COMPACT_BELOW = 1100;
 
 type Toast =
-  | { kind: "download"; text: string; path: string | null }
+  | { kind: "download"; ok: boolean; path: string | null }
   | { kind: "notice"; notice: Notice }
   | { kind: "info"; text: string }
   | { kind: "update"; version: string }
@@ -43,6 +43,10 @@ export default function App() {
   const identity = useIdentity();
   const { t, lang } = useLang();
   useTranslationSync(identity, lang);
+  // Native menus, tray and timer alerts follow the shell's language (src-tauri/src/i18n.rs).
+  useEffect(() => {
+    void native.setLang(lang).catch(() => undefined);
+  }, [lang]);
   const [focus, setFocus] = useState(false);
   const [views, dispatch] = useReducer(reduce, {});
   const [notices, setNotices] = useState<NoticeSummary | null>(null);
@@ -171,9 +175,7 @@ export default function App() {
         dispatch({ type: "title", key, title });
         remember(key, title);
       }),
-      on("nga://download", ({ success, path }) =>
-        setToast({ kind: "download", text: success ? `Downloaded ${path?.split(/[\\/]/).pop() ?? "a file"}` : "Download failed", path }),
-      ),
+      on("nga://download", ({ success, path }) => setToast({ kind: "download", ok: success, path })),
       on("nga://notices", setNotices),
       on("nga://notice", (notice) => setToast({ kind: "notice", notice })),
       on("nga://toast", (text) => setToast({ kind: "info", text })),
@@ -291,7 +293,7 @@ export default function App() {
   const wasOnline = useRef(online);
   useEffect(() => {
     if (online && !wasOnline.current) {
-      setToast({ kind: "info", text: "You're back online" });
+      setToast({ kind: "info", text: t("shell.toast.backOnline") });
       if (active && views[active]?.status !== "ready") {
         dispatch({ type: "retry", key: active, at: Date.now() });
         void native.reload();
@@ -333,7 +335,7 @@ export default function App() {
         update={update}
         setUpdate={setUpdate}
         updatePct={updatePct}
-        busyIn={focusSession ? `${info.apps.find((a) => a.key === focusSession)?.name ?? "app"} quiz or meeting` : null}
+        busyIn={focusSession ? info.apps.find((a) => a.key === focusSession)?.name ?? focusSession : null}
       />
     ) : app && waitingForSignIn ? (
       <SignedOutScreen app={app} onSignIn={() => open("mis")} />
@@ -408,8 +410,10 @@ export default function App() {
         </div>
         {panel === "notices" && !focus && <NoticePanel apps={info.apps} onClose={() => setPanel(false)} />}
       </div>
+      {/* Always in the page (empty when there is no toast) so screen readers announce new ones. */}
+      <div className="toast-region" role="status" aria-live="polite">
       {toast && (toast.kind === "alert" || (!focus && (toast.kind === "download" || panel !== "notices"))) && (
-        <div className="toast" role="status">
+        <div className="toast">
           {toast.kind === "info" ? (
             <span>{toast.text}</span>
           ) : toast.kind === "alert" ? (
@@ -420,14 +424,18 @@ export default function App() {
           ) : toast.kind === "update" ? (
             <>
               <ArrowDownCircle size={15} />
-              <span>NGA {toast.version} is available</span>
-              <button className="link" onClick={() => { setPage("settings"); setToast(null); }}>Update…</button>
+              <span>{t("shell.toast.updateAvailable", { version: toast.version })}</span>
+              <button className="link" onClick={() => { setPage("settings"); setToast(null); }}>{t("shell.toast.update")}</button>
             </>
           ) : toast.kind === "download" ? (
             <>
               <Download size={15} />
-              <span>{toast.text}</span>
-              <button className="link" onClick={() => native.showDownloads(toast.path)}>Show</button>
+              <span>
+                {toast.ok
+                  ? t("shell.toast.downloaded", { name: toast.path?.split(/[\\/]/).pop() || t("shell.toast.aFile") })
+                  : t("shell.toast.downloadFailed")}
+              </span>
+              <button className="link" onClick={() => native.showDownloads(toast.path)}>{t("shell.toast.show")}</button>
             </>
           ) : (
             <button className="toast-notice" onClick={() => { void native.openNotice(toast.notice.id); setToast(null); }}>
@@ -436,9 +444,10 @@ export default function App() {
               <Bell size={14} />
             </button>
           )}
-          <button className="icon" onClick={() => setToast(null)} aria-label="Dismiss"><X size={14} /></button>
+          <button className="icon" onClick={() => setToast(null)} aria-label={t("shell.toast.dismiss")}><X size={14} /></button>
         </div>
       )}
+      </div>
     </div>
   );
 }

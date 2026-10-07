@@ -110,6 +110,8 @@ export const native = {
   /** Settings → General → start NGA (hidden) when the computer starts. */
   autostartGet: () => invoke<boolean>("autostart_get"),
   autostartSet: (on: boolean) => invoke<void>("autostart_set", { on }),
+  /** Native menus, tray and timer alerts in the shell's language. */
+  setLang: (lang: "en" | "fr" | "rw") => invoke<void>("shell_set_lang", { lang }),
 };
 
 type Events = {

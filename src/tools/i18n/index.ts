@@ -40,6 +40,8 @@ export function detectLang(languages: readonly string[] = typeof navigator === "
 }
 
 const KEY = "nga.tools.lang";
+/** Same-window change (the storage event only reaches other windows). */
+const LANG_EVENT = "nga:lang";
 
 export const readLangPref = (): LangPref => {
   try {
@@ -66,11 +68,14 @@ export function useLang(): { lang: Lang; pref: LangPref; setPref: (p: LangPref) 
       }
     };
     const onLocal = () => setVersion((v) => v + 1);
+    const onLang = () => setPrefState(readLangPref());
     window.addEventListener("storage", onStorage);
     window.addEventListener(OVERRIDE_EVENT, onLocal);
+    window.addEventListener(LANG_EVENT, onLang);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(OVERRIDE_EVENT, onLocal);
+      window.removeEventListener(LANG_EVENT, onLang);
     };
   }, []);
   const setPref = (p: LangPref) => {
@@ -81,6 +86,8 @@ export function useLang(): { lang: Lang; pref: LangPref; setPref: (p: LangPref) 
       /* storage blocked */
     }
     setPrefState(p);
+    // Every other useLang() in this window (title bar, menus, open tools) follows.
+    window.dispatchEvent(new Event(LANG_EVENT));
   };
   const lang = resolveLang(pref);
   return { lang, pref, setPref, t: translator(lang) };
