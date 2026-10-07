@@ -133,6 +133,21 @@ The ranking weighs four things:
 
 ---
 
+## Status (7 October 2026)
+
+The owner's constraints: free tools only (no code-signing certificate, no SMS), and teacher features before parent features.
+
+| Phase | What shipped | Where |
+|---|---|---|
+| A: Reliability | Silent updates when idle or on quit, plus update reports; start with the computer; persistent inbox with snooze; whole app in EN/FR/RW; MIS "Update now" banner for old desktops | desktop 0.16.0, MIS #82 |
+| B: Safety | Encrypted tool data (DPAPI key on Windows) and wipe on sign-out; safeguarding queue, weekly check-ins and "Ask for help", with AI-tutor worries routed to the team; watcher contract tests | desktop 0.17.0, MIS #83/#84, Tendo #43, TM #42 |
+| C: Teacher time | AI marking assistant (teacher approves); AI report-card comments, per student and in bulk; nga:// deep links | TM #44/#45, desktop 0.18.0 |
+| D: Insight | Early warning: Tendo and Task Mentor push daily signals, with reasons, interventions and class-teacher alerts; staff absence and cover, with ranked free-teacher suggestions | MIS #86/#87, Tendo #44, TM #46 |
+| E: Families | "My children" page in plain words; weekly summary by app, Telegram and email; parent import for registrars | MIS #88 |
+| F: Resilience & curriculum | Not started | — |
+
+Windows code signing was dropped because it costs money; SignPath's free plan for open-source projects is an option if the repository qualifies.
+
 ## 4. Suggested roadmap
 
 | Phase | Contents | Rough effort |
