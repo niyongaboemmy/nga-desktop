@@ -695,4 +695,8 @@ export const en = {
   "ai.s.student3": "Quiz me on the parts of a cell",
   "ai.s.student4": "How do I plan an essay?",
   "tutor.placeholder": "Ask your tutor…",
+
+  "tutor.consentTitle": "Ask a parent first",
+  "tutor.consent": "Your school asks for a parent's or guardian's permission before you use the AI Tutor. They can allow it in NGA MIS, under \"AI Tutor for my children\".",
+  "tutor.fromCache": "From the school's saved answers (didn't use a question)",
 } as const;

@@ -52,6 +52,23 @@ await p.waitForSelector(".ai-error", { timeout: 5000 });
 r("pauses during the student's lesson, saying until when", (await p.locator(".ai-error").innerText()).includes("pauses during Physics S4. Back at"));
 await p.context().close();
 
+// Answers from the school's saved answers are labelled (and don't use a question).
+p = await page("student");
+await p.click('.ai-empty button:has-text("I understand")');
+await p.fill(".ai-composer textarea", "What is photosynthesis?");
+await p.keyboard.press("Enter");
+await p.waitForSelector(".ai-msg.bot:not(.streaming) .ai-md", { timeout: 5000 });
+r("a cached answer says so", (await p.locator(".ai-tools").innerText()).includes("saved answers"));
+await p.context().close();
+
+// Consent required and missing: the student is told to ask a parent.
+p = await page("student");
+await p.evaluate(() => localStorage.setItem("mock.consent", "needed"));
+await p.reload(); await p.waitForTimeout(300);
+await p.evaluate(() => window.__mockEmit("nga://overlay", "tool:ai")); await p.waitForTimeout(600);
+r("consent needed is explained", ((await p.locator(".ai-empty").innerText()) || "").includes("parent"));
+await p.context().close();
+
 p = await page("teacher");
 r("teachers keep the assistant (no tutor notice)", (await p.locator(".ai-hello").count()) === 1 && !((await p.locator(".ai-foot").innerText()).includes("hints, not answers")));
 await p.context().close();

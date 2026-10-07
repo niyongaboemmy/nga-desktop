@@ -89,6 +89,7 @@ export default function AskAi({ ctx }: ToolProps) {
           : err.code === "LOCKED_LESSON" ? t("tutor.lockedLesson", { label, time: until })
           : err.code === "LOCKED_EXAM" ? t("tutor.lockedExam", { label, time: until })
           : err.code === "TUTOR_OFF" ? t("tutor.off")
+          : err.code === "CONSENT_NEEDED" ? t("tutor.consent")
           : err.message;
         setTurns((cur) =>
           cur.map((x) => (x.id === answer.id ? { ...x, streaming: false, error: msg ?? (x.content ? undefined : t("ai.stopped")) } : x)),
@@ -130,8 +131,8 @@ export default function AskAi({ ctx }: ToolProps) {
     return (
       <Empty
         icon={<Sparkles size={22} />}
-        title={status.reason === "TUTOR_OFF" ? t("tutor.offTitle") : status.reason === "STUDENTS_SOON" ? t("ai.studentsSoon") : t("ai.parentsSoon")}
-        body={status.reason === "TUTOR_OFF" ? t("tutor.off") : status.reason === "STUDENTS_SOON" ? t("ai.studentsSoonBody") : t("ai.parentsSoonBody")}
+        title={status.reason === "CONSENT_NEEDED" ? t("tutor.consentTitle") : status.reason === "TUTOR_OFF" ? t("tutor.offTitle") : status.reason === "STUDENTS_SOON" ? t("ai.studentsSoon") : t("ai.parentsSoon")}
+        body={status.reason === "CONSENT_NEEDED" ? t("tutor.consent") : status.reason === "TUTOR_OFF" ? t("tutor.off") : status.reason === "STUDENTS_SOON" ? t("ai.studentsSoonBody") : t("ai.parentsSoonBody")}
       />
     );
   const tutor = status.mode === "tutor";
@@ -261,7 +262,7 @@ function Bubble({ turn: x, t, tutor, canRegenerate, onRegenerate, onReport }: { 
               <button onClick={() => setReporting(true)} title={t("tutor.report")} aria-label={t("tutor.report")}><Flag size={13} /></button>
             )}
             {x.reported && <span className="muted">{t("tutor.reported")}</span>}
-            {x.provider && <span className="muted">{t("ai.by", { p: providerName(x.provider) })}</span>}
+            {x.provider && <span className="muted">{x.provider === "cache" ? t("tutor.fromCache") : t("ai.by", { p: providerName(x.provider) })}</span>}
           </div>
         )}
         {reporting && !x.reported && (
