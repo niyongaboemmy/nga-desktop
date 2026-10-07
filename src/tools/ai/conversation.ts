@@ -19,7 +19,7 @@ export interface Turn {
 
 export interface Status {
   available: boolean;
-  reason: "STUDENTS_SOON" | "PARENTS_SOON" | "TUTOR_OFF" | null;
+  reason: "STUDENTS_SOON" | "PARENTS_SOON" | "TUTOR_OFF" | "CONSENT_NEEDED" | null;
   persona: string;
   /** Students get the AI Tutor (MIS checks every reply before it's shown). */
   mode?: "tutor" | "assistant";

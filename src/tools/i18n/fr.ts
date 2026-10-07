@@ -697,4 +697,8 @@ export const fr: Dictionary = {
   "ai.s.student3": "Pose-moi des questions sur les parties de la cellule",
   "ai.s.student4": "Comment préparer une rédaction ?",
   "tutor.placeholder": "Pose ta question au tuteur…",
+
+  "tutor.consentTitle": "Demande d'abord à un parent",
+  "tutor.consent": "Ton école demande l'accord d'un parent ou tuteur avant d'utiliser le tuteur IA. Il peut l'autoriser dans NGA MIS, rubrique « AI Tutor for my children ».",
+  "tutor.fromCache": "Réponse enregistrée par l'école (ne compte pas)",
 };

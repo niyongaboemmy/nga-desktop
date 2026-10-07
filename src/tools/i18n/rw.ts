@@ -697,4 +697,8 @@ export const rw: Dictionary = {
   "ai.s.student3": "Mbaza ibibazo ku bice by'uturemangingo",
   "ai.s.student4": "Nategura nte inyandiko?",
   "tutor.placeholder": "Baza umwarimu wawe…",
+
+  "tutor.consentTitle": "Banza usabe umubyeyi",
+  "tutor.consent": "Ishuri ryawe risaba uruhushya rw'umubyeyi cyangwa umurera mbere yo gukoresha umwarimu wa AI. Ashobora kurutanga muri NGA MIS, ahanditse \"AI Tutor for my children\".",
+  "tutor.fromCache": "Igisubizo cyabitswe n'ishuri (ntikibarwa)",
 };

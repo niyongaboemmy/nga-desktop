@@ -154,7 +154,8 @@
           }
           if (args.path === "/desktop/tools/ai/status") {
             const student = persona === "student";
-            const data = student ? { available: true, reason: null, persona, mode: "tutor", limit: 15, used: 1, remaining: 14 } : { available: true, reason: null, persona, mode: "assistant", limit: 40, used: 3, remaining: 37 };
+            const consent = localStorage.getItem("mock.consent") === "needed";
+            const data = student ? { available: !consent, reason: consent ? "CONSENT_NEEDED" : null, persona, mode: "tutor", limit: 15, used: 1, remaining: 14 } : { available: true, reason: null, persona, mode: "assistant", limit: 40, used: 3, remaining: 37 };
             setTimeout(() => ev("response", JSON.stringify({ status: 200, body: JSON.stringify({ success: true, data }) })), 80);
           } else if (args.path === "/desktop/tools/ai/report") {
             window.__reports = (window.__reports || []).concat([JSON.parse(args.body)]);
@@ -168,7 +169,8 @@
             }
             setTimeout(() => ev("lines", JSON.stringify({ status: "thinking" })), 50);
             setTimeout(() => ev("lines", JSON.stringify({ t: "Good start! What do you get if you subtract 5 from both sides of \\(3x + 5 = 20\\)?" })), 400);
-            setTimeout(() => ev("lines", JSON.stringify({ done: true, mode: "tutor", provider: "glm", messageId: 77, remaining: 13 })), 450);
+            const fromCache = /^what is /i.test(b.messages.at(-1).content);
+            setTimeout(() => ev("lines", JSON.stringify({ done: true, mode: "tutor", provider: fromCache ? "cache" : "glm", cached: fromCache || undefined, messageId: 77, remaining: fromCache ? 14 : 13 })), 450);
             setTimeout(() => ev("end", null), 480);
           } else if (args.path === "/desktop/tools/ai/chat") {
             const pieces = ["Here is a **10-minute starter** on photosynthesis:\n\n", "1. Show a leaf and ask *what does a plant eat?*\n", "2. Write the equation: $6CO_2 + 6H_2O \\rightarrow C_6H_{12}O_6 + 6O_2$\n", "3. Pairs list 3 things a plant needs.\n\n| Step | Time |\n|---|---|\n| Hook | 3 min |\n| Pairs | 7 min |"];
