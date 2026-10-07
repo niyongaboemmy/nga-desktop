@@ -68,3 +68,16 @@ SemVer, applied to the **shell** only:
 - **PATCH**: fixes.
 
 Web-app changes never need a desktop release.
+
+## nga:// links (deep links)
+
+NGA registers the `nga` URL scheme (src-tauri/src/deeplink.rs): on macOS through the app bundle, on Windows per user at start-up (no admin rights). Use them in emails, Telegram reminders and QR codes:
+
+| Link | Opens |
+|---|---|
+| `nga://open/<app>/<path>` | that page in `mis`, `taskmentor`, `tendo` or `tupo`, e.g. `nga://open/taskmentor/quizzes/12` |
+| `nga://open/<app>` | the app |
+| `nga://tool/<id>` | a tool (`calculator`, `timer`, `ai`, …) |
+| `nga://notifications` | the notifications panel |
+
+Anything else is ignored. Test locally with `open -b com.amashuri.nga.desktop.dev "nga://tool/calculator"` (macOS) or `start nga://tool/calculator` (Windows) and look for `deep link:` in the log.

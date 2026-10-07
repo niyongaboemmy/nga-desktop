@@ -37,7 +37,7 @@
       "app"
     ],
     "publisher": "New Generation Academy",
-    "copyright": "\u00a9 2026 New Generation Academy",
+    "copyright": "© 2026 New Generation Academy",
     "category": "Education",
     "shortDescription": "NGA MIS, Task Mentor, Tendo and Tupo in one app",
     "longDescription": "One window for every New Generation Academy app: NGA MIS, Task Mentor, Tendo and Tupo, signed in once through NGA MIS.",
@@ -72,6 +72,15 @@
       },
       "wix": {
         "language": "en-US"
+      }
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "nga"
+        ]
       }
     }
   }

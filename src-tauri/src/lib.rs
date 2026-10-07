@@ -2,6 +2,7 @@ mod auth;
 mod autostart;
 mod browser_signin;
 mod commands;
+mod deeplink;
 mod dialogs;
 mod i18n;
 mod idle;
@@ -36,9 +37,11 @@ pub fn updater_pubkey() -> Option<&'static str> {
 pub fn run() {
     let mut builder = tauri::Builder::default()
         // Must be first: a second launch (or a clicked Windows toast) focuses the running window.
+        // nga:// links clicked while NGA runs arrive through deep-link (feature above).
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             menus::focus_main(app)
         }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
@@ -177,6 +180,7 @@ pub fn run() {
                 });
             });
             notifications::restore(app.handle());
+            deeplink::init(app.handle());
             auth::spawn(app.handle().clone());
             updates::spawn(app.handle().clone());
             tools::timers::spawn(app.handle().clone());
