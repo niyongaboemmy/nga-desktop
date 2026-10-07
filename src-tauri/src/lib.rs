@@ -3,6 +3,7 @@ mod autostart;
 mod browser_signin;
 mod commands;
 mod dialogs;
+mod i18n;
 mod idle;
 mod menus;
 mod navigation;
@@ -84,6 +85,7 @@ pub fn run() {
             updates::update_auto_set,
             autostart::autostart_get,
             autostart::autostart_set,
+            i18n::shell_set_lang,
             updates::web_update_check,
             updates::web_update_install,
             commands::open_app,
@@ -143,6 +145,7 @@ pub fn run() {
             if let Err(e) = tooltip::create(app.handle()) {
                 log::warn!("tooltips unavailable: {e}");
             }
+            i18n::load(app.handle());
             menus::build_app_menu(app.handle())?;
             menus::build_tray(app.handle())?;
             let handle = app.handle().clone();

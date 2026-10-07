@@ -263,9 +263,10 @@ pub fn spawn<R: Runtime>(app: AppHandle<R>) {
     }
     // An install started before this launch: did it work?
     let installing = setting_str(&app, INSTALLING_KEY);
-    if let Some(report) =
-        report_after_restart(installing.as_deref(), app.package_info().version.to_string().as_str())
-    {
+    if let Some(report) = report_after_restart(
+        installing.as_deref(),
+        app.package_info().version.to_string().as_str(),
+    ) {
         log::info!("update report: {report}");
         set_setting(&app, REPORT_KEY, Some(report));
         set_setting(&app, INSTALLING_KEY, None);
@@ -332,8 +333,16 @@ async fn stage<R: Runtime>(app: &AppHandle<R>) {
     *pending.busy.lock().unwrap() = false;
     match result {
         Ok(bytes) => {
-            log::info!("update {} downloaded ({} bytes)", update.version, bytes.len());
-            set_setting(app, REPORT_KEY, Some(format!("downloaded {}", update.version)));
+            log::info!(
+                "update {} downloaded ({} bytes)",
+                update.version,
+                bytes.len()
+            );
+            set_setting(
+                app,
+                REPORT_KEY,
+                Some(format!("downloaded {}", update.version)),
+            );
             *pending.staged.lock().unwrap() = Some(Staged {
                 version: update.version.clone(),
                 bytes,

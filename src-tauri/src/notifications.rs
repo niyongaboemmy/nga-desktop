@@ -342,7 +342,9 @@ impl Notifier {
     fn restore(&self, stored: Vec<Stored>) {
         let items = restorable(stored, now_ms());
         let mut inner = self.inner.lock().unwrap();
-        inner.next_id = inner.next_id.max(items.iter().map(|n| n.id).max().unwrap_or(0));
+        inner.next_id = inner
+            .next_id
+            .max(items.iter().map(|n| n.id).max().unwrap_or(0));
         inner.items = items.into();
     }
 
@@ -398,7 +400,10 @@ pub fn restore<R: Runtime>(app: &AppHandle<R>) {
         .unwrap_or_default();
     if !stored.is_empty() {
         app.state::<Notifier>().restore(stored);
-        log::info!("inbox restored ({} notices)", app.state::<Notifier>().list().len());
+        log::info!(
+            "inbox restored ({} notices)",
+            app.state::<Notifier>().list().len()
+        );
     }
 }
 
@@ -421,7 +426,7 @@ pub fn publish<R: Runtime>(app: &AppHandle<R>) {
     }
     if let Some(tray) = app.tray_by_id("nga") {
         let tip = if summary.total > 0 {
-            format!("NGA: {} new", summary.total)
+            crate::i18n::tf("tray.new", &[("n", &summary.total.to_string())])
         } else {
             "NGA".into()
         };
@@ -623,10 +628,7 @@ pub fn notices_snooze<R: Runtime>(app: AppHandle<R>, id: u64, minutes: u64) -> R
     if !SNOOZE_MINUTES.contains(&minutes) {
         return Err("bad snooze".into());
     }
-    let n = app
-        .state::<Notifier>()
-        .snooze(id)
-        .ok_or("no such notice")?;
+    let n = app.state::<Notifier>().snooze(id).ok_or("no such notice")?;
     publish(&app);
     log::info!("[{}] notice #{id} snoozed {minutes} min", n.app);
     tauri::async_runtime::spawn(async move {
@@ -760,7 +762,11 @@ mod tests {
         let day = 24 * 60 * 60 * 1000;
         let now = 100 * day;
         let back = restorable(
-            vec![stored(3, now - day), stored(1, now - 30 * day), stored(2, now - 2 * day)],
+            vec![
+                stored(3, now - day),
+                stored(1, now - 30 * day),
+                stored(2, now - 2 * day),
+            ],
             now,
         );
         assert_eq!(back.iter().map(|n| n.id).collect::<Vec<_>>(), vec![2, 3]);

@@ -40,6 +40,7 @@ fn main() {
             "update_auto_set",
             "autostart_get",
             "autostart_set",
+            "shell_set_lang",
             "tools_identity",
             "timers_list",
             "timer_create",
