@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.15.0 — 2026-10-07
+
 - **AI Tutor:** answers to common questions ("What is photosynthesis?") can come from the school's saved answers — instant, and they don't use one of the day's questions. When the school asks for a parent's permission, students are told how to get it.
 
 ## 0.14.0 — 2026-10-06
