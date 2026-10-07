@@ -206,14 +206,22 @@
 
   // ── Notification watchers ──────────────────────────────────────────────────
   var str = function (v) { return v == null ? "" : String(v); };
+  // Tendo sends SQLite UTC times without a zone ("2026-10-07 09:30:00"): read them as UTC.
+  var when = function (v) {
+    var s = str(v);
+    return Date.parse(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(s) ? s.replace(" ", "T") + "Z" : s);
+  };
+  // Each watcher has a contract test in its web app (desktopWatcherContract test):
+  // if one fails there, change the watcher here in the same release.
   var WATCHERS = {
     mis: [{
-      // GET /notifications?limit=20 (NotificationContext, every 45 s)
-      match: /\/notifications\/?(\?|$)/,
+      // GET /notifications?limit=20 (NotificationContext, every 45 s). Only the
+      // top-level path: /calendar/notifications (settings) must not match.
+      match: /^(?:https?:\/\/[^/]+)?\/notifications\/?(\?|$)/,
       pick: function (j) {
         return (j && j.data || []).map(function (x) {
           var n = x.notification || {};
-          return { id: "n" + n.notification_id, title: str(n.title), body: str(n.body), link: n.link, unread: !n.read_at, at: Date.parse(n.created_at) };
+          return { id: "n" + n.notification_id, title: str(n.title), body: str(n.body), link: n.link, unread: !n.read_at, at: when(n.created_at) };
         });
       },
     }],
@@ -222,7 +230,7 @@
       match: /\/api\/notifications\/?(\?|$)/,
       pick: function (j) {
         return (j && j.data || []).map(function (n) {
-          return { id: "n" + n.id, title: str(n.title), body: str(n.message), link: n.link, unread: !n.read, at: Date.parse(n.created_at) };
+          return { id: "n" + n.id, title: str(n.title), body: str(n.message), link: n.link, unread: !n.read, at: when(n.created_at) };
         });
       },
     }],

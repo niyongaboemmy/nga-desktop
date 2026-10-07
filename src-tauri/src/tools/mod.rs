@@ -9,12 +9,14 @@
 //! - `files`: save a tool's output (QR code, note) to Downloads.
 //! - `api`: NGA MIS API calls for the tools, made by the MIS page itself (no token here).
 //! - `shortcut`: the optional system-wide "quick tools" key.
+//! - `vault`: the key each person's tool data is encrypted with; wipe on sign-out.
 
 pub mod api;
 pub mod files;
 pub mod identity;
 pub mod shortcut;
 pub mod timers;
+pub mod vault;
 pub mod windows;
 
 use tauri::{AppHandle, Emitter, EventTarget, Runtime};

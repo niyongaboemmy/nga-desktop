@@ -130,6 +130,7 @@ pub fn run() {
             browser_signin::signin_reopen,
             tools::identity::web_identity,
             tools::identity::tools_identity,
+            tools::vault::tools_vault_key,
             tools::timers::timers_list,
             tools::timers::timer_create,
             tools::timers::timer_action,

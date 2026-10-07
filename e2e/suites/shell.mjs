@@ -35,6 +35,11 @@ await auto.click();
 await p.waitForTimeout(150);
 check("turning start-with-computer on asks the native side", JSON.stringify(await invokes(p, "autostart_set")) === JSON.stringify([{ on: true }]));
 check("turning auto-update off is saved", JSON.stringify(await invokes(p, "update_auto_set")) === JSON.stringify([{ on: false }]) && !(await auto.isChecked()));
+const wipe = switchFor(p, "Remove my tool data when I sign out");
+check("shared-computer wipe switch, off by default", (await wipe.count()) === 1 && !(await wipe.isChecked()));
+await wipe.click();
+await p.waitForTimeout(150);
+check("turning it on saves wipeOnSignOut", await p.evaluate(() => JSON.parse(localStorage.getItem("mock.state")).stores["settings.json"]?.wipeOnSignOut === true));
 await p.locator(".settings").screenshot({ path: `${OUT}shell-settings.png` });
 
 // Language: the picker lives in General now and tells the native menus.

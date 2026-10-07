@@ -108,7 +108,14 @@ fn set<R: Runtime>(app: &AppHandle<R>, next: Option<Identity>) {
         if *cur == next {
             return;
         }
+        let prev = cur.as_ref().map(|i| i.user_id);
         *cur = next.clone();
+        drop(cur);
+        // Someone signed out (or another person signed in): on a shared
+        // computer, their tool data may have to go (vault.rs).
+        if let Some(prev) = prev.filter(|p| next.as_ref().map(|n| n.user_id) != Some(*p)) {
+            super::vault::on_sign_out(app, prev);
+        }
     }
     if let Ok(store) = app.store("settings.json") {
         match &next {

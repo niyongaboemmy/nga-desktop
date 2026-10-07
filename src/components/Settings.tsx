@@ -239,6 +239,13 @@ export function Settings({
         ) : (
           <button className="btn" onClick={() => setConfirm("signout")}><LogOut size={16} /> {t("shell.action.signout")}</button>
         )}
+        <label className="switch-row wide">
+          <span>
+            <strong>{t("shell.settings.wipe")}</strong>
+            <span className="muted">{t("shell.settings.wipeHint")}</span>
+          </span>
+          <input type="checkbox" className="switch" checked={prefs?.wipeOnSignOut ?? false} onChange={(e) => set("wipeOnSignOut", e.target.checked)} />
+        </label>
       </section>
 
       <section>

@@ -20,6 +20,7 @@
     "core:window:allow-is-fullscreen",
     "core:window:allow-set-title",
     "allow-tools-identity",
+    "allow-tools-vault-key",
     "allow-timers-list",
     "allow-timer-create",
     "allow-timer-action",

@@ -58,6 +58,7 @@
     "allow-autostart-set",
     "allow-shell-set-lang",
     "allow-tools-identity",
+    "allow-tools-vault-key",
     "allow-timers-list",
     "allow-timer-create",
     "allow-timer-action",

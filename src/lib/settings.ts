@@ -4,7 +4,8 @@ import type { AppKey } from "./native";
 import type { ThemePref } from "./theme";
 
 // Rust reads some of these from the same store file (keys must match):
-// backgroundSignIn (auth.rs), keepRunning (lib.rs), mutedApps + dndUntil (notifications.rs).
+// backgroundSignIn (auth.rs), keepRunning (lib.rs), mutedApps + dndUntil (notifications.rs),
+// wipeOnSignOut (tools/vault.rs).
 export interface Settings {
   startApp: AppKey | "last";
   lastApp?: AppKey;
@@ -24,6 +25,8 @@ export interface Settings {
   toolsFavourites: string[];
   toolsPanelWidth: number;
   toolsShortcut: boolean;
+  /** Shared computers: delete the person's tool data (and its key) when they sign out. */
+  wipeOnSignOut: boolean;
 }
 
 export interface RecentPage {
@@ -46,6 +49,7 @@ const defaults: Settings = {
   toolsFavourites: [],
   toolsPanelWidth: 380,
   toolsShortcut: false,
+  wipeOnSignOut: false,
 };
 let store: Promise<Store> | null = null;
 const get = () => (store ??= load("settings.json", { defaults: {}, autoSave: 300 }));
