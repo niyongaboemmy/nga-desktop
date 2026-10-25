@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.19.0 — 2026-10-25
+
 - **Ask AI follows the school's AI rules:** when the school, a role or a teacher has turned AI off, Ask AI says why (in English, French or Kinyarwanda) instead of showing an error.
 
 ## 0.18.0 — 2026-10-07
