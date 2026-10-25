@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { applyLine, providerName, suggestions, toRequest, trimTurns, type Turn } from "./conversation";
+import {
+  AI_POLICY_REASONS, applyLine, policyCopy, policyRefusal, providerName, suggestions, toRequest, trimTurns, unavailableCopy, type Turn,
+} from "./conversation";
+import { en } from "../i18n/en";
+import { fr } from "../i18n/fr";
+import { rw } from "../i18n/rw";
 
 const turn = (id: string, role: Turn["role"], content: string, extra: Partial<Turn> = {}): Turn => ({ id, role, content, at: 1, ...extra });
 
@@ -52,5 +57,44 @@ describe("AI Tutor (students)", () => {
     expect(done[0]).toMatchObject({ content: "Hint", streaming: false, messageId: 42, provider: "groq" });
     expect(suggestions("student")[0]).toBe("ai.s.student1");
     expect(newConversationId()).toMatch(/^[a-z0-9]{6,40}$/);
+  });
+});
+
+describe("AI policy reasons from MIS", () => {
+  it("has local copy for every reason in every language", () => {
+    for (const r of AI_POLICY_REASONS) {
+      const { title, body } = policyCopy(r);
+      for (const dict of [en, fr, rw] as Array<Record<string, string>>) {
+        expect(dict[title], `${title}`).toBeTruthy();
+        expect(dict[body], `${body}`).toBeTruthy();
+      }
+    }
+  });
+
+  it("shows localised copy for a known policy reason, MIS's message only for an unknown one", () => {
+    expect(unavailableCopy({ reason: "GLOBAL_OFF", message: "AI is turned off for the school." }))
+      .toEqual({ title: "ai.policy.GLOBAL_OFF.title", body: "ai.policy.GLOBAL_OFF.body" });
+    expect(unavailableCopy({ reason: "ROLE_OFF" }).message).toBeUndefined();
+    expect(unavailableCopy({ reason: "SOMETHING_NEW", message: "New rule." } as never).message).toBe("New rule.");
+  });
+
+  it("keeps the tutor's own reasons on their existing copy", () => {
+    expect(unavailableCopy({ reason: "TUTOR_OFF", message: "ignored" })).toEqual({ title: "tutor.offTitle", body: "tutor.off" });
+    expect(unavailableCopy({ reason: "CONSENT_NEEDED" })).toEqual({ title: "tutor.consentTitle", body: "tutor.consent" });
+    expect(unavailableCopy({ reason: "STUDENTS_SOON" }).title).toBe("ai.studentsSoon");
+    expect(unavailableCopy({ reason: null }).title).toBe("ai.parentsSoon");
+  });
+
+  it("reads a refused chat (403 AI_DISABLED, or the reason as the code)", () => {
+    expect(policyRefusal("AI_DISABLED", { code: "AI_DISABLED", reason: "EXAM_ACTIVE", message: "AI is off during this exam." }))
+      .toEqual({ key: "ai.policy.EXAM_ACTIVE.body" });
+    expect(policyRefusal("AI_DISABLED", { reason: "HINTS_ONLY" })).toEqual({ key: "ai.policy.HINTS_ONLY.body" });
+    expect(policyRefusal("AI_DISABLED", {})).toEqual({ key: "ai.policy.GLOBAL_OFF.body" });
+    expect(policyRefusal("ROLE_OFF", { message: "Your role does not include AI tools." }))
+      .toEqual({ key: "ai.policy.ROLE_OFF.body" });
+    expect(policyRefusal("AI_DISABLED", { reason: "SOMETHING_NEW", message: "New rule." })).toEqual({ text: "New rule." });
+    expect(policyRefusal("DAILY_LIMIT", { message: "x" })).toBeNull();
+    expect(policyRefusal("LOCKED_EXAM")).toBeNull();
+    expect(policyRefusal(undefined)).toBeNull();
   });
 });

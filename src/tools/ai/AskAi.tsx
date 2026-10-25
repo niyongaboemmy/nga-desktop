@@ -3,7 +3,7 @@ import { ArrowUp, Check, Copy, Flag, Info, LoaderCircle, MessageSquarePlus, Rota
 import { render } from "../notes/noteModel";
 import { misCall, MisApiError } from "../shared/api";
 import { usePersonal } from "../shared/store";
-import { applyLine, newConversationId, providerName, suggestions, toRequest, trimTurns, turnId, type StreamLine, type Status, type Turn } from "./conversation";
+import { applyLine, newConversationId, policyRefusal, providerName, suggestions, toRequest, trimTurns, turnId, unavailableCopy, type StreamLine, type Status, type Turn } from "./conversation";
 import type { ToolProps } from "../types";
 import type { Key, Translate } from "../i18n";
 
@@ -84,12 +84,14 @@ export default function AskAi({ ctx }: ToolProps) {
         const err = e as MisApiError;
         const until = typeof err.data?.until === "string" ? new Date(err.data.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
         const label = typeof err.data?.label === "string" ? err.data.label : "";
+        const refused = policyRefusal(err.code, err.data);
         const msg =
           err.code === "ABORTED" ? null
           : err.code === "LOCKED_LESSON" ? t("tutor.lockedLesson", { label, time: until })
           : err.code === "LOCKED_EXAM" ? t("tutor.lockedExam", { label, time: until })
           : err.code === "TUTOR_OFF" ? t("tutor.off")
           : err.code === "CONSENT_NEEDED" ? t("tutor.consent")
+          : refused ? ("text" in refused ? refused.text : t(refused.key))
           : err.message;
         setTurns((cur) =>
           cur.map((x) => (x.id === answer.id ? { ...x, streaming: false, error: msg ?? (x.content ? undefined : t("ai.stopped")) } : x)),
@@ -127,14 +129,10 @@ export default function AskAi({ ctx }: ToolProps) {
       </Empty>
     );
   if (!status) return <div className="tool-loading"><LoaderCircle size={20} className="spin" /></div>;
-  if (!status.available)
-    return (
-      <Empty
-        icon={<Sparkles size={22} />}
-        title={status.reason === "CONSENT_NEEDED" ? t("tutor.consentTitle") : status.reason === "TUTOR_OFF" ? t("tutor.offTitle") : status.reason === "STUDENTS_SOON" ? t("ai.studentsSoon") : t("ai.parentsSoon")}
-        body={status.reason === "CONSENT_NEEDED" ? t("tutor.consent") : status.reason === "TUTOR_OFF" ? t("tutor.off") : status.reason === "STUDENTS_SOON" ? t("ai.studentsSoonBody") : t("ai.parentsSoonBody")}
-      />
-    );
+  if (!status.available) {
+    const copy = unavailableCopy(status);
+    return <Empty icon={<Sparkles size={22} />} title={t(copy.title)} body={copy.message ?? t(copy.body)} />;
+  }
   const tutor = status.mode === "tutor";
   // Students read how the tutor works (saved, reviewed, no personal details) before the first question.
   if (tutor && !tutorNoticeSeen)
