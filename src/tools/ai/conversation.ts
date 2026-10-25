@@ -98,9 +98,11 @@ export function unavailableCopy(status: Pick<Status, "reason" | "message">): { t
   if (r === "CONSENT_NEEDED") return { title: "tutor.consentTitle", body: "tutor.consent" };
   if (r === "TUTOR_OFF") return { title: "tutor.offTitle", body: "tutor.off" };
   if (r === "STUDENTS_SOON") return { title: "ai.studentsSoon", body: "ai.studentsSoonBody" };
-  if (isAiPolicyReason(r)) {
-    const message = typeof status.message === "string" && status.message.trim() ? status.message.trim() : undefined;
-    return { ...policyCopy(r), message };
+  // Every policy reason has its own en/fr/rw copy; MIS's English message is
+  // only the fallback for a reason this build does not know yet.
+  if (isAiPolicyReason(r)) return policyCopy(r);
+  if (typeof r === "string" && typeof status.message === "string" && status.message.trim()) {
+    return { ...policyCopy("GLOBAL_OFF"), message: status.message.trim() };
   }
   return { title: "ai.parentsSoon", body: "ai.parentsSoonBody" };
 }
@@ -108,12 +110,13 @@ export function unavailableCopy(status: Pick<Status, "reason" | "message">): { t
 /**
  * A chat refused by the AI policy: MIS answers 403 `{code: "AI_DISABLED",
  * reason, message}` (or, from older paths, the reason itself as the code).
- * Returns MIS's message, else the local copy's key; null for other errors.
+ * Returns the local copy's key for a known reason (localised), else MIS's
+ * message; null for other errors.
  */
 export function policyRefusal(code: string | undefined, data?: Record<string, unknown>): { text: string } | { key: Key } | null {
   const reason = code === "AI_DISABLED" ? data?.reason : code;
   if (code !== "AI_DISABLED" && !isAiPolicyReason(reason)) return null;
+  if (isAiPolicyReason(reason)) return { key: policyCopy(reason).body };
   const message = typeof data?.message === "string" ? data.message.trim() : "";
-  if (message) return { text: message };
-  return { key: policyCopy(isAiPolicyReason(reason) ? reason : "GLOBAL_OFF").body };
+  return message ? { text: message } : { key: policyCopy("GLOBAL_OFF").body };
 }

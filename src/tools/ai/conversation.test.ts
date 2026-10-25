@@ -71,11 +71,11 @@ describe("AI policy reasons from MIS", () => {
     }
   });
 
-  it("shows MIS's message for a policy reason, local copy without one", () => {
+  it("shows localised copy for a known policy reason, MIS's message only for an unknown one", () => {
     expect(unavailableCopy({ reason: "GLOBAL_OFF", message: "AI is turned off for the school." }))
-      .toEqual({ title: "ai.policy.GLOBAL_OFF.title", body: "ai.policy.GLOBAL_OFF.body", message: "AI is turned off for the school." });
+      .toEqual({ title: "ai.policy.GLOBAL_OFF.title", body: "ai.policy.GLOBAL_OFF.body" });
     expect(unavailableCopy({ reason: "ROLE_OFF" }).message).toBeUndefined();
-    expect(unavailableCopy({ reason: "TEACHER_OFF", message: "  " }).message).toBeUndefined();
+    expect(unavailableCopy({ reason: "SOMETHING_NEW", message: "New rule." } as never).message).toBe("New rule.");
   });
 
   it("keeps the tutor's own reasons on their existing copy", () => {
@@ -87,11 +87,12 @@ describe("AI policy reasons from MIS", () => {
 
   it("reads a refused chat (403 AI_DISABLED, or the reason as the code)", () => {
     expect(policyRefusal("AI_DISABLED", { code: "AI_DISABLED", reason: "EXAM_ACTIVE", message: "AI is off during this exam." }))
-      .toEqual({ text: "AI is off during this exam." });
+      .toEqual({ key: "ai.policy.EXAM_ACTIVE.body" });
     expect(policyRefusal("AI_DISABLED", { reason: "HINTS_ONLY" })).toEqual({ key: "ai.policy.HINTS_ONLY.body" });
     expect(policyRefusal("AI_DISABLED", {})).toEqual({ key: "ai.policy.GLOBAL_OFF.body" });
     expect(policyRefusal("ROLE_OFF", { message: "Your role does not include AI tools." }))
-      .toEqual({ text: "Your role does not include AI tools." });
+      .toEqual({ key: "ai.policy.ROLE_OFF.body" });
+    expect(policyRefusal("AI_DISABLED", { reason: "SOMETHING_NEW", message: "New rule." })).toEqual({ text: "New rule." });
     expect(policyRefusal("DAILY_LIMIT", { message: "x" })).toBeNull();
     expect(policyRefusal("LOCKED_EXAM")).toBeNull();
     expect(policyRefusal(undefined)).toBeNull();
