@@ -2,6 +2,7 @@
 // the key: DPAPI on Windows). Values are sealed with AES-GCM before they reach
 // the store plugin; older plain values are still read, and sealed on the spot.
 import { toolsNative } from "./native";
+import { personKey, type Person } from "./person";
 
 export interface Sealed {
   $v: 1;
@@ -33,17 +34,21 @@ export async function open<T>(key: CryptoKey, sealed: Sealed): Promise<T> {
   return JSON.parse(new TextDecoder().decode(pt)) as T;
 }
 
-const keys = new Map<number, Promise<CryptoKey | null>>();
+const keys = new Map<string, Promise<CryptoKey | null>>();
 
-/** The person's key, or null where there is none (browser, old build, error): data stays plain. */
-export function vaultKey(userId: number): Promise<CryptoKey | null> {
-  let k = keys.get(userId);
+/**
+ * The person's key, or null where there is none (browser, old build, error): data stays plain.
+ * Rust picks the key of the signed-in person's school; the cache is per school too.
+ */
+export function vaultKey(person: Person): Promise<CryptoKey | null> {
+  const id = personKey(person);
+  let k = keys.get(id);
   if (!k) {
     k = toolsNative
-      .vaultKey(userId)
+      .vaultKey(person.userId)
       .then((b) => (typeof b === "string" && b ? importKey(b) : null))
       .catch(() => null);
-    keys.set(userId, k);
+    keys.set(id, k);
   }
   return k;
 }

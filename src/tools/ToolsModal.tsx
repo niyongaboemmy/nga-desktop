@@ -7,6 +7,7 @@ import { toolsNative } from "./shared/native";
 import { readSettings, saveSetting } from "../lib/settings";
 import { score } from "../lib/palette";
 import type { Identity, ToolManifest } from "./types";
+import { personKey } from "./shared/person";
 import type { Lang, Translate } from "./i18n";
 
 const WIDTH = { s: 460, m: 600, l: 900 } as const;
@@ -38,7 +39,7 @@ export function ToolsModal({ identity, lang, t, toolId, open, onTool, onClose }:
   }, [tool, opened]);
 
   // A different person signed in: nothing of the previous person stays mounted.
-  const who = identity?.userId ?? 0;
+  const who = identity ? personKey(identity) : "";
   useEffect(() => setOpened([]), [who]);
 
   // Esc closes (a tool may use Esc first, e.g. the calculator clears: it calls preventDefault).

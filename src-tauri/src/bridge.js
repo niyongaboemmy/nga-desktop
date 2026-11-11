@@ -398,6 +398,29 @@
     // From MIS's own cached profile (UserContext "nga.user.offlineCache"):
     // id, user type, first name, date of birth. Never the token. Rust turns
     // the date into an age band and refuses this call from any other page.
+    // The school (tenant id) too: `tenant.tid` from /users/me, else the `tid`
+    // claim of the session token (read, not trusted: MIS checks it), else null
+    // (an older MIS: tenant 1). Rust keys everything it keeps by tid + user.
+    var positiveInt = function (v) {
+      var n = Number(v);
+      return Number.isInteger(n) && n > 0 ? n : null;
+    };
+    var tokenTid = function () {
+      try {
+        var t = localStorage.getItem("token") || "";
+        var part = t.split(".")[1];
+        if (!part) return null;
+        var json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+        return positiveInt((JSON.parse(json) || {}).tid);
+      } catch (e) { return null; }
+    };
+    var tenantId = function (c) {
+      try {
+        if (!c) c = JSON.parse(localStorage.getItem("nga.user.offlineCache") || "null") || {};
+        var u = c.user || {};
+        return positiveInt(c.tenant && c.tenant.tid) || positiveInt(u.tenant && u.tenant.tid) || tokenTid();
+      } catch (e) { return tokenTid(); }
+    };
     var lastIdentity = "";
     var reportIdentity = function () {
       try {
@@ -409,6 +432,7 @@
         if (!u.user_id) return;
         var args = {
           userId: Number(u.user_id),
+          tid: tenantId(c),
           userType: str(p.user_type),
           firstName: str(p.first_name),
           dateOfBirth: p.date_of_birth ? str(p.date_of_birth) : null,
@@ -442,6 +466,9 @@
         try { token = localStorage.getItem("token") || ""; } catch (e) { /* storage blocked */ }
         var headers = { Accept: "application/json, application/x-ndjson" };
         if (token) headers.Authorization = "Bearer " + token;
+        // The school, when known (it must match the token's: MIS refuses a mismatch).
+        var tid = tenantId(null);
+        if (tid) headers["X-NGA-Tenant"] = String(tid);
         if (body != null) headers["Content-Type"] = "application/json";
         fetch(__NGA_API__ + path + (query ? "?" + query : ""), { method: method, headers: headers, body: body == null ? undefined : body, credentials: "include", signal: ctrl.signal })
           .then(function (res) {

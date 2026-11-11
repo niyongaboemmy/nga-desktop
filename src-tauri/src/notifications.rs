@@ -22,10 +22,18 @@
 //! mute and Do Not Disturb come from `settings.json` (written by the shell UI).
 //! The inbox is kept in `inbox.json` (last 7 days) so notices survive a restart,
 //! and sign-out clears it. A notice can be snoozed: it comes back as a banner later.
+//!
+//! `inbox.json` keeps one inbox per person per school (`accounts["<tid>:<userId>"]`,
+//! tenancy.rs): user ids repeat across schools, and several people may use one
+//! computer. Only the signed-in person's inbox is ever loaded; when nobody is
+//! known, notices stay in memory only. The single inbox saved before
+//! multi-tenancy (`items`) becomes the inbox of whoever was signed in then
+//! (tenant 1), or is dropped if nobody was.
 
+use crate::tenancy::Account;
 use crate::webviews::{self, Shell, SHELL, WINDOW};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, Runtime, Webview};
@@ -33,6 +41,10 @@ use tauri_plugin_store::StoreExt;
 
 const KEEP: usize = 200;
 const INBOX_STORE: &str = "inbox.json";
+/// Per-person inboxes in `inbox.json`, by `<tid>:<userId>`.
+const ACCOUNTS_KEY: &str = "accounts";
+/// The single inbox saved before multi-tenancy.
+const LEGACY_KEY: &str = "items";
 /// Notices older than this aren't brought back after a restart.
 const RESTORE_DAYS: u64 = 7;
 pub const SNOOZE_MINUTES: [u64; 3] = [10, 60, 180];
@@ -107,6 +119,39 @@ fn restorable(mut stored: Vec<Stored>, now: u64) -> Vec<Notice> {
         .collect()
 }
 
+/// Every person's saved inbox, by `<tid>:<userId>`.
+type Buckets = BTreeMap<String, Vec<Stored>>;
+
+/// The inbox saved before multi-tenancy belongs to whoever was signed in then
+/// (tenant 1). It never replaces an inbox already saved for them, and with
+/// nobody known it is dropped: it can't be shown to the right person.
+fn migrate_legacy(buckets: &mut Buckets, legacy: Vec<Stored>, owner: Option<&Account>) {
+    let Some(owner) = owner else {
+        return;
+    };
+    if legacy.is_empty() {
+        return;
+    }
+    let mine = buckets.entry(owner.scope()).or_default();
+    if mine.is_empty() {
+        *mine = legacy;
+    }
+}
+
+/// Save `items` as `scope`'s inbox, and drop inboxes with nothing recent left
+/// (people who haven't used this computer for a week) or with a bad key.
+fn put_bucket(buckets: &mut Buckets, scope: &str, items: Vec<Stored>, now: u64) {
+    if items.is_empty() {
+        buckets.remove(scope);
+    } else {
+        buckets.insert(scope.to_string(), items);
+    }
+    let cutoff = now.saturating_sub(RESTORE_DAYS * 24 * 60 * 60 * 1000);
+    buckets.retain(|k, v| {
+        crate::tenancy::parse_scope(k).is_some() && v.iter().any(|s| s.at >= cutoff)
+    });
+}
+
 #[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Summary {
@@ -126,6 +171,8 @@ struct Inner {
     next_id: u64,
     /// The notices changed since they were last saved.
     dirty: bool,
+    /// Whose inbox this is (`<tid>:<userId>`); None = nobody known, not saved.
+    scope: Option<String>,
 }
 
 #[derive(Default)]
@@ -348,14 +395,34 @@ impl Notifier {
         inner.items = items.into();
     }
 
-    /// The notices to save, if they changed since the last save.
-    fn to_save(&self) -> Option<Vec<Stored>> {
+    /// Show `scope`'s inbox (`stored`) instead of the current one: nothing of
+    /// the previous person stays, not even an app badge or the last banner.
+    fn switch_to(&self, scope: Option<String>, stored: Vec<Stored>) {
+        {
+            let mut inner = self.inner.lock().unwrap();
+            inner.items.clear();
+            inner.badges.clear();
+            inner.last_banner = None;
+            inner.dirty = false;
+            inner.scope = scope;
+        }
+        self.restore(stored);
+    }
+
+    fn scope(&self) -> Option<String> {
+        self.inner.lock().unwrap().scope.clone()
+    }
+
+    /// The notices to save and whose inbox they are, if they changed since the
+    /// last save. Nobody known: nothing is saved.
+    fn to_save(&self) -> Option<(String, Vec<Stored>)> {
         let mut inner = self.inner.lock().unwrap();
         if !inner.dirty {
             return None;
         }
         inner.dirty = false;
-        Some(inner.items.iter().map(Stored::from).collect())
+        let scope = inner.scope.clone()?;
+        Some((scope, inner.items.iter().map(Stored::from).collect()))
     }
 
     /// Snooze: read now; `bring_back` re-adds it as a new unread notice.
@@ -390,31 +457,94 @@ impl Notifier {
     }
 }
 
-/// Startup: the inbox as it was when NGA last quit.
-pub fn restore<R: Runtime>(app: &AppHandle<R>) {
-    let stored: Vec<Stored> = app
-        .store(INBOX_STORE)
-        .ok()
-        .and_then(|s| s.get("items"))
+fn read_store<R: Runtime>(app: &AppHandle<R>) -> (Buckets, Option<Vec<Stored>>) {
+    let Ok(store) = app.store(INBOX_STORE) else {
+        return (Buckets::new(), None);
+    };
+    let buckets = store
+        .get(ACCOUNTS_KEY)
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
-    if !stored.is_empty() {
-        app.state::<Notifier>().restore(stored);
-        log::info!(
-            "inbox restored ({} notices)",
-            app.state::<Notifier>().list().len()
+    let legacy = store
+        .get(LEGACY_KEY)
+        .map(|v| serde_json::from_value(v).unwrap_or_default());
+    (buckets, legacy)
+}
+
+fn write_store<R: Runtime>(app: &AppHandle<R>, buckets: &Buckets) {
+    if let Ok(store) = app.store(INBOX_STORE) {
+        store.set(
+            ACCOUNTS_KEY,
+            serde_json::to_value(buckets).unwrap_or_default(),
         );
+        store.delete(LEGACY_KEY);
+        let _ = store.save();
     }
 }
 
-fn persist<R: Runtime>(app: &AppHandle<R>) {
-    let Some(items) = app.state::<Notifier>().to_save() else {
+/// Startup: the signed-in person's inbox as it was when NGA last quit.
+pub fn restore<R: Runtime>(app: &AppHandle<R>) {
+    let owner = crate::tools::identity::account(app);
+    let (mut buckets, legacy) = read_store(app);
+    if let Some(legacy) = legacy {
+        migrate_legacy(&mut buckets, legacy, owner.as_ref());
+        write_store(app, &buckets);
+        log::info!("inbox: moved the saved notices to their owner's inbox");
+    }
+    let mine = owner
+        .and_then(|o| buckets.get(&o.scope()).cloned())
+        .unwrap_or_default();
+    app.state::<Notifier>()
+        .switch_to(owner.map(|o| o.scope()), mine);
+    let n = app.state::<Notifier>().list().len();
+    if n > 0 {
+        log::info!("inbox restored ({n} notices)");
+    }
+}
+
+/// The person signed in changed (another school, another account, or nobody):
+/// save the current inbox as theirs and show only the new person's.
+pub fn switch_account<R: Runtime>(app: &AppHandle<R>, next: Option<Account>) {
+    let notifier = app.state::<Notifier>();
+    let next_scope = next.map(|a| a.scope());
+    if notifier.scope() == next_scope {
+        return;
+    }
+    persist(app);
+    let mine = next_scope
+        .as_ref()
+        .and_then(|s| read_store(app).0.get(s).cloned())
+        .unwrap_or_default();
+    notifier.switch_to(next_scope, mine);
+    publish(app);
+}
+
+/// Sign-out: forget `account`'s saved inbox, or every saved inbox (`None`).
+pub fn forget<R: Runtime>(app: &AppHandle<R>, account: Option<Account>) {
+    let Ok(store) = app.store(INBOX_STORE) else {
         return;
     };
-    if let Ok(store) = app.store(INBOX_STORE) {
-        store.set("items", serde_json::to_value(items).unwrap_or_default());
-        let _ = store.save();
+    match account {
+        None => store.clear(),
+        Some(a) => {
+            let (mut buckets, _) = read_store(app);
+            buckets.remove(&a.scope());
+            store.set(
+                ACCOUNTS_KEY,
+                serde_json::to_value(&buckets).unwrap_or_default(),
+            );
+        }
     }
+    let _ = store.save();
+}
+
+fn persist<R: Runtime>(app: &AppHandle<R>) {
+    let Some((scope, items)) = app.state::<Notifier>().to_save() else {
+        return;
+    };
+    let (mut buckets, _) = read_store(app);
+    put_bucket(&mut buckets, &scope, items, now_ms());
+    write_store(app, &buckets);
 }
 
 pub fn publish<R: Runtime>(app: &AppHandle<R>) {
@@ -780,10 +910,11 @@ mod tests {
     #[test]
     fn saving_happens_only_after_a_change_and_ids_keep_counting() {
         let n = Notifier::default();
-        n.restore(vec![stored(41, now_ms())]);
+        n.switch_to(Some("1:7".into()), vec![stored(41, now_ms())]);
         assert!(n.to_save().is_none());
         n.mark_all_read();
-        let saved = n.to_save().unwrap();
+        let (scope, saved) = n.to_save().unwrap();
+        assert_eq!(scope, "1:7");
         assert!(saved[0].read);
         assert!(n.to_save().is_none());
         // Snoozed notices come back unread, with a new id after the restored ones.
@@ -818,5 +949,67 @@ mod tests {
         assert_eq!(s.total, 5 + 1); // Tupo's own badge (5) wins over its 2 notices; Tendo 1.
         assert!(n.mark_app_read("tendo"));
         assert_eq!(n.summary().total, 5);
+    }
+
+    fn acc(tid: u64, user_id: u64) -> Account {
+        Account::new(Some(tid), user_id)
+    }
+
+    #[test]
+    fn legacy_inbox_goes_to_the_person_signed_in_before_the_upgrade() {
+        let now = now_ms();
+        let mut b = Buckets::new();
+        // Identity stored before multi-tenancy has no tid: tenant 1.
+        let owner: crate::tools::identity::Identity = serde_json::from_str(
+            r#"{"userId":7,"persona":"teacher","firstName":"A","ageBand":null}"#,
+        )
+        .unwrap();
+        migrate_legacy(&mut b, vec![stored(1, now)], Some(&owner.account()));
+        assert_eq!(b.keys().collect::<Vec<_>>(), vec!["1:7"]);
+        // Never over an inbox already saved for them.
+        migrate_legacy(&mut b, vec![stored(9, now)], Some(&acc(1, 7)));
+        assert_eq!(b["1:7"][0].id, 1);
+        // Nobody known: dropped, never shown to whoever signs in next.
+        let mut empty = Buckets::new();
+        migrate_legacy(&mut empty, vec![stored(1, now)], None);
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn inboxes_are_kept_per_school_and_person() {
+        let now = now_ms();
+        let day = 24 * 60 * 60 * 1000;
+        let mut b = Buckets::new();
+        put_bucket(&mut b, &acc(1, 7).scope(), vec![stored(1, now)], now);
+        put_bucket(&mut b, &acc(2, 7).scope(), vec![stored(2, now)], now);
+        assert_eq!(b.len(), 2, "same user id in two schools: two inboxes");
+        assert_eq!(b["1:7"][0].id, 1);
+        assert_eq!(b["2:7"][0].id, 2);
+        // Cleared inbox: removed. Stale inboxes and bad keys: pruned on save.
+        b.insert("junk".into(), vec![stored(3, now)]);
+        b.insert("3:9".into(), vec![stored(4, now - 30 * day)]);
+        put_bucket(&mut b, "1:7", vec![], now);
+        assert_eq!(b.keys().collect::<Vec<_>>(), vec!["2:7"]);
+    }
+
+    #[test]
+    fn switching_account_shows_only_the_new_persons_inbox() {
+        let n = Notifier::default();
+        n.switch_to(Some("1:7".into()), vec![stored(5, now_ms())]);
+        n.inner.lock().unwrap().badges.insert("tupo".into(), 3);
+        n.mark_all_read();
+        assert_eq!(n.summary().total, 3);
+        // Another school's account: nothing of the first one is left.
+        n.switch_to(Some("2:7".into()), vec![]);
+        assert!(n.list().is_empty());
+        assert_eq!(n.summary().total, 0);
+        assert!(
+            n.to_save().is_none(),
+            "switching alone doesn't save over the new inbox"
+        );
+        // Nobody signed in: notices are kept in memory only.
+        n.switch_to(None, vec![]);
+        n.mark_all_read();
+        assert!(n.to_save().is_none());
     }
 }

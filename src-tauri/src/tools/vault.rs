@@ -1,6 +1,7 @@
 //! Each person's tool data is encrypted on disk (notes, AI chats, class lists).
 //!
-//! The page encrypts every value it writes to `tools-u<id>.json` with AES-GCM
+//! The page encrypts every value it writes to `tools-<tag>.json` with AES-GCM
+//! (`<tag>` = `u<id>` in tenant 1, `t<tid>-u<id>` in another school: tenancy.rs)
 //! (src/tools/shared/vault.ts). The key is random, one per person, and lives here:
 //! - **Windows:** protected with DPAPI (CryptProtectData), so it only opens for
 //!   the same Windows account. Another account, or someone who copies the files
@@ -12,6 +13,7 @@
 //! On shared computers, Settings → Account → "Remove my data when I sign out"
 //! deletes the person's tool file and key when they sign out (`on_sign_out`).
 
+use crate::tenancy::Account;
 use base64::Engine;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, Runtime};
@@ -19,19 +21,24 @@ use tauri_plugin_store::StoreExt;
 
 const WIPE_KEY: &str = "wipeOnSignOut";
 
-fn key_path<R: Runtime>(app: &AppHandle<R>, user_id: u64) -> Result<PathBuf, String> {
+/// A person's tool file (the same name in src/tools/shared/store.ts `userStoreFile`).
+pub fn tools_file(account: &Account) -> String {
+    format!("tools-{}.json", account.file_tag())
+}
+
+fn key_path<R: Runtime>(app: &AppHandle<R>, account: &Account) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("vault");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir.join(format!("u{user_id}.key")))
+    Ok(dir.join(format!("{}.key", account.file_tag())))
 }
 
 /// The person's key (made on first use), base64.
-pub fn key_for<R: Runtime>(app: &AppHandle<R>, user_id: u64) -> Result<String, String> {
-    let path = key_path(app, user_id)?;
+pub fn key_for<R: Runtime>(app: &AppHandle<R>, account: &Account) -> Result<String, String> {
+    let path = key_path(app, account)?;
     let raw = match std::fs::read(&path) {
         Ok(sealed) => protect::open(&sealed)?,
         Err(_) => {
@@ -75,7 +82,8 @@ pub fn tools_vault_key<R: Runtime>(app: AppHandle<R>, user_id: u64) -> Result<St
     if current.user_id != user_id {
         return Err("not the signed-in person".into());
     }
-    key_for(&app, user_id)
+    // The key of this person in this school (user ids repeat across schools).
+    key_for(&app, &current.account())
 }
 
 /// Settings → Account → "Remove my data from this computer when I sign out".
@@ -88,8 +96,8 @@ pub fn wipe_enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
 }
 
 /// Deletes a person's tool data and key from this computer.
-pub fn wipe<R: Runtime>(app: &AppHandle<R>, user_id: u64) {
-    let file = format!("tools-u{user_id}.json");
+pub fn wipe<R: Runtime>(app: &AppHandle<R>, account: &Account) {
+    let file = tools_file(account);
     if let Ok(store) = app.store(&file) {
         store.clear();
         let _ = store.save();
@@ -97,16 +105,16 @@ pub fn wipe<R: Runtime>(app: &AppHandle<R>, user_id: u64) {
     if let Ok(dir) = app.path().app_data_dir() {
         let _ = std::fs::remove_file(dir.join(&file));
     }
-    if let Ok(p) = key_path(app, user_id) {
+    if let Ok(p) = key_path(app, account) {
         let _ = std::fs::remove_file(p);
     }
     log::info!("tools: removed a person's tool data (sign-out on a shared computer)");
 }
 
 /// Identity went from `prev` to someone else or nobody: wipe `prev`'s data if asked.
-pub fn on_sign_out<R: Runtime>(app: &AppHandle<R>, prev: u64) {
+pub fn on_sign_out<R: Runtime>(app: &AppHandle<R>, prev: Account) {
     if wipe_enabled(app) {
-        wipe(app, prev);
+        wipe(app, &prev);
     }
 }
 
@@ -180,6 +188,21 @@ mod protect {
 
 #[cfg(test)]
 mod tests {
+    use crate::tenancy::Account;
+
+    #[test]
+    fn tool_files_are_per_school_and_tenant_one_keeps_its_names() {
+        assert_eq!(super::tools_file(&Account::new(None, 7)), "tools-u7.json");
+        assert_eq!(
+            super::tools_file(&Account::new(Some(1), 7)),
+            "tools-u7.json"
+        );
+        assert_eq!(
+            super::tools_file(&Account::new(Some(4), 7)),
+            "tools-t4-u7.json"
+        );
+    }
+
     #[test]
     fn sealing_round_trips() {
         let key = [7u8; 32];

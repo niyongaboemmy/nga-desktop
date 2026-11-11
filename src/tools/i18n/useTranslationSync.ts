@@ -7,13 +7,14 @@ import { nextOverrides, readOverrides, writeOverrides, type Override } from "./o
 import { permissionFlag } from "../registry";
 import type { Lang } from "./index";
 import type { Identity } from "../types";
+import { personKey, type Person } from "../shared/person";
 
 /** May this person use the translation workspace? (Remembered per user for the launcher.) */
-function checkPermission(userId: number) {
+function checkPermission(person: Person) {
   misCall({ method: "GET", path: "/desktop/tools/i18n/workspace/fr", timeoutMs: 20_000 })
-    .then(() => localStorage.setItem(permissionFlag("translations", userId), "1"))
+    .then(() => localStorage.setItem(permissionFlag("translations", person), "1"))
     .catch((e: { status?: number }) => {
-      if (e?.status === 403) localStorage.removeItem(permissionFlag("translations", userId));
+      if (e?.status === 403) localStorage.removeItem(permissionFlag("translations", person));
     })
     .catch(() => undefined);
 }
@@ -21,10 +22,10 @@ function checkPermission(userId: number) {
 export function useTranslationSync(identity: Identity | null, lang: Lang) {
   useEffect(() => {
     if (!identity || identity.persona === "parent") return;
-    checkPermission(identity.userId);
-    const id = window.setInterval(() => checkPermission(identity.userId), 30 * 60_000);
+    checkPermission(identity);
+    const id = window.setInterval(() => checkPermission(identity), 30 * 60_000);
     return () => window.clearInterval(id);
-  }, [identity?.userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [identity && personKey(identity)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!identity || lang === "en") return;
@@ -50,5 +51,5 @@ export function useTranslationSync(identity: Identity | null, lang: Lang) {
       alive = false;
       window.clearInterval(id);
     };
-  }, [identity?.userId, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [identity && personKey(identity), lang]); // eslint-disable-line react-hooks/exhaustive-deps
 }

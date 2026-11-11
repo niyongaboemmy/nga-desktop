@@ -2,6 +2,7 @@
 // Adding a tool: make its folder, add one entry here, add its i18n keys, add a test.
 import { Atom, FileStack, Languages, ScanLine, Gamepad2, PartyPopper, BookOpenCheck, CalendarClock, CalendarRange, Calculator, ChartSpline, Sigma, Hand, MonitorPlay, PenLine, Percent, Shuffle, Users, Volume2, Hourglass, NotebookPen, QrCode, Ruler, Sparkles, Target } from "lucide-react";
 import type { Identity, ToolGroup, ToolManifest } from "./types";
+import { PRIMARY_TID, personTag, tenantOf, type Person } from "./shared/person";
 
 export const TOOLS: ToolManifest[] = [
   {
@@ -185,13 +186,14 @@ export const GROUPS: ToolGroup[] = ["everyday", "ai", "classroom", "study", "gam
 
 export const findTool = (id: string | null | undefined) => TOOLS.find((t) => t.id === id) ?? null;
 
-/** localStorage flag set when NGA MIS confirms a permission for this person. */
-export const permissionFlag = (perm: string, userId: number) => `nga.tools.can.${perm}.${userId}`;
+/** localStorage flag set when NGA MIS confirms a permission for this person (in this school). */
+export const permissionFlag = (perm: string, person: Person) =>
+  `nga.tools.can.${perm}.${tenantOf(person) === PRIMARY_TID ? Math.trunc(person.userId) : personTag(person)}`;
 
 function hasPermission(perm: string, identity: Identity | null): boolean {
   if (!identity) return false;
   try {
-    return localStorage.getItem(permissionFlag(perm, identity.userId)) === "1";
+    return localStorage.getItem(permissionFlag(perm, identity)) === "1";
   } catch {
     return false;
   }
