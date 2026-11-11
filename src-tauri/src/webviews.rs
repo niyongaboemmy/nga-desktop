@@ -2,12 +2,15 @@
 //! webview per NGA app, each a real top-level page on its own origin so its
 //! cookies and localStorage are first-party, exactly as in a browser tab.
 //! All child webviews share the default data store (one browser profile), so
-//! a MIS sign-in is seen by the SSO hops of every spoke.
+//! a MIS sign-in is seen by the SSO hops of every spoke. Because it is shared,
+//! it is wiped whenever another school or account takes over this computer
+//! (tenancy.rs, tools/identity.rs).
 //!
 //! This is the only module that uses Tauri's `unstable` multi-webview API.
 
 use crate::navigation::{self, Frame, NewWindow};
 use crate::registry::{self, AppDef, Env};
+use crate::tenancy;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -22,6 +25,7 @@ use tauri_plugin_store::StoreExt;
 
 pub const WINDOW: &str = "main";
 pub const SHELL: &str = "shell";
+/// SSO handshake times per person: `sso.<tid>:<userId>.<appKey>` (tenancy.rs).
 const SESSION_STORE: &str = "session.json";
 /// MIS JWTs last 24 h; re-run the SSO hop before a spoke's token can expire.
 const SSO_FRESH_SECS: u64 = 20 * 60 * 60;
@@ -191,12 +195,15 @@ pub fn set_covered<R: Runtime>(app: &AppHandle<R>, covered: bool) {
 /// completed the handshake recently (then their own token is still valid).
 fn initial_url<R: Runtime>(app: &AppHandle<R>, def: &AppDef, apps: &[AppDef]) -> Url {
     if def.sso.is_some() {
-        let fresh = app
-            .store(SESSION_STORE)
-            .ok()
-            .and_then(|s| s.get(format!("sso.{}", def.key)))
-            .and_then(|v| v.as_u64())
-            .is_some_and(|at| now_secs().saturating_sub(at) < SSO_FRESH_SECS);
+        // Only this person's handshake counts (another school's, or another
+        // account's, says nothing about this one). Nobody known: run the hop.
+        let fresh = crate::tools::identity::account(app).is_some_and(|who| {
+            app.store(SESSION_STORE)
+                .ok()
+                .and_then(|s| s.get(tenancy::sso_key(&who, def.key)))
+                .and_then(|v| v.as_u64())
+                .is_some_and(|at| now_secs().saturating_sub(at) < SSO_FRESH_SECS)
+        });
         if !fresh {
             if let Some(url) = registry::sso_entry_url(apps, def) {
                 return url;
@@ -207,8 +214,11 @@ fn initial_url<R: Runtime>(app: &AppHandle<R>, def: &AppDef, apps: &[AppDef]) ->
 }
 
 fn mark_sso_done<R: Runtime>(app: &AppHandle<R>, key: &str) {
-    if let Ok(store) = app.store(SESSION_STORE) {
-        store.set(format!("sso.{key}"), now_secs());
+    if let (Ok(store), Some(who)) = (
+        app.store(SESSION_STORE),
+        crate::tools::identity::account(app),
+    ) {
+        store.set(tenancy::sso_key(&who, key), now_secs());
         let _ = store.save();
     }
     // The person signed in to MIS from inside a spoke's tab: the MIS tab is
@@ -221,6 +231,31 @@ fn mark_sso_done<R: Runtime>(app: &AppHandle<R>, key: &str) {
         {
             let _ = wv.navigate(mis.start_url());
         }
+    }
+}
+
+/// Startup: handshake times saved before multi-tenancy (`sso.<appKey>`) become
+/// those of the person signed in then (tenant 1), or are dropped.
+pub fn migrate_sso<R: Runtime>(app: &AppHandle<R>) {
+    let Ok(store) = app.store(SESSION_STORE) else {
+        return;
+    };
+    let owner = crate::tools::identity::account(app);
+    let mut changed = false;
+    for (key, value) in store.entries() {
+        match tenancy::migrate_sso_entry(&key, owner.as_ref()) {
+            None => {}
+            Some(next) => {
+                if let Some(next) = next {
+                    store.set(next, value);
+                }
+                store.delete(&key);
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        let _ = store.save();
     }
 }
 

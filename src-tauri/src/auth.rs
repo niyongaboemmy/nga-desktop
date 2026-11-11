@@ -14,6 +14,10 @@
 //!   already ended their server sessions; this also clears their screens.
 //! - **A spoke shows its own signed-out page while MIS is signed in:** run its
 //!   SSO hop again (at most once a minute per app).
+//!
+//! Who is signed in (tenant + user) arrives separately, from the MIS page
+//! (tools/identity.rs). A different school or account than the last one seen
+//! wipes the shared profile first (tenancy.rs).
 
 use crate::registry::{self, AppDef};
 use crate::webviews::{self, Shell};
@@ -70,6 +74,7 @@ pub async fn sign_out_everywhere<R: Runtime>(app: AppHandle<R>, wipe: bool) {
         return;
     }
     let _ = app.emit_to(webviews::SHELL, "nga://signout", "start");
+    let account = crate::tools::identity::account(&app);
     let mis_key = registry::identity_provider(&app.state::<Shell>().apps).key;
     if let Some(mis) = app.get_webview(&webviews::label(mis_key)) {
         let js = format!(
@@ -91,9 +96,14 @@ pub async fn sign_out_everywhere<R: Runtime>(app: AppHandle<R>, wipe: bool) {
             let _ = shell.clear_all_browsing_data();
         }
         webviews::close_all_apps(&app);
+        // Nothing of anyone is left in the profile: no need to wipe it again
+        // when the next person signs in.
+        crate::tools::identity::forget_last_account(&app);
         let _ = app.emit_to(webviews::SHELL, "nga://signed-out", ());
     }
     app.state::<crate::notifications::Notifier>().clear();
+    // Sign-out clears the inbox: this person's saved notices (everyone's after a wipe).
+    crate::notifications::forget(&app, if wipe { None } else { account });
     crate::notifications::publish(&app);
     // Let MIS's sign-in page settle before the screen goes away.
     tokio::time::sleep(Duration::from_millis(700)).await;

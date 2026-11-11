@@ -9,6 +9,8 @@ export type ToolGroup = "everyday" | "ai" | "classroom" | "study" | "games" | "o
 
 /** Who is signed in to NGA MIS (tools/identity.rs). */
 export interface Identity {
+  /** The school (tenant id); missing or null = tenant 1 (src/tools/shared/person.ts). */
+  tid?: number | null;
   userId: number;
   persona: Persona;
   firstName: string;

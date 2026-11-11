@@ -11,6 +11,7 @@ import { LEARNING_IDS, RESET_IDS } from "./catalog";
 import { kigaliDay } from "./seed";
 import type { GameDef } from "./types";
 import type { Identity } from "../types";
+import { personKey } from "../shared/person";
 
 const DEVICE_KEY = "nga.games.device";
 
@@ -88,7 +89,7 @@ export function useGames(identity: Identity | null): GamesState {
     const id = window.setInterval(() => void (++n % 5 === 0 ? sync() : refresh()), 60_000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identity?.userId, usageReady]);
+  }, [identity && personKey(identity), usageReady]);
 
   const policy = cached?.policy ?? null;
   const usedMin = useMemo(() => {

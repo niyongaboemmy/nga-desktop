@@ -1,4 +1,5 @@
-// Each person's tool data, in their own file (tools-u<id>.json) so people who
+// Each person's tool data, in their own file (tools-u<id>.json; tools-t<tid>-u<id>.json
+// outside tenant 1, since user ids repeat across schools) so people who
 // share a lab computer never see each other's notes, encrypted with their own
 // key (vault.ts). Nothing is kept for someone who isn't signed in: their tools
 // work in memory only.
@@ -6,8 +7,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { load, type Store } from "@tauri-apps/plugin-store";
 import type { Identity } from "../types";
 import { PLAIN_KEYS, isSealed, open, seal, vaultKey } from "./vault";
+import { personKey, personTag, type Person } from "./person";
 
-export const userStoreFile = (userId: number) => `tools-u${Math.trunc(userId)}.json`;
+/** The same name as Rust's `vault::tools_file`. */
+export const userStoreFile = (person: Person) => `tools-${personTag(person)}.json`;
 
 /** A person's tool file: values are sealed on write and opened on read. */
 export interface PersonalStore {
@@ -15,7 +18,7 @@ export interface PersonalStore {
   set(key: string, value: unknown): Promise<void>;
 }
 
-const stores = new Map<number, Promise<PersonalStore>>();
+const stores = new Map<string, Promise<PersonalStore>>();
 
 export function personalStore(raw: Store, key: CryptoKey | null): PersonalStore {
   // Keys holding a sealed value we couldn't open (no key here): never overwrite them.
@@ -62,11 +65,12 @@ export function personalStore(raw: Store, key: CryptoKey | null): PersonalStore 
   };
 }
 
-function userStore(userId: number): Promise<PersonalStore> {
-  let s = stores.get(userId);
+function userStore(person: Person): Promise<PersonalStore> {
+  const k = personKey(person);
+  let s = stores.get(k);
   if (!s) {
-    s = Promise.all([load(userStoreFile(userId), { defaults: {}, autoSave: 250 }), vaultKey(userId)]).then(([raw, key]) => personalStore(raw, key));
-    stores.set(userId, s);
+    s = Promise.all([load(userStoreFile(person), { defaults: {}, autoSave: 250 }), vaultKey(person)]).then(([raw, key]) => personalStore(raw, key));
+    stores.set(k, s);
   }
   return s;
 }
@@ -82,6 +86,7 @@ export function usePersonal<T>(identity: Identity | null, key: string, initial: 
   const [value, setValue] = useState<T>(initial);
   const [ready, setReady] = useState(identity === null);
   const userId = identity?.userId ?? null;
+  const tid = identity?.tid ?? null;
   const initialRef = useRef(initial);
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -94,7 +99,7 @@ export function usePersonal<T>(identity: Identity | null, key: string, initial: 
       setReady(true);
       return;
     }
-    void userStore(userId)
+    void userStore({ userId, tid })
       .then((s) => s.get<T>(key))
       .then((v) => {
         if (!alive) return;
@@ -105,16 +110,16 @@ export function usePersonal<T>(identity: Identity | null, key: string, initial: 
     return () => {
       alive = false;
     };
-  }, [userId, key]);
+  }, [userId, tid, key]);
 
   const set = useCallback(
     (next: T | ((prev: T) => T)) => {
       const v = typeof next === "function" ? (next as (p: T) => T)(valueRef.current) : next;
       valueRef.current = v;
       setValue(v);
-      if (userId !== null) void userStore(userId).then((s) => s.set(key, v)).catch(() => undefined);
+      if (userId !== null) void userStore({ userId, tid }).then((s) => s.set(key, v)).catch(() => undefined);
     },
-    [userId, key],
+    [userId, tid, key],
   );
   return [value, set, ready];
 }
@@ -123,7 +128,7 @@ export function usePersonal<T>(identity: Identity | null, key: string, initial: 
 export async function readPersonal<T>(identity: Identity | null, key: string): Promise<T | null> {
   if (!identity) return null;
   try {
-    const v = await (await userStore(identity.userId)).get<T>(key);
+    const v = await (await userStore(identity)).get<T>(key);
     return v ?? null;
   } catch {
     return null;

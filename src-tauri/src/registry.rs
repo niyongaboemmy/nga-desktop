@@ -205,6 +205,11 @@ const TUPO_DESTINATIONS: &[Destination] = &[
     d("Reels", "/app/feed/reels", "videos"),
 ];
 
+/// The app hosts. Every school (tenant) uses these same hosts: the school
+/// travels as the `tid` claim in MIS tokens, not in the host name (ADR-3,
+/// MULTI_TENANCY_GAP_FIX_PLAN.md), so this registry and the exact-origin checks
+/// in `AppDef::owns` stay as they are. Per-school vanity hosts would need a
+/// registry endpoint and a pattern match here (plan Phase 7, item 4).
 pub fn apps_for(env: Env) -> Vec<AppDef> {
     let (mis, tm, tendo, tupo, tm_base) = match env {
         Env::Production => (
@@ -312,6 +317,7 @@ pub fn identity_provider(apps: &[AppDef]) -> &AppDef {
 }
 
 /// MIS API base (for the shell's "Sign out", which runs inside the MIS webview).
+/// The MIS API, the same for every school (ADR-3).
 pub fn mis_api_base() -> &'static str {
     match current_env() {
         Env::Production => "https://api.amashuri.com",

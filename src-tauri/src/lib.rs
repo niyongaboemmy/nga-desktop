@@ -12,6 +12,7 @@ mod notifications;
 mod os_notify;
 mod overlay;
 mod registry;
+mod tenancy;
 mod theme;
 mod tools;
 mod tooltip;
@@ -180,6 +181,7 @@ pub fn run() {
                 });
             });
             notifications::restore(app.handle());
+            webviews::migrate_sso(app.handle());
             deeplink::init(app.handle());
             auth::spawn(app.handle().clone());
             updates::spawn(app.handle().clone());

@@ -4,23 +4,40 @@
 //! profile: id, persona (user type), first name and an age band. Never the
 //! token. The shell uses it to keep each person's tool data in their own file
 //! and to show the tools meant for them. Sign-out clears it.
+//!
+//! The school (tenant id) comes with it, so a person is `<tid>:<userId>`
+//! (tenancy.rs). When someone else takes over this computer, the shared
+//! browsing profile is wiped before they carry on.
 
+use crate::tenancy::{self, Account};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, Runtime, Webview};
 use tauri_plugin_store::StoreExt;
 
 const STORE_KEY: &str = "toolsIdentity";
+/// The last person seen signed in (kept across sign-out, cleared by a wipe), to
+/// tell when someone else takes over this computer.
+const LAST_ACCOUNT_KEY: &str = "lastAccount";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Identity {
+    /// The school. Missing (stored before multi-tenancy, or an older MIS) = tenant 1.
+    #[serde(default = "tenancy::primary_tid")]
+    pub tid: u64,
     pub user_id: u64,
     /// student | teacher | staff | admin | parent
     pub persona: String,
     pub first_name: String,
     /// "under13" | "13to17" | "adult", or None when MIS has no date of birth.
     pub age_band: Option<String>,
+}
+
+impl Identity {
+    pub fn account(&self) -> Account {
+        Account::new(Some(self.tid), self.user_id)
+    }
 }
 
 #[derive(Default)]
@@ -101,25 +118,64 @@ pub fn get<R: Runtime>(app: &AppHandle<R>) -> Option<Identity> {
     cur.clone()
 }
 
+/// The signed-in person's account, if known.
+pub fn account<R: Runtime>(app: &AppHandle<R>) -> Option<Account> {
+    get(app).map(|i| i.account())
+}
+
+fn last_account<R: Runtime>(app: &AppHandle<R>) -> Option<Account> {
+    app.store("settings.json")
+        .ok()
+        .and_then(|s| s.get(LAST_ACCOUNT_KEY))
+        .and_then(|v| serde_json::from_value(v).ok())
+        .or_else(|| {
+            // First run after the upgrade: whoever was signed in before (tenant 1).
+            app.store("settings.json")
+                .ok()
+                .and_then(|s| s.get(STORE_KEY))
+                .and_then(|v| serde_json::from_value::<Identity>(v).ok())
+                .map(|i| i.account())
+        })
+}
+
+/// The browsing profile was wiped: nobody's data is left to protect.
+pub fn forget_last_account<R: Runtime>(app: &AppHandle<R>) {
+    if let Ok(store) = app.store("settings.json") {
+        store.delete(LAST_ACCOUNT_KEY);
+    }
+}
+
 fn set<R: Runtime>(app: &AppHandle<R>, next: Option<Identity>) {
-    {
+    let next_account = next.as_ref().map(Identity::account);
+    let last = next_account.and_then(|_| last_account(app));
+    let prev_account = {
         let state = app.state::<Current>();
         let mut cur = state.0.lock().unwrap();
         if *cur == next {
             return;
         }
-        let prev = cur.as_ref().map(|i| i.user_id);
+        let prev = cur.as_ref().map(Identity::account);
         *cur = next.clone();
-        drop(cur);
+        prev
+    };
+    if prev_account != next_account {
         // Someone signed out (or another person signed in): on a shared
         // computer, their tool data may have to go (vault.rs).
-        if let Some(prev) = prev.filter(|p| next.as_ref().map(|n| n.user_id) != Some(*p)) {
+        if let Some(prev) = prev_account {
             super::vault::on_sign_out(app, prev);
         }
+        // Each person sees only their own inbox (notifications.rs).
+        crate::notifications::switch_account(app, next_account);
     }
     if let Ok(store) = app.store("settings.json") {
         match &next {
-            Some(id) => store.set(STORE_KEY, serde_json::to_value(id).unwrap_or_default()),
+            Some(id) => {
+                store.set(STORE_KEY, serde_json::to_value(id).unwrap_or_default());
+                store.set(
+                    LAST_ACCOUNT_KEY,
+                    serde_json::to_value(id.account()).unwrap_or_default(),
+                );
+            }
             None => {
                 store.delete(STORE_KEY);
             }
@@ -128,10 +184,27 @@ fn set<R: Runtime>(app: &AppHandle<R>, next: Option<Identity>) {
     log::info!(
         "tools identity: {}",
         next.as_ref()
-            .map(|i| format!("signed in ({})", i.persona))
+            .map(|i| format!("signed in ({}, tenant {})", i.persona, i.tid))
             .unwrap_or_else(|| "none".into())
     );
     super::emit_shell(app, "nga://identity", next);
+    if tenancy::needs_profile_reset(last, next_account) {
+        // Another school or another person took over without "Sign out of
+        // this computer": wipe the shared profile (cookies, storage, caches of
+        // every app) so nothing of the previous one reaches them. They sign in
+        // again on a clean profile.
+        log::info!("another account signed in: wiping the browsing profile");
+        let handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = crate::commands::reset_local_profile(&handle);
+            let _ = tauri::Emitter::emit_to(
+                &handle,
+                crate::webviews::SHELL,
+                "nga://toast",
+                crate::i18n::t("toast.accountSwitched").to_string(),
+            );
+        });
+    }
 }
 
 /// MIS signed out (or "Sign out of this computer"): forget who it was.
@@ -145,6 +218,7 @@ pub fn web_identity<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
     user_id: u64,
+    tid: Option<u64>,
     user_type: String,
     first_name: Option<String>,
     date_of_birth: Option<String>,
@@ -158,6 +232,7 @@ pub fn web_identity<R: Runtime>(
         return Err("bad user".into());
     }
     let id = Identity {
+        tid: tenancy::tid_or_primary(tid),
         user_id,
         persona: persona(&user_type).to_string(),
         first_name: clip(first_name.as_deref().unwrap_or(""), 40),

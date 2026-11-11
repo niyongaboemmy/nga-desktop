@@ -8,6 +8,7 @@ import { toolsNative } from "./shared/native";
 import { useLang } from "./i18n";
 import { restoreTheme } from "../lib/theme";
 import { isMac } from "../lib/platform";
+import { personKey } from "./shared/person";
 
 /**
  * A tool in its own window (index.html?tool=<id>[&present=1]): pop-out
@@ -92,7 +93,7 @@ export function ToolWindowApp({ toolId, present }: { toolId: string; present: bo
         {lockReason(tool, identity) ? (
           <div className="empty"><p><strong>{t("lock.signIn")}</strong></p><p className="muted small">{t("lock.signInWhy")}</p></div>
         ) : (
-          <ToolHost key={identity?.userId ?? "anon"} tool={tool} ctx={ctx} />
+          <ToolHost key={identity ? personKey(identity) : "anon"} tool={tool} ctx={ctx} />
         )}
       </main>
     </div>

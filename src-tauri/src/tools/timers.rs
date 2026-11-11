@@ -496,7 +496,7 @@ fn log_focus<R: Runtime>(app: &AppHandle<R>, at: u64, ms: u64) {
     let Some(id) = super::identity::get(app) else {
         return;
     };
-    let Ok(store) = app.store(format!("tools-u{}.json", id.user_id)) else {
+    let Ok(store) = app.store(super::vault::tools_file(&id.account())) else {
         return;
     };
     let mut list = store

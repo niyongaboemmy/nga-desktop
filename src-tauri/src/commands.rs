@@ -152,16 +152,25 @@ pub async fn sign_out<R: Runtime>(app: AppHandle<R>) -> CmdResult {
 /// Settings → Troubleshooting: forget everything (no server call).
 #[tauri::command]
 pub async fn reset_profile<R: Runtime>(app: AppHandle<R>) -> CmdResult {
+    reset_local_profile(&app)
+}
+
+/// Wipe this computer's NGA browsing profile and everything kept for the
+/// signed-in person: also used when another school or account takes over
+/// (tools/identity.rs, `tenancy::needs_profile_reset`).
+pub fn reset_local_profile<R: Runtime>(app: &AppHandle<R>) -> CmdResult {
     // All webviews share one data store, so clearing through the shell clears all.
     if let Some(shell) = app.get_webview(SHELL) {
         shell.clear_all_browsing_data().map_err(err)?;
     }
-    webviews::close_all_apps(&app);
-    webviews::forget_sso(&app);
-    crate::tools::identity::clear(&app);
-    crate::tools::windows::close_all(&app);
+    webviews::close_all_apps(app);
+    webviews::forget_sso(app);
+    crate::tools::identity::clear(app);
+    crate::tools::identity::forget_last_account(app);
+    crate::tools::windows::close_all(app);
     app.state::<crate::notifications::Notifier>().clear();
-    crate::notifications::publish(&app);
+    crate::notifications::forget(app, None);
+    crate::notifications::publish(app);
     let _ = app.emit_to(SHELL, "nga://signed-out", ());
     Ok(())
 }

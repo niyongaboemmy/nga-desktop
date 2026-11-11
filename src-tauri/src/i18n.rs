@@ -208,6 +208,12 @@ const STRINGS: &[(&str, &str, &str, &str)] = &[
         "Lien copié",
         "Umurongo wakoporowe",
     ),
+    (
+        "toast.accountSwitched",
+        "Another account signed in: NGA cleared the previous one from this computer. Please sign in again.",
+        "Un autre compte s'est connecté : NGA a effacé le précédent de cet ordinateur. Veuillez vous reconnecter.",
+        "Indi konti yinjiye: NGA yasibye iyari iriho kuri iyi mudasobwa. Ongera winjire.",
+    ),
     // Timer alerts
     ("timer.timer", "Timer", "Minuteur", "Igihe"),
     ("timer.focus", "Focus", "Concentration", "Kwibanda"),
