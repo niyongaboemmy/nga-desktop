@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.20.0 — 2026-11-25
+
 - **One person, several schools:** switching school in NGA MIS no longer signs you out of NGA or clears this computer. Task Mentor, Tendo and Tupo sign in again into the new school by themselves, and the notifications inbox shows that school's notices.
 - **School chip in the title bar** (only for people with two or more schools): shows the current school's name and logo; click it to switch school in NGA MIS.
 - Fixed: since NGA MIS keeps the signed-in profile per school (2026-11-11), NGA could miss or misread who was signed in; it now reads the per-school profile.
