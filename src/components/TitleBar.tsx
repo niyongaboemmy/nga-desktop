@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, ArrowRight, Bell, Ellipsis, Keyboard, LoaderCircle, Minimize2, Moon, RotateCw, Search, Settings as Gear, Sun, Video, WifiOff, Wrench } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, ChevronsUpDown, Ellipsis, Keyboard, LoaderCircle, Minimize2, Moon, RotateCw, Search, Settings as Gear, Sun, Video, WifiOff, Wrench } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { native, type AppKey, type DesktopApp, type NoticeSummary } from "../lib/native";
+import { native, showSchoolChip, type AppKey, type DesktopApp, type NoticeSummary, type School } from "../lib/native";
 import type { Views } from "../lib/appState";
 import type { Theme, ThemePref } from "../lib/theme";
 import { isMac, mod } from "../lib/platform";
@@ -30,6 +30,9 @@ interface Props {
   theme: Theme;
   themePref: ThemePref;
   focusSession: AppKey | null;
+  /** The signed-in school: a chip next to the tabs when the person has 2+ schools. */
+  school: School | null;
+  onSwitchSchool: () => void;
   online: boolean;
   panelOpen: boolean;
   /** The Tools panel is open. */
@@ -104,6 +107,16 @@ export function TitleBar(p: Props) {
           );
         })}
       </nav>
+
+      {showSchoolChip(p.school) && (
+        <Tip label={t("shell.school.label")} hint={t("shell.school.hint", { name: p.school.name })}>
+          <button className="school-chip" onClick={p.onSwitchSchool} aria-label={`${p.school.name}: ${t("shell.school.label")}`}>
+            {p.school.logo ? <img src={p.school.logo} alt="" /> : <span className="school-initial" aria-hidden="true">{p.school.name.charAt(0).toUpperCase()}</span>}
+            {!p.compact && <span className="school-name">{p.school.name}</span>}
+            <ChevronsUpDown size={12} aria-hidden="true" />
+          </button>
+        </Tip>
+      )}
 
       <div className="drag" data-tauri-drag-region />
 

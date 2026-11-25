@@ -7,7 +7,7 @@ import { NoticePanel } from "./components/NoticePanel";
 import { Onboarding } from "./components/Onboarding";
 import { SigninProgress } from "./components/SigninProgress";
 import { SignedOutScreen, SigningOutScreen } from "./components/AuthScreens";
-import { native, on, type AppKey, type Notice, type NoticeSummary, type ShellInfo } from "./lib/native";
+import { native, on, type AppKey, type Notice, type NoticeSummary, type School, type ShellInfo } from "./lib/native";
 import { isSlow, reduce } from "./lib/appState";
 import { readSettings, saveSetting, type RecentPage } from "./lib/settings";
 import type { UpdateState } from "./lib/updater";
@@ -60,6 +60,7 @@ export default function App() {
   // Recent pages are recorded here and read by the palette (overlay window).
   const [, setRecent] = useState<RecentPage[]>([]);
   const [focusSession, setFocusSession] = useState<AppKey | null>(null);
+  const [school, setSchool] = useState<School | null>(null);
   const [update, setUpdate] = useState<UpdateState>({ kind: "idle" });
   const [updatePct, setUpdatePct] = useState<number | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
@@ -117,6 +118,7 @@ export default function App() {
       setInfo(shellInfo);
       setNotices(await native.noticeSummary());
       setFocusSession(await native.focusSession());
+      setSchool(await native.school().catch(() => null));
       const keys = shellInfo.apps.map((a) => a.key);
       const wanted = prefs.startApp === "last" ? prefs.lastApp : prefs.startApp;
       open(wanted && keys.includes(wanted) ? wanted : "mis");
@@ -205,6 +207,7 @@ export default function App() {
         void saveSetting("theme", "mis");
       }),
       on("nga://focus-session", setFocusSession),
+      on("nga://school", setSchool),
       on("nga://closed", (keys) => {
         dispatch({ type: "closed", keys });
         setActive((a) => (a && keys.includes(a) ? null : a));
@@ -365,6 +368,12 @@ export default function App() {
           theme={theme}
           themePref={themePref}
           focusSession={focusSession}
+          school={school}
+          onSwitchSchool={() => {
+            setPage("app");
+            setPanel(false);
+            void native.switchSchool();
+          }}
           updateVersion={update.kind === "available" ? update.info.version : null}
           updatePct={updatePct}
           onUpdate={() => {

@@ -733,6 +733,8 @@ export const rw: Dictionary = {
   "shell.common.retry": "Ongera ugerageze",
   "shell.common.openInBrowser": "Fungura muri mushakisha",
   "shell.tabs.label": "Porogaramu za NGA",
+  "shell.school.label": "Hindura ishuri",
+  "shell.school.hint": "Uri muri {name}. Hitamo irindi shuri ryawe muri NGA MIS.",
   "shell.search.label": "Shakisha muri NGA",
   "shell.search.hint": "Porogaramu, impapuro, ibikoresho n'ibikorwa",
   "shell.search.placeholder": "Shakisha cyangwa ujye kuri…",

@@ -62,8 +62,24 @@ export interface NoticeSummary {
   total: number;
 }
 
+/** The school this computer is signed in to (src-tauri/src/school.rs). */
+export interface School {
+  tid: number;
+  name: string;
+  /** A data:image/… URL, or null. */
+  logo: string | null;
+  /** How many schools the person can switch between. */
+  schools: number;
+}
+
+/** The title-bar chip shows only for people with two or more schools (TENANT_SWITCHING_PLAN.md §4.4). */
+export const showSchoolChip = (s: School | null): s is School => !!s && s.schools >= 2;
+
 export const native = {
   shellInfo: () => invoke<ShellInfo>("shell_info"),
+  school: () => invoke<School | null>("school_info"),
+  /** MIS's switch-school page, in the MIS tab. */
+  switchSchool: () => invoke<void>("school_switch_open"),
   openApp: (key: AppKey) => invoke<void>("open_app", { key }),
   navigate: (key: AppKey, path: string) => invoke<void>("navigate_app", { key, path }),
   setInsets: (left: number, top: number, right: number, bottom: number) =>
@@ -150,6 +166,8 @@ type Events = {
   "nga://update": { info: UpdateInfo; announce: boolean };
   /** Update download progress, 0-100. */
   "nga://update-progress": number;
+  /** The signed-in school (null while unknown, or signed out). */
+  "nga://school": School | null;
 };
 
 export const on = <K extends keyof Events>(event: K, handler: (payload: Events[K]) => void): Promise<UnlistenFn> =>

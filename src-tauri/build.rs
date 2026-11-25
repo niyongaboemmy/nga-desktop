@@ -42,6 +42,8 @@ fn main() {
             "autostart_set",
             "shell_set_lang",
             "tools_identity",
+            "school_info",
+            "school_switch_open",
             "tools_vault_key",
             "timers_list",
             "timer_create",
@@ -63,6 +65,7 @@ fn main() {
             "web_update_check",
             "web_update_install",
             "web_identity",
+            "web_school",
             "web_tools_api_event",
         ]),
     ))

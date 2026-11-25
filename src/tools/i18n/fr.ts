@@ -733,6 +733,8 @@ export const fr: Dictionary = {
   "shell.common.retry": "Réessayer",
   "shell.common.openInBrowser": "Ouvrir dans le navigateur",
   "shell.tabs.label": "Applications NGA",
+  "shell.school.label": "Changer d'école",
+  "shell.school.hint": "Vous êtes dans {name}. Choisissez une autre de vos écoles dans NGA MIS.",
   "shell.search.label": "Rechercher dans NGA",
   "shell.search.hint": "Applications, pages, outils et actions",
   "shell.search.placeholder": "Rechercher ou aller à…",

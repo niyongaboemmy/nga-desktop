@@ -731,6 +731,8 @@ export const en = {
   "shell.common.retry": "Try again",
   "shell.common.openInBrowser": "Open in browser",
   "shell.tabs.label": "NGA apps",
+  "shell.school.label": "Switch school",
+  "shell.school.hint": "You are in {name}. Choose another of your schools in NGA MIS.",
   "shell.search.label": "Search NGA",
   "shell.search.hint": "Apps, pages, tools and actions",
   "shell.search.placeholder": "Search or jump to…",
