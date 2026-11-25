@@ -12,13 +12,21 @@
 //! A click brings NGA back, and notifications.rs counts that as the click.
 //!
 //! **Withdrawing banners (DK-ISO-3):** on sign-out, a wipe and a school switch
-//! (`withdraw_all`), the banners already delivered leave Notification Center,
-//! so the next person never reads the previous one's. Only macOS (installed
-//! .app, UNUserNotificationCenter) can do that today: the notification plugin
-//! has no remove call on desktop, and Windows' toast history API (WinRT
-//! `ToastNotificationHistory`) is not wired in. Where banners can't be
-//! withdrawn, banners of the apps that carry private messages
-//! (`PRIVATE_APPS`) show no preview: a generic title and the app's name only.
+//! (`withdraw_all`), the banners already delivered leave the OS list, so the
+//! next person never reads the previous one's.
+//! - macOS (installed .app): UNUserNotificationCenter removes delivered and
+//!   pending banners.
+//! - Windows: the WinRT toast history (`ToastNotificationHistory::ClearWithId`)
+//!   is cleared for the AUMID the notification plugin shows toasts under
+//!   (`windows_aumids`): the bundle identifier for an installed NGA, and
+//!   PowerShell's AUMID for a binary run from `target\debug|release`. Best
+//!   effort: a failure is logged, never fatal.
+//!
+//! The notification plugin has no remove call on desktop. Banners of the apps
+//! that carry private messages (`PRIVATE_APPS`) show no preview (a generic
+//! title and the app's name only) wherever `can_withdraw` is false. Windows
+//! keeps that fallback for now: the history clear is not yet verified on a
+//! real Windows PC with the installed app, so `can_withdraw` stays false there.
 
 use serde::Serialize;
 use tauri::{AppHandle, Runtime};
@@ -51,6 +59,50 @@ pub struct Banner<'a> {
 /// system that can't withdraw delivered banners, they show no preview.
 pub const PRIVATE_APPS: &[&str] = &["tupo"];
 
+/// The production bundle identifier (tauri.conf.json), used until `init` gives
+/// the running app's own.
+const DEFAULT_IDENTIFIER: &str = "com.amashuri.nga.desktop";
+
+/// The running app's bundle identifier (set by `init`).
+static IDENTIFIER: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn identifier() -> &'static str {
+    IDENTIFIER
+        .get()
+        .map(String::as_str)
+        .unwrap_or(DEFAULT_IDENTIFIER)
+}
+
+/// PowerShell's AUMID: Windows toasts shown without an app id (tauri-winrt-notification's
+/// `Toast::POWERSHELL_APP_ID`).
+#[cfg_attr(not(windows), allow(dead_code))]
+const POWERSHELL_AUMID: &str =
+    "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe";
+
+/// The AUMIDs NGA's Windows toasts can carry, in the order to clear them.
+/// The notification plugin sets the app id to the bundle identifier, except
+/// when the binary runs from `target/debug` or `target/release` (a dev build),
+/// where toasts go out as PowerShell. The identifier is always cleared (an
+/// installed NGA may have shown toasts before an update moved it); PowerShell's
+/// only for a dev build, so an installed NGA never touches PowerShell's toasts.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn windows_aumids(identifier: &str, exe_dir: Option<&std::path::Path>) -> Vec<String> {
+    let mut ids = vec![identifier.to_string()];
+    let dev = exe_dir.is_some_and(|dir| {
+        let mut parts = dir.components().rev().map(|c| c.as_os_str());
+        let last = parts.next();
+        let parent = parts.next();
+        parent == Some(std::ffi::OsStr::new("target"))
+            && (last == Some(std::ffi::OsStr::new("debug"))
+                || last == Some(std::ffi::OsStr::new("release")))
+    });
+    if dev {
+        ids.push(POWERSHELL_AUMID.to_string());
+    }
+    ids
+}
+
 /// Can delivered banners be withdrawn on this system?
 pub fn can_withdraw() -> bool {
     #[cfg(target_os = "macos")]
@@ -77,6 +129,19 @@ pub fn withdraw_all() -> bool {
         log::info!("OS notifications withdrawn");
         return true;
     }
+    #[cfg(windows)]
+    {
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(std::path::Path::to_path_buf));
+        let ids = windows_aumids(identifier(), exe_dir.as_deref());
+        let cleared = win::withdraw_all(&ids);
+        if cleared {
+            log::info!("OS notifications withdrawn");
+        }
+        cleared
+    }
+    #[cfg(not(windows))]
     false
 }
 
@@ -97,8 +162,10 @@ pub fn plugin_text(b: &Banner<'_>, can_withdraw: bool) -> (String, String) {
     (b.title.to_string(), body)
 }
 
-/// Call once at start-up with what to do when a banner is clicked.
-pub fn init(on_click: impl Fn(u64) + Send + Sync + 'static) {
+/// Call once at start-up with the app's bundle identifier and what to do
+/// when a banner is clicked.
+pub fn init(identifier: &str, on_click: impl Fn(u64) + Send + Sync + 'static) {
+    let _ = IDENTIFIER.set(identifier.to_string());
     #[cfg(target_os = "macos")]
     mac::init(Box::new(on_click));
     #[cfg(not(target_os = "macos"))]
@@ -163,6 +230,32 @@ pub fn open_settings<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+#[cfg(windows)]
+mod win {
+    use windows::core::HSTRING;
+    use windows::UI::Notifications::ToastNotificationManager;
+
+    /// Clear the toast history (Action Center) of each AUMID. True when at
+    /// least one clear succeeded. Never panics: errors are logged.
+    pub fn withdraw_all(aumids: &[String]) -> bool {
+        let history = match ToastNotificationManager::History() {
+            Ok(h) => h,
+            Err(e) => {
+                log::warn!("toast history unavailable: {e}");
+                return false;
+            }
+        };
+        let mut any = false;
+        for id in aumids {
+            match history.ClearWithId(&HSTRING::from(id.as_str())) {
+                Ok(()) => any = true,
+                Err(e) => log::warn!("could not clear toasts of {id}: {e}"),
+            }
+        }
+        any
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -343,10 +436,72 @@ mod tests {
     }
 
     #[test]
+    fn dk_iso_3_windows_clears_the_identifier_and_powershell_only_in_dev() {
+        use std::path::Path;
+        let id = "com.amashuri.nga.desktop";
+        // Installed NGA: only its own AUMID, never PowerShell's toasts.
+        assert_eq!(
+            windows_aumids(id, Some(Path::new("C:/Program Files/NGA"))),
+            vec![id.to_string()]
+        );
+        assert_eq!(windows_aumids(id, None), vec![id.to_string()]);
+        // A test binary (target/debug/deps) is not a dev build either.
+        assert_eq!(
+            windows_aumids(id, Some(Path::new("/w/src-tauri/target/debug/deps"))).len(),
+            1
+        );
+        // Dev builds: the plugin shows toasts as PowerShell.
+        for dir in ["/w/src-tauri/target/debug", "/w/src-tauri/target/release"] {
+            let ids = windows_aumids(id, Some(Path::new(dir)));
+            assert_eq!(ids, vec![id.to_string(), POWERSHELL_AUMID.to_string()]);
+        }
+        assert!(POWERSHELL_AUMID.ends_with("powershell.exe"));
+    }
+
+    #[test]
+    fn dk_iso_3_default_identifier_matches_the_bundle() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(conf["identifier"], DEFAULT_IDENTIFIER);
+    }
+
+    /// The body of `fn <name>` in `src` (up to the next top-level item).
+    fn fn_body<'a>(src: &'a str, name: &str) -> &'a str {
+        let start = src
+            .find(&format!("fn {name}"))
+            .unwrap_or_else(|| panic!("fn {name} not found"));
+        let rest = &src[start..];
+        let end = rest.find("\n}\n").map_or(rest.len(), |i| i + 3);
+        &rest[..end]
+    }
+
+    #[test]
+    fn dk_iso_3_sign_out_wipe_and_switch_withdraw_banners() {
+        let call = "crate::os_notify::withdraw_all()";
+        // Sign-out (with or without wipe).
+        assert!(fn_body(include_str!("auth.rs"), "sign_out_everywhere").contains(call));
+        // Wipe of the local profile (another person signs in).
+        assert!(fn_body(include_str!("commands.rs"), "reset_local_profile").contains(call));
+        // Account change or school switch, gated by `withdraw_banners`.
+        let identity = include_str!("tools/identity.rs");
+        let gate = identity
+            .find("if todo.withdraw_banners {")
+            .expect("withdraw_banners gate");
+        let block = &identity[gate..];
+        let block = &block[..block.find("\n    }\n").expect("end of the gate")];
+        assert!(block.contains(call));
+    }
+
+    #[test]
     fn dk_iso_3_withdraw_all_is_counted_and_safe_without_a_bundle() {
         let before = withdrawals();
-        // A test binary has no .app bundle: nothing to withdraw, no panic.
-        assert!(!withdraw_all() || can_withdraw());
+        // A test binary has no .app bundle: nothing to withdraw on macOS, no
+        // panic. On Windows the toast history clear runs (best effort) while
+        // previews stay hidden (`can_withdraw` false until verified there).
+        let done = withdraw_all();
+        if cfg!(not(windows)) {
+            assert!(!done || can_withdraw());
+        }
         assert!(withdrawals() > before);
     }
 }

@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+- **Notifications leave with the person on Windows too (DK-ISO-3):** on sign-out, when another person signs in and when switching school, NGA now clears its toasts from Windows' Action Center (toast history of NGA's app id; a dev build's PowerShell id as well), so the next person on a shared PC can't read the previous person's or school's chat previews or grades. Tupo banners on Windows still show "New message" without the message text until the clearing is confirmed on real Windows PCs.
+
 ## 0.20.1 — 2026-11-25
 
 School isolation fixes from the 2026-11-25 cross-school audit (release as 0.20.1):
