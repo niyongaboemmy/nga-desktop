@@ -466,6 +466,11 @@ mod tests {
     }
 
     /// The body of `fn <name>` in `src` (up to the next top-level item).
+    /// CRLF checkouts (Windows CI) read as LF.
+    fn lf(src: &str) -> String {
+        src.replace("\r\n", "\n")
+    }
+
     fn fn_body<'a>(src: &'a str, name: &str) -> &'a str {
         let start = src
             .find(&format!("fn {name}"))
@@ -479,11 +484,11 @@ mod tests {
     fn dk_iso_3_sign_out_wipe_and_switch_withdraw_banners() {
         let call = "crate::os_notify::withdraw_all()";
         // Sign-out (with or without wipe).
-        assert!(fn_body(include_str!("auth.rs"), "sign_out_everywhere").contains(call));
+        assert!(fn_body(&lf(include_str!("auth.rs")), "sign_out_everywhere").contains(call));
         // Wipe of the local profile (another person signs in).
-        assert!(fn_body(include_str!("commands.rs"), "reset_local_profile").contains(call));
+        assert!(fn_body(&lf(include_str!("commands.rs")), "reset_local_profile").contains(call));
         // Account change or school switch, gated by `withdraw_banners`.
-        let identity = include_str!("tools/identity.rs");
+        let identity = lf(include_str!("tools/identity.rs"));
         let gate = identity
             .find("if todo.withdraw_banners {")
             .expect("withdraw_banners gate");
