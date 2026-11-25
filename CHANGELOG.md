@@ -4,6 +4,8 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+## 0.20.1 — 2026-11-25
+
 School isolation fixes from the 2026-11-25 cross-school audit (release as 0.20.1):
 
 - **Signed out means signed out (DK-ISO-1):** after a sign-out made in any app, NGA Tools no longer show the previous person's data. NGA reports who is signed in only while NGA MIS holds a valid, unexpired session for that same person, ignores MIS while it is signed out, and signing out now also removes MIS's saved profile copies from this computer.
