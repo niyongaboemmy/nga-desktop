@@ -214,6 +214,12 @@ const STRINGS: &[(&str, &str, &str, &str)] = &[
         "Un autre compte s'est connecté : NGA a effacé le précédent de cet ordinateur. Veuillez vous reconnecter.",
         "Indi konti yinjiye: NGA yasibye iyari iriho kuri iyi mudasobwa. Ongera winjire.",
     ),
+    (
+        "toast.schoolSwitched",
+        "Switched school: the other apps are signing in again.",
+        "École changée : les autres applications se reconnectent.",
+        "Ishuri ryahinduwe: izindi porogaramu ziri kongera kwinjira.",
+    ),
     // Timer alerts
     ("timer.timer", "Timer", "Minuteur", "Igihe"),
     ("timer.focus", "Focus", "Concentration", "Kwibanda"),

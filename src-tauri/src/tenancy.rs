@@ -9,9 +9,14 @@
 //! (`tenant.tid` from `/users/me`, or the `tid` token claim); when it doesn't
 //! (an older MIS), the person belongs to tenant 1, the primary school.
 //!
-//! When the person on this computer changes (another school, or another
-//! account), the shared browsing profile is wiped (`commands::reset_local_profile`)
-//! so one school's sessions and caches never reach the next.
+//! When another person takes over this computer, the shared browsing profile
+//! is wiped (`commands::reset_local_profile`) so one person's sessions and
+//! caches never reach the next. The same person moving to another of their
+//! schools (MIS "Switch school", TENANT_SWITCHING_PLAN.md §4.6) is a *school
+//! switch*: nothing is wiped (the profile is theirs either way, and the stores
+//! are keyed by school); the other apps just sign in again into the new school.
+//! A person's accounts in different schools are linked by their e-mail, as
+//! MIS's `/auth/my-schools` does.
 
 use serde::{Deserialize, Serialize};
 
@@ -88,12 +93,70 @@ pub fn compare(last: Option<Account>, next: Option<Account>) -> Change {
     }
 }
 
+/// A sign-in as MIS reported it: the account plus the e-mail that links one
+/// person's accounts across schools (None from an older MIS page).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Seen {
+    #[serde(flatten)]
+    pub account: Account,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+}
+
+impl Seen {
+    pub fn new(account: Account, email: Option<&str>) -> Self {
+        Seen {
+            account,
+            email: email.and_then(normalise_email),
+        }
+    }
+}
+
+/// Lower-case, trimmed, and plausibly an address; else None (never matches).
+pub fn normalise_email(e: &str) -> Option<String> {
+    let e = e.trim().to_lowercase();
+    let (local, domain) = e.split_once('@')?;
+    (!local.is_empty() && domain.contains('.') && !e.contains(char::is_whitespace)).then_some(e)
+}
+
+/// What a change of account means for this computer's local data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Takeover {
+    /// Same account, first sign-in, or a sign-out: nothing to do.
+    None,
+    /// The same person (same e-mail) in another of their schools: keep the
+    /// profile, sign the other apps in again into the new school.
+    SchoolSwitch,
+    /// Someone else (or nothing proves it's the same person): wipe the profile.
+    OtherPerson,
+}
+
+pub fn takeover(last: Option<&Seen>, next: Option<&Seen>) -> Takeover {
+    if compare(last.map(|s| s.account), next.map(|s| s.account)) != Change::Switched {
+        return Takeover::None;
+    }
+    let (Some(last), Some(next)) = (last, next) else {
+        return Takeover::None;
+    };
+    let same_person = matches!((&last.email, &next.email), (Some(a), Some(b)) if a == b);
+    // Another account in the SAME school is never a switch (one person has one
+    // account per school).
+    if same_person && last.account.tid != next.account.tid {
+        Takeover::SchoolSwitch
+    } else {
+        Takeover::OtherPerson
+    }
+}
+
 /// Must the shared browsing profile be wiped before `next` carries on?
-/// Only when someone else (other school or other account) takes over after
-/// `last`; signing out alone keeps it (an expired session comes back as the
-/// same person, with its offline data intact).
-pub fn needs_profile_reset(last: Option<Account>, next: Option<Account>) -> bool {
-    compare(last, next) == Change::Switched
+/// Only when someone else takes over after `last`; signing out alone keeps it
+/// (an expired session comes back as the same person, with its offline data
+/// intact), and so does the same person switching school. (tools/identity.rs
+/// acts on `takeover` directly; this is the rule as the tests state it.)
+#[cfg(test)]
+pub fn needs_profile_reset(last: Option<&Seen>, next: Option<&Seen>) -> bool {
+    takeover(last, next) == Takeover::OtherPerson
 }
 
 // ── session.json: SSO handshake times ───────────────────────────────────────
@@ -159,13 +222,77 @@ mod tests {
         assert_eq!(compare(Some(acc(1, 7)), Some(acc(1, 8))), Change::Switched);
     }
 
+    fn seen(tid: u64, user_id: u64, email: Option<&str>) -> Seen {
+        Seen::new(acc(tid, user_id), email)
+    }
+
     #[test]
     fn profile_is_wiped_only_when_someone_else_takes_over() {
-        assert!(!needs_profile_reset(None, Some(acc(1, 7))));
-        assert!(!needs_profile_reset(Some(acc(1, 7)), Some(acc(1, 7))));
-        assert!(!needs_profile_reset(Some(acc(1, 7)), None));
-        assert!(needs_profile_reset(Some(acc(1, 7)), Some(acc(2, 7))));
-        assert!(needs_profile_reset(Some(acc(2, 7)), Some(acc(2, 9))));
+        let r = |a: Option<Seen>, b: Option<Seen>| needs_profile_reset(a.as_ref(), b.as_ref());
+        assert!(!r(None, Some(seen(1, 7, None))));
+        assert!(!r(Some(seen(1, 7, None)), Some(seen(1, 7, None))));
+        assert!(!r(Some(seen(1, 7, None)), None));
+        // No e-mail to prove it's the same person: as before, a wipe.
+        assert!(r(Some(seen(1, 7, None)), Some(seen(2, 7, None))));
+        assert!(r(Some(seen(2, 7, None)), Some(seen(2, 9, None))));
+        assert!(r(Some(seen(1, 7, Some("a@x.rw"))), Some(seen(2, 9, None))));
+    }
+
+    #[test]
+    fn same_email_in_another_school_is_a_switch_not_a_wipe() {
+        let t = |a: Seen, b: Seen| takeover(Some(&a), Some(&b));
+        let me = seen(1, 7, Some("Teacher@School.rw "));
+        assert_eq!(
+            t(me.clone(), seen(2, 31, Some("teacher@school.rw"))),
+            Takeover::SchoolSwitch
+        );
+        assert!(!needs_profile_reset(
+            Some(&me),
+            Some(&seen(2, 31, Some("teacher@school.rw")))
+        ));
+        // ...and back again.
+        assert_eq!(
+            t(seen(2, 31, Some("teacher@school.rw")), me.clone()),
+            Takeover::SchoolSwitch
+        );
+        // Another e-mail in another school: someone else.
+        assert_eq!(
+            t(me.clone(), seen(2, 31, Some("other@school.rw"))),
+            Takeover::OtherPerson
+        );
+        // Same school, other account: someone else, whatever the e-mail says.
+        assert_eq!(
+            t(me.clone(), seen(1, 8, Some("teacher@school.rw"))),
+            Takeover::OtherPerson
+        );
+        // Unchanged, first sign-in, sign-out: nothing.
+        assert_eq!(t(me.clone(), me.clone()), Takeover::None);
+        assert_eq!(takeover(None, Some(&me)), Takeover::None);
+        assert_eq!(takeover(Some(&me), None), Takeover::None);
+    }
+
+    #[test]
+    fn emails_are_normalised_and_junk_never_matches() {
+        assert_eq!(normalise_email(" A@B.rw "), Some("a@b.rw".into()));
+        for bad in ["", "   ", "nobody", "@b.rw", "a@b", "a b@c.rw"] {
+            assert_eq!(normalise_email(bad), None, "{bad}");
+        }
+        let junk = |e| seen(1, 7, Some(e));
+        assert_eq!(
+            takeover(Some(&junk("x")), Some(&seen(2, 7, Some("x")))),
+            Takeover::OtherPerson
+        );
+    }
+
+    #[test]
+    fn last_seen_reads_what_older_versions_stored() {
+        // Stored before school switching: an Account, no e-mail.
+        let old: Seen = serde_json::from_str(r#"{"tid":2,"userId":7}"#).unwrap();
+        assert_eq!(old, seen(2, 7, None));
+        let pre_tenancy: Seen = serde_json::from_str(r#"{"userId":7}"#).unwrap();
+        assert_eq!(pre_tenancy, seen(1, 7, None));
+        let s = serde_json::to_value(seen(2, 7, Some("a@b.rw"))).unwrap();
+        assert_eq!(s, serde_json::json!({"tid":2,"userId":7,"email":"a@b.rw"}));
     }
 
     #[test]

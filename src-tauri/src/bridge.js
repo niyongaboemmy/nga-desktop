@@ -19,7 +19,10 @@
 //               polls only while visible), repeat its last request with its
 //               own headers, from its own origin, at a gentle interval;
 //   theme     - keep every app on the same light/dark theme as the shell
-//               (report a switch made here; apply one made elsewhere).
+//               (report a switch made here; apply one made elsewhere);
+//   school    - the school this computer is signed in to follows MIS's
+//               `nga_school` cookie (TENANT_SWITCHING_PLAN.md A.1): watcher
+//               state is kept per school and dropped when it changes.
 (function () {
   "use strict";
   var internals = window.__TAURI_INTERNALS__;
@@ -32,6 +35,24 @@
       return Promise.reject(e);
     }
   };
+
+  // ── The selected school: MIS's readable `nga_school=<tid>.<sid>` cookie ──
+  // (TENANT_SWITCHING_PLAN.md A.1). Read only, never written; it carries no
+  // credential. null when absent (MIS signed out, or an MIS without it).
+  var SCHOOL_COOKIE = /^(\d{1,9})\.([A-Za-z0-9_-]{8,32})$/;
+  var schoolCookie = function () {
+    try {
+      var m = /(?:^|;\s*)nga_school=([^;]*)/.exec(document.cookie || "");
+      var p = m && SCHOOL_COOKIE.exec(decodeURIComponent(m[1]));
+      var tid = p ? Number(p[1]) : 0;
+      return tid > 0 ? { tid: tid, sid: p[2] } : null;
+    } catch (e) { return null; }
+  };
+  var schoolTid = function () {
+    var c = schoolCookie();
+    return c ? c.tid : null;
+  };
+  try { Object.defineProperty(window, "__ngaSchoolCookie", { value: schoolCookie }); } catch (e) { /* defined */ }
 
   var live = {};
   var seq = 0;
@@ -251,20 +272,28 @@
     }],
   }[__NGA_APP__] || [];
 
-  var SEEN_KEY = "nga.desktop.seen.v1";
+  // Ids already raised, per school: notification ids repeat across schools
+  // (each has its own database). Tenant 1 (and an unknown school) keeps the
+  // key used before school switching.
+  var SEEN_BASE = "nga.desktop.seen.v1";
+  var seenKey = function () {
+    var tid = schoolTid();
+    return tid && tid !== 1 ? SEEN_BASE + ".t" + tid : SEEN_BASE;
+  };
   var seen = null;
   var loadSeen = function () {
-    if (seen) return seen;
+    var key = seenKey();
+    if (seen && seen.key === key) return seen;
     try {
-      var raw = localStorage.getItem(SEEN_KEY);
-      seen = raw ? { first: false, ids: JSON.parse(raw) } : { first: true, ids: [] };
+      var raw = localStorage.getItem(key);
+      seen = raw ? { key: key, first: false, ids: JSON.parse(raw) } : { key: key, first: true, ids: [] };
     } catch (e) {
-      seen = { first: true, ids: [] };
+      seen = { key: key, first: true, ids: [] };
     }
     return seen;
   };
   var saveSeen = function () {
-    try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen.ids.slice(-400))); } catch (e) { /* full */ }
+    try { localStorage.setItem(seen.key, JSON.stringify(seen.ids.slice(-400))); } catch (e) { /* full */ }
   };
 
   var openLink = function (link) {
@@ -331,7 +360,7 @@
       var w = info && watcherFor(info.method, info.url);
       if (w) {
         var xhr = this;
-        w.request = { url: new URL(info.url, location.href).href, headers: info.headers };
+        w.request = { url: new URL(info.url, location.href).href, headers: info.headers, school: schoolTid() };
         xhr.addEventListener("load", function () {
           if (xhr.status !== 200) return;
           try {
@@ -352,7 +381,7 @@
       if (w) {
         var headers = {};
         try { new Headers((init && init.headers) || (input && input.headers) || {}).forEach(function (v, k) { headers[k] = v; }); } catch (e) { /* ignore */ }
-        w.request = { url: new URL(url, location.href).href, headers: headers };
+        w.request = { url: new URL(url, location.href).href, headers: headers, school: schoolTid() };
         p.then(function (res) {
           if (res.status === 200) res.clone().json().then(function (j) { handle(w, j); }).catch(function () {});
         }).catch(function () {});
@@ -360,13 +389,24 @@
       return p;
     };
     // Replay: the app stopped polling (hidden). Repeat its last request, same headers.
+    // Never across a school switch: the captured Authorization belongs to the
+    // school it was captured in, so a changed `nga_school` (or a refusal) drops
+    // it until the app polls again itself.
     setInterval(function () {
       WATCHERS.forEach(function (w) {
         if (!w.replayMs || !w.request || !document.hidden) return;
+        if (w.request.school !== schoolTid()) { w.request = null; return; }
         if (w.lastAt && Date.now() - w.lastAt < w.replayMs) return;
         w.lastAt = Date.now();
-        origFetch(w.request.url, { headers: w.request.headers, credentials: "include" })
-          .then(function (res) { return res.status === 200 ? res.json() : null; })
+        var req = w.request;
+        origFetch(req.url, { headers: req.headers, credentials: "include" })
+          .then(function (res) {
+            if (res.status === 401 || res.status === 403 || res.status === 409) {
+              if (w.request === req) w.request = null;
+              return null;
+            }
+            return res.status === 200 ? res.json() : null;
+          })
           .then(function (j) { if (j) handle(w, j); })
           .catch(function () {});
       });
@@ -395,56 +435,173 @@
     } catch (e) { /* already defined */ }
 
     // ── Who is signed in, for NGA Tools (tools/identity.rs) ──────────────
-    // From MIS's own cached profile (UserContext "nga.user.offlineCache"):
-    // id, user type, first name, date of birth. Never the token. Rust turns
-    // the date into an age band and refuses this call from any other page.
-    // The school (tenant id) too: `tenant.tid` from /users/me, else the `tid`
-    // claim of the session token (read, not trusted: MIS checks it), else null
-    // (an older MIS: tenant 1). Rust keys everything it keeps by tid + user.
+    // From MIS's own cached profile: id, user type, first name, date of birth
+    // and e-mail. Never the token. Rust turns the date into an age band and
+    // refuses this call from any other page. The e-mail links one person's
+    // accounts across schools: a new school with the same e-mail is a school
+    // switch (nothing is wiped), not another person.
+    //
+    // The school (tenant id) is reported only once every signal agrees: the
+    // `nga_school` cookie (fast), MIS's `nga.identity`, the cached profile's
+    // tenant and the session token's `tid` claim (read, not trusted: MIS checks
+    // it). In the middle of a sign-in or a school switch they disagree for a
+    // moment, and nothing is reported until they settle. Without any (an older
+    // MIS): tenant 1, as Rust assumes.
     var positiveInt = function (v) {
       var n = Number(v);
       return Number.isInteger(n) && n > 0 ? n : null;
     };
+    var readToken = function () {
+      try { return localStorage.getItem("token") || ""; } catch (e) { return ""; }
+    };
     var tokenTid = function () {
       try {
-        var t = localStorage.getItem("token") || "";
-        var part = t.split(".")[1];
+        var part = readToken().split(".")[1];
         if (!part) return null;
-        var json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
-        return positiveInt((JSON.parse(json) || {}).tid);
+        var b = part.replace(/-/g, "+").replace(/_/g, "/");
+        while (b.length % 4) b += "=";
+        return positiveInt((JSON.parse(atob(b)) || {}).tid);
       } catch (e) { return null; }
     };
-    var tenantId = function (c) {
+    // MIS's record of who is signed in here: "<tid>:<userId>" (frontend lib/tenant.ts).
+    var misIdentity = function () {
       try {
-        if (!c) c = JSON.parse(localStorage.getItem("nga.user.offlineCache") || "null") || {};
-        var u = c.user || {};
-        return positiveInt(c.tenant && c.tenant.tid) || positiveInt(u.tenant && u.tenant.tid) || tokenTid();
-      } catch (e) { return tokenTid(); }
+        var m = /^(\d+):(\d+)$/.exec(localStorage.getItem("nga.identity") || "");
+        return m && positiveInt(m[1]) && positiveInt(m[2]) ? { tid: Number(m[1]), userId: Number(m[2]) } : null;
+      } catch (e) { return null; }
+    };
+    // The offline copy of the profile: per school + person since MIS
+    // multi-tenancy (`nga.user.offlineCache.t<tid>.u<userId>`), one key before.
+    var cachedProfile = function (id) {
+      try {
+        var raw = id ? localStorage.getItem("nga.user.offlineCache.t" + id.tid + ".u" + id.userId) : null;
+        if (!raw) raw = localStorage.getItem("nga.user.offlineCache");
+        return raw ? JSON.parse(raw) || null : null;
+      } catch (e) { return null; }
+    };
+    var settledIdentity = function () {
+      var id = misIdentity();
+      var c = cachedProfile(id);
+      if (!c) return null;
+      var u = c.user || {};
+      var p = c.profile || {};
+      var userId = positiveInt(u.user_id);
+      if (!userId || (id && id.userId !== userId)) return null;
+      var cookie = schoolCookie();
+      var known = [
+        cookie && cookie.tid,
+        positiveInt(c.tenant && c.tenant.tid) || positiveInt(u.tenant && u.tenant.tid),
+        id && id.tid,
+        tokenTid(),
+      ].filter(Boolean);
+      for (var i = 1; i < known.length; i++) if (known[i] !== known[0]) return null;
+      var email = str(u.email || p.email).trim();
+      return {
+        userId: userId,
+        tid: known.length ? known[0] : null,
+        userType: str(p.user_type),
+        firstName: str(p.first_name),
+        dateOfBirth: p.date_of_birth ? str(p.date_of_birth) : null,
+        email: email || null,
+      };
     };
     var lastIdentity = "";
+    // The school Rust has accepted for this page's identity (null until then,
+    // and again while a new one is on its way).
+    var settledTid = null;
     var reportIdentity = function () {
-      try {
-        var raw = localStorage.getItem("nga.user.offlineCache");
-        if (!raw) return;
-        var c = JSON.parse(raw) || {};
-        var u = c.user || {};
-        var p = c.profile || {};
-        if (!u.user_id) return;
-        var args = {
-          userId: Number(u.user_id),
-          tid: tenantId(c),
-          userType: str(p.user_type),
-          firstName: str(p.first_name),
-          dateOfBirth: p.date_of_birth ? str(p.date_of_birth) : null,
-        };
-        var key = JSON.stringify(args);
-        if (key === lastIdentity) return;
-        lastIdentity = key;
-        invoke("web_identity", args).catch(function () { lastIdentity = ""; });
-      } catch (e) { /* no profile yet */ }
+      var args = settledIdentity();
+      if (!args) return;
+      var key = JSON.stringify(args);
+      if (key === lastIdentity) return;
+      var prev = lastIdentity ? JSON.parse(lastIdentity) : null;
+      lastIdentity = key;
+      if (!prev || prev.tid !== args.tid || prev.userId !== args.userId) settledTid = null;
+      invoke("web_identity", args)
+        .then(function () {
+          settledTid = args.tid || 1;
+          reportSchool(true);
+        })
+        .catch(function () { lastIdentity = ""; });
     };
+    // The tenant a tools call may name: the settled one, only while every
+    // signal still agrees with it (never a header that disagrees with the token).
+    var toolsTid = function () {
+      var s = settledIdentity();
+      return s && settledTid !== null && (s.tid || 1) === settledTid ? settledTid : null;
+    };
+
+    // ── The school chip in the title bar (school.rs) ──────────────────────
+    // Name + logo of the signed-in school, and how many schools the person
+    // has (MIS GET /auth/my-schools, TENANT_SWITCHING_PLAN.md A.4). An MIS
+    // without it: the public GET /tenant/branding, one school (no switching).
+    // The logo is fetched here (MIS's origin) and handed over as a data URL.
+    var getJson = function (url, headers) {
+      return fetch(url, { headers: headers, credentials: "include" }).then(function (r) {
+        return r.ok ? r.json() : Promise.reject(r.status);
+      });
+    };
+    var logoData = function (url) {
+      if (!url || !/^https?:\/\//.test(String(url))) return Promise.resolve(null);
+      return fetch(String(url), { credentials: "omit" })
+        .then(function (r) { return r.ok ? r.blob() : null; })
+        .then(function (b) {
+          if (!b || b.size > 200000 || !/^image\/(png|jpeg|gif|webp|svg\+xml)$/.test(b.type)) return null;
+          return new Promise(function (resolve) {
+            var fr = new FileReader();
+            fr.onload = function () { resolve(typeof fr.result === "string" ? fr.result : null); };
+            fr.onerror = function () { resolve(null); };
+            fr.readAsDataURL(b);
+          });
+        })
+        .catch(function () { return null; });
+    };
+    var school = { key: "", at: 0 };
+    var SCHOOL_EVERY = 10 * 60 * 1000;
+    var reportSchool = function (force) {
+      var tid = toolsTid();
+      var s = tid && settledIdentity();
+      if (!s) return;
+      var key = tid + ":" + s.userId;
+      if (!force && school.key === key && Date.now() - school.at < SCHOOL_EVERY) return;
+      school.key = key;
+      school.at = Date.now();
+      var token = readToken();
+      var headers = { Accept: "application/json" };
+      if (token) headers.Authorization = "Bearer " + token;
+      getJson(__NGA_API__ + "/auth/my-schools", headers)
+        .then(function (j) {
+          var list = j && j.data && j.data.schools;
+          if (!Array.isArray(list)) throw new Error("no list");
+          var cur = list.filter(function (x) { return x && positiveInt(x.tid) === tid; })[0];
+          if (!cur) throw new Error("not listed");
+          return { name: str(cur.name), logoUrl: cur.logoUrl, count: list.length };
+        })
+        .catch(function () {
+          // Any refusal (401: the token is no longer valid; 404: an older MIS)
+          // only hides the switcher: never a sign-out from here (auth.rs
+          // follows MIS's own pages for that).
+          return getJson(__NGA_API__ + "/tenant/branding?tid=" + tid, { Accept: "application/json" }).then(function (j) {
+            var d = (j && j.data) || {};
+            if (positiveInt(d.tid) && positiveInt(d.tid) !== tid) throw new Error("other school");
+            return { name: str(d.school_name || d.name), logoUrl: d.logoUrl || d.logo_url, count: 1 };
+          });
+        })
+        .then(function (info) {
+          if (!info.name) throw new Error("no name");
+          return logoData(info.logoUrl).then(function (logo) {
+            if (toolsTid() !== tid) return null; // switched meanwhile: the next round reports
+            return invoke("web_school", { tid: tid, name: info.name, logo: logo, schools: info.count });
+          });
+        })
+        .catch(function () { school.at = Date.now() - SCHOOL_EVERY + 60 * 1000; /* again in a minute */ });
+    };
+
     reportIdentity();
-    setInterval(reportIdentity, 5000);
+    setInterval(function () {
+      reportIdentity();
+      reportSchool(false);
+    }, 5000);
 
     // ── NGA Tools → MIS API, with this page's own session (tools/api.rs) ──
     // Only /desktop/tools/… paths. Streams NDJSON answers back line by line
@@ -462,15 +619,27 @@
         if (!TOOL_PATH.test(path) || (method !== "GET" && method !== "POST") || (query != null && !/^[A-Za-z0-9=&_-]{0,100}$/.test(query))) { send("error", "refused"); return; }
         var ctrl = new AbortController();
         toolCalls[id] = ctrl;
-        var token = "";
-        try { token = localStorage.getItem("token") || ""; } catch (e) { /* storage blocked */ }
-        var headers = { Accept: "application/json, application/x-ndjson" };
-        if (token) headers.Authorization = "Bearer " + token;
-        // The school, when known (it must match the token's: MIS refuses a mismatch).
-        var tid = tenantId(null);
-        if (tid) headers["X-NGA-Tenant"] = String(tid);
-        if (body != null) headers["Content-Type"] = "application/json";
-        fetch(__NGA_API__ + path + (query ? "?" + query : ""), { method: method, headers: headers, body: body == null ? undefined : body, credentials: "include", signal: ctrl.signal })
+        // In the middle of a school switch, wait (up to 8 s) for the new
+        // identity to settle, so the tenant header and the token never disagree.
+        var settled = new Promise(function (resolve) {
+          var t0 = Date.now();
+          (function poll() {
+            if (settledTid === null || toolsTid() !== null || Date.now() - t0 > 8000 || ctrl.signal.aborted) return resolve();
+            setTimeout(poll, 250);
+          })();
+        });
+        settled
+          .then(function () {
+            var token = readToken();
+            var headers = { Accept: "application/json, application/x-ndjson" };
+            if (token) headers.Authorization = "Bearer " + token;
+            // The school: the settled identity's, else the token's own claim
+            // (MIS refuses a header that disagrees with the token).
+            var tid = toolsTid() || (settledTid === null ? tokenTid() : null);
+            if (tid) headers["X-NGA-Tenant"] = String(tid);
+            if (body != null) headers["Content-Type"] = "application/json";
+            return fetch(__NGA_API__ + path + (query ? "?" + query : ""), { method: method, headers: headers, body: body == null ? undefined : body, credentials: "include", signal: ctrl.signal });
+          })
           .then(function (res) {
             var type = res.headers.get("content-type") || "";
             if (res.ok && type.indexOf("ndjson") >= 0 && res.body && res.body.getReader) {

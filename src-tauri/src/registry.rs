@@ -248,6 +248,9 @@ pub fn apps_for(env: Env) -> Vec<AppDef> {
                 "/verify/",
                 "/download",
                 "/desktop/",
+                // MIS's school switch page (TENANT_SWITCHING_PLAN.md A.4): the
+                // session carries on through it, in one school or the other.
+                "/switch-school",
             ],
             focus_paths: &[],
             destinations: MIS_DESTINATIONS,

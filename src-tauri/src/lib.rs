@@ -12,6 +12,7 @@ mod notifications;
 mod os_notify;
 mod overlay;
 mod registry;
+mod school;
 mod tenancy;
 mod theme;
 mod tools;
@@ -85,6 +86,7 @@ pub fn run() {
         .manage(theme::SharedTheme::default())
         .manage(updates::Pending::default())
         .manage(tools::identity::Current::default())
+        .manage(school::Current::default())
         .manage(tools::timers::Timers::default())
         .invoke_handler(tauri::generate_handler![
             commands::shell_info,
@@ -134,6 +136,9 @@ pub fn run() {
             browser_signin::signin_reopen,
             tools::identity::web_identity,
             tools::identity::tools_identity,
+            school::web_school,
+            school::school_info,
+            school::school_switch_open,
             tools::vault::tools_vault_key,
             tools::timers::timers_list,
             tools::timers::timer_create,
@@ -258,6 +263,8 @@ fn grant_bridge<R: Runtime>(app: &mut App<R>) -> tauri::Result<()> {
         .permission("allow-web-fullscreen")
         // Who is signed in, for the tools (tools/identity.rs refuses every page but MIS's).
         .permission("allow-web-identity")
+        // The school chip (school.rs refuses every page but MIS's).
+        .permission("allow-web-school")
         // Answers to the tools' MIS API requests (tools/api.rs refuses every page but MIS's).
         .permission("allow-web-tools-api-event")
         // The /apps page's "Update now" (the commands refuse every page but MIS's).

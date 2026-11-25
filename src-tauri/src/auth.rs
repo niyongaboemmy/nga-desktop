@@ -16,8 +16,10 @@
 //!   SSO hop again (at most once a minute per app).
 //!
 //! Who is signed in (tenant + user) arrives separately, from the MIS page
-//! (tools/identity.rs). A different school or account than the last one seen
-//! wipes the shared profile first (tenancy.rs).
+//! (tools/identity.rs). Another person than the last one seen wipes the shared
+//! profile first (tenancy.rs); the same person in another of their schools
+//! (MIS "Switch school") is a school switch: the other apps close and sign in
+//! again into the new school, nothing is wiped (school.rs).
 
 use crate::registry::{self, AppDef};
 use crate::webviews::{self, Shell};
@@ -62,6 +64,12 @@ fn set_mis_state(state: Option<bool>) {
 
 pub fn was_signed_in(key: &str) -> bool {
     SIGNED_IN_APPS.lock().unwrap().contains(&key)
+}
+
+/// The spokes were closed for a school switch: none of them is signed in now
+/// (MIS stays as it was).
+pub fn forget_spokes() {
+    SIGNED_IN_APPS.lock().unwrap().retain(|k| *k == "mis");
 }
 
 /// Sign out of every NGA app: MIS signs out (which ends every app's session

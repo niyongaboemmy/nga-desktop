@@ -7,9 +7,12 @@
 //!
 //! The school (tenant id) comes with it, so a person is `<tid>:<userId>`
 //! (tenancy.rs). When someone else takes over this computer, the shared
-//! browsing profile is wiped before they carry on.
+//! browsing profile is wiped before they carry on. The same person (same
+//! e-mail) moving to another of their schools is a school switch instead:
+//! nothing is wiped, and the other apps sign in again into the new school
+//! (school.rs).
 
-use crate::tenancy::{self, Account};
+use crate::tenancy::{self, Account, Seen, Takeover};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, Runtime, Webview};
@@ -17,7 +20,8 @@ use tauri_plugin_store::StoreExt;
 
 const STORE_KEY: &str = "toolsIdentity";
 /// The last person seen signed in (kept across sign-out, cleared by a wipe), to
-/// tell when someone else takes over this computer.
+/// tell when someone else takes over this computer: a `tenancy::Seen` (account
+/// + e-mail; older versions stored the account alone).
 const LAST_ACCOUNT_KEY: &str = "lastAccount";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -123,7 +127,7 @@ pub fn account<R: Runtime>(app: &AppHandle<R>) -> Option<Account> {
     get(app).map(|i| i.account())
 }
 
-fn last_account<R: Runtime>(app: &AppHandle<R>) -> Option<Account> {
+fn last_seen<R: Runtime>(app: &AppHandle<R>) -> Option<Seen> {
     app.store("settings.json")
         .ok()
         .and_then(|s| s.get(LAST_ACCOUNT_KEY))
@@ -134,8 +138,37 @@ fn last_account<R: Runtime>(app: &AppHandle<R>) -> Option<Account> {
                 .ok()
                 .and_then(|s| s.get(STORE_KEY))
                 .and_then(|v| serde_json::from_value::<Identity>(v).ok())
-                .map(|i| i.account())
+                .map(|i| Seen::new(i.account(), None))
         })
+}
+
+fn remember_seen<R: Runtime>(app: &AppHandle<R>, seen: &Seen) {
+    if let Ok(store) = app.store("settings.json") {
+        store.set(
+            LAST_ACCOUNT_KEY,
+            serde_json::to_value(seen).unwrap_or_default(),
+        );
+    }
+}
+
+/// What a change of the signed-in account sets off on this computer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Effects {
+    /// Wipe the shared browsing profile (`commands::reset_local_profile`).
+    pub wipe_profile: bool,
+    /// Close the other apps and sign them in again into the new school (school.rs).
+    pub resign_spokes: bool,
+    /// The previous account signed out: its tool data may have to go (vault.rs).
+    pub vault_sign_out: bool,
+}
+
+pub fn effects(takeover: Takeover, account_changed: bool, had_previous: bool) -> Effects {
+    Effects {
+        wipe_profile: takeover == Takeover::OtherPerson,
+        resign_spokes: takeover == Takeover::SchoolSwitch,
+        // A school switch isn't a sign-out: the same person carries on.
+        vault_sign_out: account_changed && had_previous && takeover != Takeover::SchoolSwitch,
+    }
 }
 
 /// The browsing profile was wiped: nobody's data is left to protect.
@@ -145,41 +178,69 @@ pub fn forget_last_account<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-fn set<R: Runtime>(app: &AppHandle<R>, next: Option<Identity>) {
+/// `email`: the signed-in account's e-mail as MIS reported it (links one
+/// person's accounts across schools; None for a sign-out or an older MIS).
+fn set<R: Runtime>(app: &AppHandle<R>, next: Option<Identity>, email: Option<&str>) {
     let next_account = next.as_ref().map(Identity::account);
-    let last = next_account.and_then(|_| last_account(app));
+    let next_seen = next_account.map(|a| Seen::new(a, email));
+    let last = next_seen.as_ref().and_then(|_| last_seen(app));
     let prev_account = {
         let state = app.state::<Current>();
         let mut cur = state.0.lock().unwrap();
         if *cur == next {
+            drop(cur);
+            // Same person as before: just learn their e-mail (first report
+            // after an upgrade), so a later school switch is recognised.
+            if let Some(seen) = next_seen.filter(|s| s.email.is_some() && last.as_ref() != Some(s))
+            {
+                remember_seen(app, &seen);
+            }
             return;
         }
         let prev = cur.as_ref().map(Identity::account);
         *cur = next.clone();
         prev
     };
-    if prev_account != next_account {
+    let takeover = tenancy::takeover(last.as_ref(), next_seen.as_ref());
+    let todo = effects(
+        takeover,
+        prev_account != next_account,
+        prev_account.is_some(),
+    );
+    if todo.vault_sign_out {
         // Someone signed out (or another person signed in): on a shared
         // computer, their tool data may have to go (vault.rs).
         if let Some(prev) = prev_account {
             super::vault::on_sign_out(app, prev);
         }
-        // Each person sees only their own inbox (notifications.rs).
+    }
+    if prev_account != next_account {
+        // Each person sees only their own inbox (notifications.rs): on a
+        // school switch too (`<tid>:<userId>` changes with the school).
         crate::notifications::switch_account(app, next_account);
     }
+    // The school chip shows the new school once MIS reports it.
+    crate::school::identity_changed(app, next_account);
     if let Ok(store) = app.store("settings.json") {
         match &next {
             Some(id) => {
                 store.set(STORE_KEY, serde_json::to_value(id).unwrap_or_default());
-                store.set(
-                    LAST_ACCOUNT_KEY,
-                    serde_json::to_value(id.account()).unwrap_or_default(),
-                );
             }
             None => {
                 store.delete(STORE_KEY);
             }
         }
+    }
+    if let Some(seen) = &next_seen {
+        // Keep the e-mail we knew if this report has none (older MIS page).
+        let mut seen = seen.clone();
+        if seen.email.is_none() {
+            seen.email = last
+                .as_ref()
+                .filter(|l| l.account == seen.account)
+                .and_then(|l| l.email.clone());
+        }
+        remember_seen(app, &seen);
     }
     log::info!(
         "tools identity: {}",
@@ -188,7 +249,13 @@ fn set<R: Runtime>(app: &AppHandle<R>, next: Option<Identity>) {
             .unwrap_or_else(|| "none".into())
     );
     super::emit_shell(app, "nga://identity", next);
-    if tenancy::needs_profile_reset(last, next_account) {
+    if todo.resign_spokes {
+        // The same person in another of their schools: keep the profile and
+        // sign the other apps in again, into the new school (school.rs).
+        log::info!("school switch (same person): signing the other apps in again");
+        crate::school::on_switch(app);
+    }
+    if todo.wipe_profile {
         // Another school or another person took over without "Sign out of
         // this computer": wipe the shared profile (cookies, storage, caches of
         // every app) so nothing of the previous one reaches them. They sign in
@@ -209,11 +276,12 @@ fn set<R: Runtime>(app: &AppHandle<R>, next: Option<Identity>) {
 
 /// MIS signed out (or "Sign out of this computer"): forget who it was.
 pub fn clear<R: Runtime>(app: &AppHandle<R>) {
-    set(app, None);
+    set(app, None, None);
 }
 
 /// From the MIS page only (bridge.js). Any other page is refused.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // one argument per field the MIS page reports
 pub fn web_identity<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -222,6 +290,7 @@ pub fn web_identity<R: Runtime>(
     user_type: String,
     first_name: Option<String>,
     date_of_birth: Option<String>,
+    email: Option<String>,
 ) -> Result<(), String> {
     let shell = app.state::<crate::webviews::Shell>();
     let mis = crate::registry::identity_provider(&shell.apps).key;
@@ -242,7 +311,7 @@ pub fn web_identity<R: Runtime>(
             .map(str::to_string),
     };
     crate::autostart::apply_default(&app, &id.persona);
-    set(&app, Some(id));
+    set(&app, Some(id), email.as_deref());
     Ok(())
 }
 
@@ -284,6 +353,46 @@ mod tests {
         assert_eq!(age_band("not-a-date", today), None);
         assert_eq!(age_band("2030-01-01", today), None);
         assert_eq!(age_band("2010-13-01", today), None);
+    }
+
+    #[test]
+    fn a_school_switch_never_wipes_the_profile() {
+        let switch = effects(Takeover::SchoolSwitch, true, true);
+        assert!(
+            !switch.wipe_profile,
+            "a switch must not call reset_local_profile"
+        );
+        assert!(switch.resign_spokes);
+        assert!(!switch.vault_sign_out);
+
+        let other = effects(Takeover::OtherPerson, true, true);
+        assert!(other.wipe_profile);
+        assert!(!other.resign_spokes);
+        assert!(other.vault_sign_out);
+
+        // Sign-out: the vault may forget the person's tools data, nothing else.
+        assert_eq!(
+            effects(Takeover::None, true, true),
+            Effects {
+                vault_sign_out: true,
+                ..Effects::default()
+            }
+        );
+        // First sign-in: nothing.
+        assert_eq!(effects(Takeover::None, true, false), Effects::default());
+    }
+
+    #[test]
+    fn switch_decision_end_to_end() {
+        // Last seen: the person in school 1; now MIS reports school 2, same e-mail.
+        let last = Seen::new(Account::new(Some(1), 7), Some("t@nga.rw"));
+        let next = Seen::new(Account::new(Some(2), 31), Some("T@nga.rw"));
+        let todo = effects(tenancy::takeover(Some(&last), Some(&next)), true, true);
+        assert!(!todo.wipe_profile && todo.resign_spokes);
+        // Someone else in school 2.
+        let stranger = Seen::new(Account::new(Some(2), 31), Some("x@nga.rw"));
+        let todo = effects(tenancy::takeover(Some(&last), Some(&stranger)), true, true);
+        assert!(todo.wipe_profile && !todo.resign_spokes);
     }
 
     #[test]

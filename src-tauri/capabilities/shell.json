@@ -58,6 +58,8 @@
     "allow-autostart-set",
     "allow-shell-set-lang",
     "allow-tools-identity",
+    "allow-school-info",
+    "allow-school-switch-open",
     "allow-tools-vault-key",
     "allow-timers-list",
     "allow-timer-create",
