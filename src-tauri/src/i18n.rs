@@ -220,6 +220,13 @@ const STRINGS: &[(&str, &str, &str, &str)] = &[
         "École changée : les autres applications se reconnectent.",
         "Ishuri ryahinduwe: izindi porogaramu ziri kongera kwinjira.",
     ),
+    // A banner of a private app where banners can't be withdrawn (os_notify.rs)
+    (
+        "notice.private",
+        "New message",
+        "Nouveau message",
+        "Ubutumwa bushya",
+    ),
     // Timer alerts
     ("timer.timer", "Timer", "Minuteur", "Igihe"),
     ("timer.focus", "Focus", "Concentration", "Kwibanda"),

@@ -85,7 +85,7 @@
       self.dispatchEvent(ev);
     };
     this._fire = fire;
-    invoke("web_notify", { id: this._id, title: this.title, body: this.body, tag: this.tag, silent: this.silent })
+    invoke("web_notify", { id: this._id, title: this.title, body: this.body, tag: this.tag, silent: this.silent, school: schoolTid() })
       .then(function () { fire("show"); })
       .catch(function () { delete live[self._id]; fire("error"); });
   }
@@ -437,7 +437,11 @@
     // ── Who is signed in, for NGA Tools (tools/identity.rs) ──────────────
     // From MIS's own cached profile: id, user type, first name, date of birth
     // and e-mail. Never the token. Rust turns the date into an age band and
-    // refuses this call from any other page. The e-mail links one person's
+    // refuses this call from any other page (and while MIS is signed out).
+    //
+    // Only while MIS holds a session token that is still valid by its own
+    // `exp` and names the same person (DK-ISO-1): a signed-out page (token
+    // gone, or expired) reports nobody, even if a profile copy is left behind. The e-mail links one person's
     // accounts across schools: a new school with the same e-mail is a school
     // switch (nothing is wiped), not another person.
     //
@@ -454,14 +458,30 @@
     var readToken = function () {
       try { return localStorage.getItem("token") || ""; } catch (e) { return ""; }
     };
-    var tokenTid = function () {
+    var tokenClaims = function () {
       try {
         var part = readToken().split(".")[1];
         if (!part) return null;
         var b = part.replace(/-/g, "+").replace(/_/g, "/");
         while (b.length % 4) b += "=";
-        return positiveInt((JSON.parse(atob(b)) || {}).tid);
+        var c = JSON.parse(atob(b));
+        return c && typeof c === "object" ? c : null;
       } catch (e) { return null; }
+    };
+    var tokenTid = function () {
+      var c = tokenClaims();
+      return c ? positiveInt(c.tid) : null;
+    };
+    // The session token's claims while it is still valid by its own clock and
+    // names a person; else null (no token, expired, malformed). Read, not
+    // trusted: MIS checks the token; this only stops a signed-out page from
+    // reporting whoever used it last.
+    var liveToken = function () {
+      var c = tokenClaims();
+      if (!c) return null;
+      var exp = Number(c.exp);
+      if (!isFinite(exp) || exp * 1000 <= Date.now()) return null;
+      return positiveInt(c.userId) ? c : null;
     };
     // MIS's record of who is signed in here: "<tid>:<userId>" (frontend lib/tenant.ts).
     var misIdentity = function () {
@@ -472,21 +492,35 @@
     };
     // The offline copy of the profile: per school + person since MIS
     // multi-tenancy (`nga.user.offlineCache.t<tid>.u<userId>`), one key before.
-    var cachedProfile = function (id) {
+    // The old single key is read only by an older MIS (no `nga.identity`), and
+    // only when it is the token's own person: it is not scoped to anyone.
+    var cachedProfile = function (id, tokenUser) {
       try {
-        var raw = id ? localStorage.getItem("nga.user.offlineCache.t" + id.tid + ".u" + id.userId) : null;
-        if (!raw) raw = localStorage.getItem("nga.user.offlineCache");
-        return raw ? JSON.parse(raw) || null : null;
+        if (id) {
+          var scoped = localStorage.getItem("nga.user.offlineCache.t" + id.tid + ".u" + id.userId);
+          return scoped ? JSON.parse(scoped) || null : null;
+        }
+        var raw = localStorage.getItem("nga.user.offlineCache");
+        var c = raw ? JSON.parse(raw) || null : null;
+        return c && c.user && positiveInt(c.user.user_id) === tokenUser ? c : null;
       } catch (e) { return null; }
     };
+    var validEmail = function (v) {
+      var e = str(v).trim();
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : "";
+    };
     var settledIdentity = function () {
+      var claims = liveToken();
+      if (!claims) return null;
+      var tokenUser = positiveInt(claims.userId);
       var id = misIdentity();
-      var c = cachedProfile(id);
+      if (id && id.userId !== tokenUser) return null;
+      var c = cachedProfile(id, tokenUser);
       if (!c) return null;
       var u = c.user || {};
       var p = c.profile || {};
       var userId = positiveInt(u.user_id);
-      if (!userId || (id && id.userId !== userId)) return null;
+      if (!userId || userId !== tokenUser) return null;
       var cookie = schoolCookie();
       var known = [
         cookie && cookie.tid,
@@ -495,7 +529,9 @@
         tokenTid(),
       ].filter(Boolean);
       for (var i = 1; i < known.length; i++) if (known[i] !== known[0]) return null;
-      var email = str(u.email || p.email).trim();
+      // The e-mail: the token's own claim when MIS puts one there (DK-ISO-6),
+      // else the cached profile's.
+      var email = validEmail(claims.email) || str(u.email || p.email).trim();
       return {
         userId: userId,
         tid: known.length ? known[0] : null,
@@ -509,16 +545,29 @@
     // The school Rust has accepted for this page's identity (null until then,
     // and again while a new one is on its way).
     var settledTid = null;
+    // A school switch signal for Rust (DK-ISO-2): the `nga_school` cookie went
+    // from one school to another while this page stayed signed in.
+    var cookieSchool = null;
+    var cookieSwitched = false;
+    var watchSchoolCookie = function () {
+      var tid = schoolTid();
+      if (!liveToken()) { cookieSchool = null; cookieSwitched = false; return; }
+      if (tid && cookieSchool && tid !== cookieSchool) cookieSwitched = true;
+      if (tid) cookieSchool = tid;
+    };
     var reportIdentity = function () {
+      watchSchoolCookie();
       var args = settledIdentity();
-      if (!args) return;
+      if (!args) { lastIdentity = ""; return; }
       var key = JSON.stringify(args);
       if (key === lastIdentity) return;
       var prev = lastIdentity ? JSON.parse(lastIdentity) : null;
       lastIdentity = key;
       if (!prev || prev.tid !== args.tid || prev.userId !== args.userId) settledTid = null;
-      invoke("web_identity", args)
+      var switched = cookieSwitched;
+      invoke("web_identity", Object.assign({}, args, { switched: switched }))
         .then(function () {
+          if (switched) cookieSwitched = false;
           settledTid = args.tid || 1;
           reportSchool(true);
         })

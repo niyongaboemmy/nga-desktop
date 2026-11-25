@@ -171,6 +171,8 @@ pub fn reset_local_profile<R: Runtime>(app: &AppHandle<R>) -> CmdResult {
     app.state::<crate::notifications::Notifier>().clear();
     crate::notifications::forget(app, None);
     crate::notifications::publish(app);
+    // Nothing of anyone stays in the OS notification list either (DK-ISO-3).
+    crate::os_notify::withdraw_all();
     let _ = app.emit_to(SHELL, "nga://signed-out", ());
     Ok(())
 }
