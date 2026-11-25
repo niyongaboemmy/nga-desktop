@@ -16,7 +16,9 @@
 //! switch*: nothing is wiped (the profile is theirs either way, and the stores
 //! are keyed by school); the other apps just sign in again into the new school.
 //! A person's accounts in different schools are linked by their e-mail, as
-//! MIS's `/auth/my-schools` does.
+//! MIS's `/auth/my-schools` does, but only while they stay signed in and right
+//! after a switch signal (`takeover_with`, DK-ISO-2): two people can share an
+//! address, so the same e-mail after a sign-out is someone else.
 
 use serde::{Deserialize, Serialize};
 
@@ -149,6 +151,41 @@ pub fn takeover(last: Option<&Seen>, next: Option<&Seen>) -> Takeover {
     }
 }
 
+/// How long after a switch signal a new school still counts as the same
+/// person switching (DK-ISO-2). MIS's switch page asks for nothing but a
+/// click (or a password at most), so two minutes is plenty.
+pub const SWITCH_WINDOW_SECS: u64 = 120;
+
+/// What has to be true, besides the same e-mail, for a change of school to be
+/// a school switch rather than someone else (DK-ISO-2). Two people can share an
+/// e-mail address (a family address, a reused one), so the e-mail alone never
+/// proves anything across a sign-out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SwitchEvidence {
+    /// The previous account was still signed in right up to this change: no
+    /// signed-out state (MIS sign-in page, sign-out in a spoke, restart while
+    /// signed out) in between.
+    pub prev_signed_in: bool,
+    /// A switch signal came within `SWITCH_WINDOW_SECS`: the `nga_school`
+    /// cookie changed while MIS stayed signed in, or MIS's `/switch-school`
+    /// page was open.
+    pub recent_signal: bool,
+}
+
+/// `takeover`, downgraded to `OtherPerson` unless the evidence shows the same
+/// person switching school without signing out in between.
+pub fn takeover_with(last: Option<&Seen>, next: Option<&Seen>, ev: SwitchEvidence) -> Takeover {
+    match takeover(last, next) {
+        Takeover::SchoolSwitch if !(ev.prev_signed_in && ev.recent_signal) => Takeover::OtherPerson,
+        t => t,
+    }
+}
+
+/// Is a switch signal seen `since_signal` ago still recent enough?
+pub fn signal_is_recent(since_signal: Option<std::time::Duration>) -> bool {
+    since_signal.is_some_and(|d| d.as_secs() < SWITCH_WINDOW_SECS)
+}
+
 /// Must the shared browsing profile be wiped before `next` carries on?
 /// Only when someone else takes over after `last`; signing out alone keeps it
 /// (an expired session comes back as the same person, with its offline data
@@ -269,6 +306,68 @@ mod tests {
         assert_eq!(t(me.clone(), me.clone()), Takeover::None);
         assert_eq!(takeover(None, Some(&me)), Takeover::None);
         assert_eq!(takeover(Some(&me), None), Takeover::None);
+    }
+
+    #[test]
+    fn dk_iso_2_same_email_after_a_sign_out_is_someone_else() {
+        let x = seen(1, 7, Some("family@home.rw"));
+        let y = seen(2, 31, Some("family@home.rw"));
+        // X signed out (identity cleared), then Y signs in with the same e-mail.
+        let after_sign_out = SwitchEvidence {
+            prev_signed_in: false,
+            recent_signal: true,
+        };
+        assert_eq!(
+            takeover_with(Some(&x), Some(&y), after_sign_out),
+            Takeover::OtherPerson
+        );
+        // Still signed in, but no switch signal (no /switch-school, no cookie change).
+        let no_signal = SwitchEvidence {
+            prev_signed_in: true,
+            recent_signal: false,
+        };
+        assert_eq!(
+            takeover_with(Some(&x), Some(&y), no_signal),
+            Takeover::OtherPerson
+        );
+        assert_eq!(
+            takeover_with(Some(&x), Some(&y), SwitchEvidence::default()),
+            Takeover::OtherPerson
+        );
+    }
+
+    #[test]
+    fn dk_iso_2_switch_without_sign_out_stays_a_switch() {
+        let x = seen(1, 7, Some("teacher@school.rw"));
+        let y = seen(2, 31, Some("teacher@school.rw"));
+        let ev = SwitchEvidence {
+            prev_signed_in: true,
+            recent_signal: true,
+        };
+        assert_eq!(
+            takeover_with(Some(&x), Some(&y), ev),
+            Takeover::SchoolSwitch
+        );
+        // Evidence never turns someone else into a switch.
+        let z = seen(2, 31, Some("other@school.rw"));
+        assert_eq!(takeover_with(Some(&x), Some(&z), ev), Takeover::OtherPerson);
+        // Nor a sign-out or a first sign-in into a takeover.
+        assert_eq!(takeover_with(Some(&x), None, ev), Takeover::None);
+        assert_eq!(takeover_with(None, Some(&y), ev), Takeover::None);
+    }
+
+    #[test]
+    fn dk_iso_2_switch_signals_expire() {
+        use std::time::Duration;
+        assert!(!signal_is_recent(None));
+        assert!(signal_is_recent(Some(Duration::from_secs(0))));
+        assert!(signal_is_recent(Some(Duration::from_secs(
+            SWITCH_WINDOW_SECS - 1
+        ))));
+        assert!(!signal_is_recent(Some(Duration::from_secs(
+            SWITCH_WINDOW_SECS
+        ))));
+        assert!(!signal_is_recent(Some(Duration::from_secs(3600))));
     }
 
     #[test]

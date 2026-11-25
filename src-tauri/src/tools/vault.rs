@@ -11,7 +11,12 @@
 //!   would ask for a password after every update of an ad-hoc signed app.
 //!
 //! On shared computers, Settings → Account → "Remove my data when I sign out"
-//! deletes the person's tool file and key when they sign out (`on_sign_out`).
+//! deletes the person's tool file and key when they sign out. It stays off by
+//! default (a personal computer keeps notes across sign-ins), so after a plain
+//! sign-out the files and the key stay on disk, still encrypted. When ANOTHER
+//! person signs in (a wipe of the browsing profile, tools/identity.rs
+//! `tools_to_remove`, DK-ISO-5), the previous person's tool files and key are
+//! removed whatever the setting says. Key storage itself is unchanged.
 
 use crate::tenancy::Account;
 use base64::Engine;
@@ -78,7 +83,7 @@ fn write_private(path: &PathBuf, bytes: &[u8]) -> Result<(), String> {
 /// For the signed-in person only: the key their tool data is encrypted with.
 #[tauri::command]
 pub fn tools_vault_key<R: Runtime>(app: AppHandle<R>, user_id: u64) -> Result<String, String> {
-    let current = super::identity::get(&app).ok_or("nobody is signed in")?;
+    let current = super::identity::for_tools(&app).ok_or("nobody is signed in")?;
     if current.user_id != user_id {
         return Err("not the signed-in person".into());
     }
@@ -108,14 +113,9 @@ pub fn wipe<R: Runtime>(app: &AppHandle<R>, account: &Account) {
     if let Ok(p) = key_path(app, account) {
         let _ = std::fs::remove_file(p);
     }
-    log::info!("tools: removed a person's tool data (sign-out on a shared computer)");
-}
-
-/// Identity went from `prev` to someone else or nobody: wipe `prev`'s data if asked.
-pub fn on_sign_out<R: Runtime>(app: &AppHandle<R>, prev: Account) {
-    if wipe_enabled(app) {
-        wipe(app, &prev);
-    }
+    log::info!(
+        "tools: removed a person's tool data (sign-out on a shared computer, or another person)"
+    );
 }
 
 #[cfg(windows)]

@@ -85,11 +85,7 @@ pub async fn sign_out_everywhere<R: Runtime>(app: AppHandle<R>, wipe: bool) {
     let account = crate::tools::identity::account(&app);
     let mis_key = registry::identity_provider(&app.state::<Shell>().apps).key;
     if let Some(mis) = app.get_webview(&webviews::label(mis_key)) {
-        let js = format!(
-            "(function(){{var go=function(){{try{{localStorage.removeItem('token')}}catch(e){{}}location.replace('/login')}};try{{var t=localStorage.getItem('token');if(t){{fetch('{api}/auth/logout',{{method:'POST',credentials:'include',keepalive:true,headers:{{Authorization:'Bearer '+t}}}}).catch(function(){{}}).then(go);setTimeout(go,1200);return}}}}catch(e){{}}go()}})();",
-            api = registry::mis_api_base()
-        );
-        let _ = mis.eval(js);
+        let _ = mis.eval(sign_out_js(registry::mis_api_base()));
     }
     tokio::time::sleep(Duration::from_millis(1500)).await;
     webviews::close_spokes(&app);
@@ -99,6 +95,8 @@ pub async fn sign_out_everywhere<R: Runtime>(app: AppHandle<R>, wipe: bool) {
     let _ = app.emit_to(webviews::SHELL, "nga://auth", false);
     crate::tools::identity::clear(&app);
     crate::tools::windows::close_all(&app);
+    // Even when nobody was known: no banner of anyone outlives a sign-out (DK-ISO-3).
+    crate::os_notify::withdraw_all();
     if wipe {
         if let Some(shell) = app.get_webview(webviews::SHELL) {
             let _ = shell.clear_all_browsing_data();
@@ -118,6 +116,25 @@ pub async fn sign_out_everywhere<R: Runtime>(app: AppHandle<R>, wipe: bool) {
     SIGNING_OUT.store(false, Ordering::SeqCst);
     let _ = app.emit_to(webviews::SHELL, "nga://signout", "done");
 }
+/// What MIS's page runs to sign out (MIS's origin, so the shell never reads the
+/// token): `POST /auth/logout`, then forget everything the page keeps about
+/// who was signed in (DK-ISO-1): the token, MIS's `nga.identity`, every
+/// `nga.user.offlineCache*` profile copy and `nga.schoolChoice`. Otherwise a
+/// signed-out MIS page still holds the previous person's profile.
+pub fn sign_out_js(api: &str) -> String {
+    format!(
+        "(function(){{var forget=function(){{try{{var ls=localStorage;ls.removeItem('token');ls.removeItem('nga.identity');ls.removeItem('nga.schoolChoice');for(var i=ls.length-1;i>=0;i--){{var k=ls.key(i);if(k&&k.indexOf('nga.user.offlineCache')===0)ls.removeItem(k)}}}}catch(e){{}}}};var go=function(){{forget();location.replace('/login')}};try{{var t=localStorage.getItem('token');if(t){{fetch('{api}/auth/logout',{{method:'POST',credentials:'include',keepalive:true,headers:{{Authorization:'Bearer '+t}}}}).catch(function(){{}}).then(go);setTimeout(go,1200);return}}}}catch(e){{}}go()}})();"
+    )
+}
+
+/// Is `url` MIS's school switch page (a switch signal, DK-ISO-2)?
+pub fn is_switch_page(mis: &AppDef, url: &Url) -> bool {
+    mis.owns(url)
+        && url
+            .path()
+            .starts_with(&format!("{}/switch-school", mis.base))
+}
+
 const RESSO_EVERY: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -268,6 +285,10 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
             continue;
         };
         let page = classify(def, &url);
+        if def.sso.is_none() && watch.mis == Some(true) && is_switch_page(def, &url) {
+            // MIS's switch page, while signed in: a school switch may follow.
+            crate::tools::identity::note_switch_signal();
+        }
         {
             let mut list = SIGNED_IN_APPS.lock().unwrap();
             let present = list.contains(&def.key);
@@ -375,6 +396,11 @@ fn tick<R: Runtime>(app: &AppHandle<R>, watch: &mut Watch) {
                 crate::tools::identity::clear(app);
                 crate::tools::windows::close_all(app);
                 return;
+            }
+            None if next == Some(false) => {
+                // Signed out from the start (NGA opened on MIS's sign-in page)
+                // or already: nobody's identity may linger (DK-ISO-1).
+                crate::tools::identity::clear(app);
             }
             None => {}
         }
@@ -591,6 +617,37 @@ mod tests {
         let (s, change) = mis_change(Some(true), Page::SignedOut);
         assert_eq!(change, Some(MisChange::SignedOut));
         assert_eq!(mis_change(s, Page::SignedIn).1, Some(MisChange::SignedIn));
+    }
+
+    #[test]
+    fn dk_iso_1_sign_out_forgets_every_identity_key_in_the_mis_page() {
+        let js = sign_out_js("https://api.amashuri.com");
+        for key in ["'token'", "'nga.identity'", "'nga.schoolChoice'"] {
+            assert!(
+                js.contains(&format!("removeItem({key})")),
+                "sign-out must remove {key}"
+            );
+        }
+        // Every per-school profile copy and the legacy single key.
+        assert!(js.contains("indexOf('nga.user.offlineCache')===0"));
+        assert!(js.contains("https://api.amashuri.com/auth/logout"));
+        // Forgotten before MIS's sign-in page loads, on both paths.
+        assert!(js.contains("var go=function(){forget();location.replace('/login')}"));
+    }
+
+    #[test]
+    fn dk_iso_2_switch_page_is_a_switch_signal() {
+        let apps = registry::apps_for(registry::Env::Production);
+        let mis = registry::find(&apps, "mis").unwrap();
+        assert!(is_switch_page(
+            mis,
+            &u("https://mis.amashuri.com/switch-school?return=x")
+        ));
+        assert!(!is_switch_page(mis, &u("https://mis.amashuri.com/home")));
+        assert!(!is_switch_page(
+            mis,
+            &u("https://evil.example/switch-school")
+        ));
     }
 
     #[test]

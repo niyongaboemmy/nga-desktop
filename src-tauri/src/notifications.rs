@@ -195,6 +195,18 @@ pub enum Route {
     Quiet,
 }
 
+/// DK-ISO-4: may a notice from a page in school `school` (the `nga_school`
+/// cookie the page saw when it raised it) go into the inbox of `scope`
+/// (`<tid>:<userId>`)? Not when the schools differ: a page of the previous
+/// school, still open for a moment around a switch. Unknown either way (an
+/// MIS without the cookie, nobody signed in): accepted, as before.
+pub fn notice_fits_inbox(scope: Option<&str>, school: Option<u64>) -> bool {
+    match (scope.and_then(crate::tenancy::parse_scope), school) {
+        (Some(owner), Some(tid)) => owner.tid == tid,
+        _ => true,
+    }
+}
+
 pub fn route(window_focused: bool, source_is_active: bool, quiet: bool) -> Route {
     if window_focused && source_is_active {
         Route::Seen
@@ -609,6 +621,7 @@ pub fn on_focus<R: Runtime>(app: &AppHandle<R>) {
 // ── Commands for the app webviews (granted to remote NGA origins only) ──────
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // one argument per Notification field, plus its page's school
 pub fn web_notify<R: Runtime>(
     app: AppHandle<R>,
     webview: Webview<R>,
@@ -617,8 +630,13 @@ pub fn web_notify<R: Runtime>(
     body: Option<String>,
     tag: Option<String>,
     silent: Option<bool>,
+    school: Option<u64>,
 ) -> Result<(), String> {
     let key = source_app(&app, &webview).ok_or("not an NGA app")?;
+    if !notice_fits_inbox(app.state::<Notifier>().scope().as_deref(), school) {
+        log::info!("[{key}] notification from another school's page dropped");
+        return Err("another school".into());
+    }
     if !valid_web_id(&id) {
         return Err("bad id".into());
     }
@@ -990,6 +1008,20 @@ mod tests {
         b.insert("3:9".into(), vec![stored(4, now - 30 * day)]);
         put_bucket(&mut b, "1:7", vec![], now);
         assert_eq!(b.keys().collect::<Vec<_>>(), vec!["2:7"]);
+    }
+
+    #[test]
+    fn dk_iso_4_notices_from_another_schools_page_are_dropped() {
+        assert!(notice_fits_inbox(Some("2:31"), Some(2)));
+        assert!(
+            !notice_fits_inbox(Some("2:31"), Some(1)),
+            "old school's page"
+        );
+        assert!(!notice_fits_inbox(Some("1:7"), Some(2)));
+        // Unknown school or nobody signed in: as before.
+        assert!(notice_fits_inbox(Some("2:31"), None));
+        assert!(notice_fits_inbox(None, Some(2)));
+        assert!(notice_fits_inbox(None, None));
     }
 
     #[test]

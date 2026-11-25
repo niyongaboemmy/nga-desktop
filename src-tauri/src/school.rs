@@ -8,9 +8,11 @@
 //!   MIS `GET /auth/my-schools`, or the public `GET /tenant/branding` on an MIS
 //!   without it). Clicking it opens `<MIS>/switch-school?return=<MIS page>` in
 //!   the MIS tab;
-//! - after a **school switch** (tools/identity.rs: same e-mail, new tid), closes
-//!   the other apps, forgets their SSO handshakes, and re-opens the ones that
-//!   were open, so their SSO lands in the new school. Nothing is wiped.
+//! - after a **school switch** (tools/identity.rs: same e-mail, new tid, still
+//!   signed in, right after a switch signal), closes the other apps and forgets
+//!   their SSO handshakes before the inbox swaps (`begin_switch`), then
+//!   re-opens the ones that were open, so their SSO lands in the new school
+//!   (`finish_switch`). Nothing is wiped.
 
 use crate::auth::{self, Page};
 use crate::registry::{self, AppDef};
@@ -115,11 +117,34 @@ pub fn identity_changed<R: Runtime>(app: &AppHandle<R>, next: Option<Account>) {
     }
 }
 
-/// After a school switch: close the other apps, forget their SSO handshakes
-/// (the old school's, and any earlier one of the new school: their pages may
-/// hold another school's token), then re-open the ones that were open. Their
-/// first load is MIS's SSO hop, which follows MIS into the new school.
-pub fn on_switch<R: Runtime>(app: &AppHandle<R>) {
+/// What to re-open after a school switch (see `reopen_plan`).
+pub type ReopenPlan = Vec<(&'static str, bool)>;
+
+/// A school switch, first half (called BEFORE the inbox swaps to the new
+/// school, DK-ISO-4): note which spokes are open, then close them and forget
+/// their SSO handshakes (the old school's, and any earlier one of the new
+/// school: their pages may hold another school's token). Nothing the old
+/// school's pages raise can reach the new school's inbox after this.
+pub fn begin_switch<R: Runtime>(app: &AppHandle<R>) -> ReopenPlan {
+    let shell = app.state::<Shell>();
+    let open: Vec<&'static str> = shell
+        .apps
+        .iter()
+        .filter(|a| a.sso.is_some() && app.get_webview(&webviews::label(a.key)).is_some())
+        .map(|a| a.key)
+        .collect();
+    let plan = reopen_plan(&open, shell.active().as_deref());
+    webviews::close_spokes(app);
+    webviews::forget_sso(app);
+    auth::forget_spokes();
+    // A notice raised by the old school's pages must not open them again.
+    crate::tools::windows::close_all(app);
+    plan
+}
+
+/// A school switch, second half: re-open the apps that were open. Their first
+/// load is MIS's SSO hop, which follows MIS into the new school.
+pub fn finish_switch<R: Runtime>(app: &AppHandle<R>, plan: ReopenPlan) {
     let intended = INTENT
         .lock()
         .unwrap()
@@ -133,14 +158,6 @@ pub fn on_switch<R: Runtime>(app: &AppHandle<R>) {
             "made in MIS"
         }
     );
-    let shell = app.state::<Shell>();
-    let open: Vec<&'static str> = shell
-        .apps
-        .iter()
-        .filter(|a| a.sso.is_some() && app.get_webview(&webviews::label(a.key)).is_some())
-        .map(|a| a.key)
-        .collect();
-    let plan = reopen_plan(&open, shell.active().as_deref());
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
         let _ = handle.emit_to(
@@ -148,11 +165,6 @@ pub fn on_switch<R: Runtime>(app: &AppHandle<R>) {
             "nga://toast",
             crate::i18n::t("toast.schoolSwitched").to_string(),
         );
-        webviews::close_spokes(&handle);
-        webviews::forget_sso(&handle);
-        auth::forget_spokes();
-        // A notice raised by the old school's pages must not open them again.
-        crate::tools::windows::close_all(&handle);
         tokio::time::sleep(Duration::from_millis(600)).await;
         for (key, focus) in plan {
             let h = handle.clone();
@@ -228,6 +240,7 @@ pub fn school_switch_open<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
         .and_then(|wv| webviews::page_url(&wv));
     let url = switch_url(&mis, current.as_ref()).ok_or("bad MIS address")?;
     *INTENT.lock().unwrap() = Some(Instant::now());
+    crate::tools::identity::note_switch_signal();
     log::info!("opening MIS's switch-school page");
     webviews::open_app(&app, mis.key, Some(url)).map_err(|e| e.to_string())
 }

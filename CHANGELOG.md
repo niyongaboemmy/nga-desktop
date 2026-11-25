@@ -4,6 +4,15 @@ All notable changes to NGA Desktop. Web app changes ship with the web apps, not 
 
 ## Unreleased
 
+School isolation fixes from the 2026-11-25 cross-school audit (release as 0.20.1):
+
+- **Signed out means signed out (DK-ISO-1):** after a sign-out made in any app, NGA Tools no longer show the previous person's data. NGA reports who is signed in only while NGA MIS holds a valid, unexpired session for that same person, ignores MIS while it is signed out, and signing out now also removes MIS's saved profile copies from this computer.
+- **A shared e-mail address is not the same person (DK-ISO-2):** a new school with the same e-mail counts as a school switch only when nobody signed out in between and the switch came from MIS's Switch school page (or the school cookie changing while signed in). Otherwise NGA clears this computer for the new person.
+- **Notifications leave with the person (DK-ISO-3):** on macOS, banners already in Notification Center are removed on sign-out, when another person signs in and when switching school. Windows can't remove delivered toasts yet, so Tupo banners there show "New message" without the message text.
+- **No notice crosses a school switch (DK-ISO-4):** the other apps close before the inbox moves to the new school, and a notice from a page of another school is dropped.
+- **Tool data goes with a wipe (DK-ISO-5):** when another person signs in, the previous person's NGA Tools files and key are deleted from this computer. "Remove my data when I sign out" stays off by default; with it off, a plain sign-out keeps the (encrypted) tool data for the next sign-in of the same person.
+- The e-mail used to recognise a school switch comes from the session token when MIS includes it there (DK-ISO-6).
+
 ## 0.20.0 — 2026-11-25
 
 - **One person, several schools:** switching school in NGA MIS no longer signs you out of NGA or clears this computer. Task Mentor, Tendo and Tupo sign in again into the new school by themselves, and the notifications inbox shows that school's notices.

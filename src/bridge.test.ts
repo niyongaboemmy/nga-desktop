@@ -50,7 +50,10 @@ function boot(
 }
 
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
-const token = (tid?: number) => `h.${b64(tid ? { userId: 7, tid } : { userId: 7 })}.s`;
+// A session token valid for an hour (MIS signs `userId`, `tid` and `exp`).
+const EXP = Math.floor(Date.now() / 1000) + 3600;
+const token = (tid?: number, userId = 7, exp: number = EXP, extra: object = {}) =>
+  `h.${b64({ userId, ...(tid ? { tid } : {}), exp, ...extra })}.s`;
 const profile = (tid: number, userId: number, email = "teacher@school.rw") =>
   JSON.stringify({
     tenant: { tid },
@@ -58,7 +61,7 @@ const profile = (tid: number, userId: number, email = "teacher@school.rw") =>
     profile: { user_type: "TEACHER", first_name: "Ada", date_of_birth: null },
   });
 const signedIn = (tid: number, userId: number, email?: string) => ({
-  token: token(tid),
+  token: token(tid, userId),
   "nga.identity": `${tid}:${userId}`,
   [`nga.user.offlineCache.t${tid}.u${userId}`]: profile(tid, userId, email),
 });
@@ -68,7 +71,7 @@ describe("bridge.js: who is signed in (MIS page)", () => {
     const b = boot({ storage: signedIn(2, 31), cookie: "nga_school=2.abcdefgh12" });
     await b.tick();
     expect(b.identities()).toEqual([
-      { userId: 31, tid: 2, userType: "TEACHER", firstName: "Ada", dateOfBirth: null, email: "teacher@school.rw" },
+      { userId: 31, tid: 2, userType: "TEACHER", firstName: "Ada", dateOfBirth: null, email: "teacher@school.rw", switched: false },
     ]);
   });
 
@@ -101,6 +104,126 @@ describe("bridge.js: who is signed in (MIS page)", () => {
   });
 });
 
+describe("bridge.js: DK-ISO-1 nobody is reported while MIS is signed out", () => {
+  it("reports nothing without a token, even with the previous person's profile left behind", async () => {
+    const left = signedIn(2, 31);
+    delete (left as Record<string, string>).token;
+    const b = boot({ storage: left, cookie: "nga_school=2.abcdefgh12" });
+    await b.tick();
+    expect(b.identities()).toEqual([]);
+  });
+
+  it("reports nothing with an expired token", async () => {
+    const b = boot({
+      storage: { ...signedIn(2, 31), token: token(2, 31, Math.floor(Date.now() / 1000) - 60) },
+      cookie: "nga_school=2.abcdefgh12",
+    });
+    await b.tick();
+    expect(b.identities()).toEqual([]);
+  });
+
+  it("reports nothing with a token that has no exp or no userId", async () => {
+    const noExp = `h.${b64({ userId: 31, tid: 2 })}.s`;
+    const noUser = `h.${b64({ tid: 2, exp: EXP })}.s`;
+    for (const t of [noExp, noUser, "garbage"]) {
+      const b = boot({ storage: { ...signedIn(2, 31), token: t }, cookie: "nga_school=2.abcdefgh12" });
+      await b.tick();
+      expect(b.identities()).toEqual([]);
+    }
+  });
+
+  it("reports nothing when the token names another person than nga.identity", async () => {
+    const b = boot({ storage: { ...signedIn(2, 31), token: token(2, 99) }, cookie: "nga_school=2.abcdefgh12" });
+    await b.tick();
+    expect(b.identities()).toEqual([]);
+  });
+
+  it("never falls back to the unscoped legacy cache when nga.identity is set", async () => {
+    // A modern MIS (nga.identity) without its scoped copy, and the legacy key of someone.
+    const b = boot({
+      storage: { token: token(2, 31), "nga.identity": "2:31", "nga.user.offlineCache": profile(2, 31) },
+      cookie: "nga_school=2.abcdefgh12",
+    });
+    await b.tick();
+    expect(b.identities()).toEqual([]);
+  });
+
+  it("reads the legacy cache (no nga.identity) only for the token's own person", async () => {
+    const other = boot({ storage: { token: token(1, 8), "nga.user.offlineCache": profile(1, 7) } });
+    await other.tick();
+    expect(other.identities()).toEqual([]);
+    const own = boot({ storage: { token: token(1, 7), "nga.user.offlineCache": profile(1, 7) } });
+    expect(own.identities()[0]).toMatchObject({ userId: 7, tid: 1 });
+  });
+
+  it("stops reporting after the token goes, and reports again on the next sign-in", async () => {
+    const b = boot({ storage: signedIn(2, 31), cookie: "nga_school=2.abcdefgh12" });
+    await b.tick();
+    expect(b.identities()).toHaveLength(1);
+    b.w.localStorage.removeItem("token"); // signed out in a spoke / by MIS
+    await b.tick();
+    await b.tick();
+    expect(b.identities()).toHaveLength(1);
+    b.w.localStorage.setItem("token", token(2, 31));
+    await b.tick();
+    expect(b.identities()).toHaveLength(2);
+  });
+});
+
+describe("bridge.js: DK-ISO-2 switch signal", () => {
+  it("flags the report after nga_school changed while the page stayed signed in", async () => {
+    const b = boot({ storage: signedIn(2, 31), cookie: "nga_school=2.abcdefgh12" });
+    await b.tick();
+    expect(b.identities()[0]).toMatchObject({ switched: false });
+    b.w.document.cookie = "nga_school=3.abcdefgh12";
+    await b.tick(); // mid-switch: nothing reported
+    for (const [k, v] of Object.entries(signedIn(3, 44))) b.w.localStorage.setItem(k, v);
+    await b.tick();
+    expect(b.identities()[1]).toMatchObject({ userId: 44, tid: 3, switched: true });
+  });
+
+  it("does not flag a sign-in that follows a sign-out", async () => {
+    const b = boot({ storage: signedIn(2, 31), cookie: "nga_school=2.abcdefgh12" });
+    await b.tick();
+    b.w.localStorage.clear();
+    b.w.document.cookie = "nga_school=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    await b.tick();
+    b.w.document.cookie = "nga_school=3.abcdefgh12";
+    for (const [k, v] of Object.entries(signedIn(3, 44))) b.w.localStorage.setItem(k, v);
+    await b.tick();
+    expect(b.identities()[1]).toMatchObject({ userId: 44, tid: 3, switched: false });
+  });
+});
+
+describe("bridge.js: DK-ISO-6 e-mail from the token", () => {
+  it("prefers the token's e-mail claim over the page's cached profile", async () => {
+    const b = boot({
+      storage: { ...signedIn(2, 31, "cached@school.rw"), token: token(2, 31, EXP, { email: "claim@school.rw" }) },
+      cookie: "nga_school=2.abcdefgh12",
+    });
+    await b.tick();
+    expect(b.identities()[0]).toMatchObject({ email: "claim@school.rw" });
+  });
+
+  it("falls back to the cached profile without a usable claim", async () => {
+    const b = boot({
+      storage: { ...signedIn(2, 31, "cached@school.rw"), token: token(2, 31, EXP, { email: "not-an-email" }) },
+      cookie: "nga_school=2.abcdefgh12",
+    });
+    await b.tick();
+    expect(b.identities()[0]).toMatchObject({ email: "cached@school.rw" });
+  });
+});
+
+describe("bridge.js: DK-ISO-4 notices carry their page's school", () => {
+  it("sends the nga_school tid with web_notify", () => {
+    const b = boot({ app: "tupo", url: "https://tupo.amashuri.com/chat", cookie: "nga_school=4.abcdefgh12" });
+    new b.w.Notification("Hello", { body: "x" });
+    const call = b.calls.find((c) => c.cmd === "web_notify");
+    expect(call?.args.school).toBe(4);
+  });
+});
+
 describe("bridge.js: tools calls name the settled school only", () => {
   it("sends X-NGA-Tenant equal to the token's school once settled", async () => {
     const b = boot({ storage: signedIn(2, 31), cookie: "nga_school=2.abcdefgh12" });
@@ -127,7 +250,7 @@ describe("bridge.js: tools calls name the settled school only", () => {
     await wait(500);
     const call = b.fetches.find((f) => f.url.includes("/desktop/tools/ping"));
     expect(call?.headers["X-NGA-Tenant"]).toBe("3");
-    expect(call?.headers.Authorization).toBe(`Bearer ${token(3)}`);
+    expect(call?.headers.Authorization).toBe(`Bearer ${token(3, 44)}`);
   });
 });
 

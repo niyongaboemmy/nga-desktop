@@ -10,6 +10,15 @@
 //! **Windows:** WinRT toasts through the notification plugin. They're on
 //! unless turned off in Settings → System → Notifications, which we link to.
 //! A click brings NGA back, and notifications.rs counts that as the click.
+//!
+//! **Withdrawing banners (DK-ISO-3):** on sign-out, a wipe and a school switch
+//! (`withdraw_all`), the banners already delivered leave Notification Center,
+//! so the next person never reads the previous one's. Only macOS (installed
+//! .app, UNUserNotificationCenter) can do that today: the notification plugin
+//! has no remove call on desktop, and Windows' toast history API (WinRT
+//! `ToastNotificationHistory`) is not wired in. Where banners can't be
+//! withdrawn, banners of the apps that carry private messages
+//! (`PRIVATE_APPS`) show no preview: a generic title and the app's name only.
 
 use serde::Serialize;
 use tauri::{AppHandle, Runtime};
@@ -38,6 +47,56 @@ pub struct Banner<'a> {
     pub sound: bool,
 }
 
+/// Apps whose banners carry private messages (Tupo chat and mail). On a
+/// system that can't withdraw delivered banners, they show no preview.
+pub const PRIVATE_APPS: &[&str] = &["tupo"];
+
+/// Can delivered banners be withdrawn on this system?
+pub fn can_withdraw() -> bool {
+    #[cfg(target_os = "macos")]
+    return mac::available();
+    #[cfg(not(target_os = "macos"))]
+    false
+}
+
+/// How many times `withdraw_all` ran (diagnostics and tests).
+static WITHDRAWALS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(test)]
+pub fn withdrawals() -> usize {
+    WITHDRAWALS.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+/// Remove every banner NGA delivered (and any still pending) from the OS
+/// notification list. Returns whether this system could do it.
+pub fn withdraw_all() -> bool {
+    WITHDRAWALS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    #[cfg(target_os = "macos")]
+    if mac::available() {
+        mac::withdraw_all();
+        log::info!("OS notifications withdrawn");
+        return true;
+    }
+    false
+}
+
+/// Title and body of a banner shown through the notification plugin (no
+/// subtitle there). `can_withdraw` false: private apps show no preview.
+pub fn plugin_text(b: &Banner<'_>, can_withdraw: bool) -> (String, String) {
+    if !can_withdraw && PRIVATE_APPS.contains(&b.app_key) {
+        return (
+            crate::i18n::t("notice.private").to_string(),
+            b.app_name.to_string(),
+        );
+    }
+    let body = if b.body.is_empty() {
+        b.app_name.to_string()
+    } else {
+        format!("{}: {}", b.app_name, b.body)
+    };
+    (b.title.to_string(), body)
+}
+
 /// Call once at start-up with what to do when a banner is clicked.
 pub fn init(on_click: impl Fn(u64) + Send + Sync + 'static) {
     #[cfg(target_os = "macos")]
@@ -61,12 +120,8 @@ pub fn show<R: Runtime>(app: &AppHandle<R>, b: Banner<'_>) {
         mac::show(&b);
         return;
     }
-    let body = if b.body.is_empty() {
-        b.app_name.to_string()
-    } else {
-        format!("{}: {}", b.app_name, b.body)
-    };
-    let mut n = app.notification().builder().title(b.title).body(body);
+    let (title, body) = plugin_text(&b, can_withdraw());
+    let mut n = app.notification().builder().title(title).body(body);
     if b.sound {
         n = n.sound("default");
     }
@@ -229,6 +284,12 @@ mod mac {
             .unwrap_or_else(|_| status())
     }
 
+    pub fn withdraw_all() {
+        let center = UNUserNotificationCenter::currentNotificationCenter();
+        center.removeAllDeliveredNotifications();
+        center.removeAllPendingNotificationRequests();
+    }
+
     pub fn show(b: &Banner<'_>) {
         let content = UNMutableNotificationContent::new();
         content.setTitle(&NSString::from_str(b.title));
@@ -246,5 +307,46 @@ mod mac {
         );
         UNUserNotificationCenter::currentNotificationCenter()
             .addNotificationRequest_withCompletionHandler(&request, None);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn banner<'a>(app_key: &'a str, title: &'a str, body: &'a str) -> Banner<'a> {
+        Banner {
+            id: 1,
+            app_key,
+            app_name: "Tupo",
+            title,
+            body,
+            sound: false,
+        }
+    }
+
+    #[test]
+    fn dk_iso_3_private_banners_show_no_preview_when_they_cannot_be_withdrawn() {
+        let b = banner("tupo", "Message from Ada", "See you at 3");
+        let (title, body) = plugin_text(&b, false);
+        assert!(!title.contains("Ada") && !body.contains("See you"));
+        assert_eq!(body, "Tupo");
+        assert!(!title.is_empty());
+        // Withdrawable: the full banner.
+        assert_eq!(
+            plugin_text(&b, true),
+            ("Message from Ada".into(), "Tupo: See you at 3".into())
+        );
+        // Other apps keep their text.
+        let tm = banner("taskmentor", "Quiz opens", "Maths");
+        assert_eq!(plugin_text(&tm, false).0, "Quiz opens");
+    }
+
+    #[test]
+    fn dk_iso_3_withdraw_all_is_counted_and_safe_without_a_bundle() {
+        let before = withdrawals();
+        // A test binary has no .app bundle: nothing to withdraw, no panic.
+        assert!(!withdraw_all() || can_withdraw());
+        assert!(withdrawals() > before);
     }
 }
