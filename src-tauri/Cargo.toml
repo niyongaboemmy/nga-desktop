@@ -65,3 +65,5 @@ objc2-user-notifications = { version = "0.3", features = ["UNUserNotificationCen
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_System_SystemInformation", "Win32_Foundation", "Win32_Security_Cryptography"] }
+# WinRT toast history: withdraw delivered notifications (os_notify.rs, DK-ISO-3).
+windows = { version = "0.62", features = ["Foundation", "UI_Notifications"] }

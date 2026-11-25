@@ -178,7 +178,7 @@ pub fn run() {
             menus::build_app_menu(app.handle())?;
             menus::build_tray(app.handle())?;
             let handle = app.handle().clone();
-            os_notify::init(move |id| {
+            os_notify::init(&app.config().identifier, move |id| {
                 let h = handle.clone();
                 let _ = handle.run_on_main_thread(move || {
                     menus::focus_main(&h);
